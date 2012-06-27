@@ -22,7 +22,7 @@ Should print something like:
     
     here 2 (/file.py:line)
 
-### v(arg1, [arg2, ...]) -- easy way to print variables
+### pout.v(arg1, [arg2, ...]) -- easy way to print variables
 
 example
 
@@ -62,3 +62,17 @@ Use PIP
 
 that's it, the module is still pretty basic but scratches my itch right now, I'm sure
 I'll add more stuff, and fix bugs, as I find, and fix, them.
+
+## Other Things
+
+If, like me, you hate having to constantly do `import pout` at the top of every module you
+want to use `pout` in, you can put this snippet of code in your dev environment so you no longer
+have to import pout:
+
+    # handy for dev environment, make pout available to all modules without an import
+    import pout
+    import __builtin__
+    __builtin__.pout = pout
+    
+[Read more](http://stackoverflow.com/questions/142545/python-how-to-make-a-cross-module-variable) 
+on what the above snippet does.

@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# I shamefully ripped most of this off from fbconsole because it was a setup.py I had
+# readily available.
+# http://docs.python.org/distutils/setupscript.html
 
 import sys
 from setuptools import setup
