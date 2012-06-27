@@ -1,0 +1,34 @@
+#!/usr/bin/env python
+
+import sys
+from setuptools import setup
+
+install_requires = []
+extra = {}
+
+setup(
+    name='pout',
+    version='0.1',
+    description='Prints out python variables in an easy to read way, handy for debugging',
+    author='Jay Marcyes',
+    author_email='jay@marcyes.com',
+    url='http://github.com/Jaymon/pout',
+    package_dir={'': 'src'},
+    py_modules=[
+        'pout',
+    ],
+    license="MIT",
+    install_requires=install_requires,
+    zip_safe=True,
+    classifiers=[
+        'Development Status :: 0.1 -- Alpha',
+        'Environment :: Console',
+        'Intended Audience :: Developers',
+        'License :: MIT',
+        'Operating System :: OS Independent',
+        'Topic :: Debug',
+        ],
+    test_suite = "fbconsole.test_pout",
+    entry_points = "", # http://stackoverflow.com/questions/774824/explain-python-entry-points
+    **extra
+)

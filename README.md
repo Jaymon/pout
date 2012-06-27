@@ -1,0 +1,64 @@
+# Pout -- Easy Python variable printing
+
+`print()` was too hard to read, `pprint` wasn't much better. I was also getting sick of typing: 
+`print "var = {}".format(var)`. 
+
+This tries to print out variables with their name, for good measure, it also prints 
+where the print statement is located (so you can easily find it and delete it when you're done).
+
+## Methods
+
+### pout.h() -- easy way to print "here" in the code
+
+example
+
+    pout.h(1)
+    # do something else
+    pout.h(2)
+    
+Should print something like:
+
+    here 1 (/file.py:line)
+    
+    here 2 (/file.py:line)
+
+### v(arg1, [arg2, ...]) -- easy way to print variables
+
+example
+
+    foo = 1
+    pout.v(foo)
+    
+    bar = [1, 2, [3, 4], 5]
+    pout.v(bar)
+    
+should print something like:
+
+    foo = 1
+    (/file.py:line)
+
+    bar (4) =
+    [
+            0: 1,
+            1: 2,
+            3:
+                    [
+                            0: 3,
+                            1: 4
+                    ],
+            4: 5
+    ]
+    (/file.py:line)
+
+You can chain variables together
+
+    pout.v(foo, bar)
+
+## Install
+
+Use PIP
+
+    pip install git+
+
+that's it, the module is still pretty basic but scratches my itch right now, I'm sure
+I'll add more stuff, and fix bugs, as I find, and fix, them.
