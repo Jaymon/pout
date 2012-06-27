@@ -58,7 +58,7 @@ You can chain variables together
 
 Use PIP
 
-    pip install git+
+    pip install git+https://github.com/Jaymon/pout#egg=pout
 
 that's it, the module is still pretty basic but scratches my itch right now, I'm sure
 I'll add more stuff, and fix bugs, as I find, and fix, them.
