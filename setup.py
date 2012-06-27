@@ -8,10 +8,12 @@ from setuptools import setup
 
 install_requires = []
 extra = {}
+version = '0.1.1'
+
 
 setup(
     name='pout',
-    version='0.1',
+    version=version,
     description='Prints out python variables in an easy to read way, handy for debugging',
     author='Jay Marcyes',
     author_email='jay@marcyes.com',
@@ -24,7 +26,7 @@ setup(
     install_requires=install_requires,
     zip_safe=True,
     classifiers=[
-        'Development Status :: 0.1 -- Alpha',
+        'Development Status :: {}'.format(version),
         'Environment :: Console',
         'Intended Audience :: Developers',
         'License :: MIT',

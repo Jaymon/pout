@@ -172,14 +172,22 @@ def _str_val(val, depth=0):
         
     elif hasattr(val, '__dict__'):
     
-        # http://stackoverflow.com/questions/109087/python-get-instance-variables
-        s = _str_iterator(
-            iterator={k: v for k, v in inspect.getmembers(val) if not callable(getattr(val,k)) and (k[:2] != '__' and k[-2:] != '__')}.iteritems(), 
-            prefix="{}\n".format(val.__class__),
-            left_paren='<', 
-            right_paren='>',
-            depth=depth
-        )
+        full_name = "{}.{}".format(val.__module__, val.__class__.__name__)
+        
+        if hasattr(val, '__str__'):
+        
+            s = '{} instance\n"{}"'.format(full_name, str(val))
+            
+        else:
+        
+            # http://stackoverflow.com/questions/109087/python-get-instance-variables
+            s = _str_iterator(
+                iterator={k: v for k, v in inspect.getmembers(val) if not callable(getattr(val,k)) and (k[:2] != '__' and k[-2:] != '__')}.iteritems(), 
+                prefix="{}\n".format(full_name),
+                left_paren='<', 
+                right_paren='>',
+                depth=depth
+            )
         
     else:
         s = str(val)

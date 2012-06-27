@@ -8,6 +8,15 @@ class Foo(object):
         self.che = 2
         self.baz = 3
 
+class Bar(object):
+    def __init__(self):
+        self.foo = 1
+        self.che = 2
+        self.baz = 3
+
+    def __str__(self):
+        return u"Bar"
+
 class PoutTest(unittest.TestCase):
 
     def test_h(self):
@@ -16,14 +25,13 @@ class PoutTest(unittest.TestCase):
         
         pout.h()
 
+    def test_instance_str_method(self):
+    
+        b = Bar()
+        pout.v(b)
+
     def test_one_arg(self):
-        
-        foo = Foo()
-        pout.v(foo)
-        
-        return
-        
-        
+    
         foo = [
             [
                 [1, 2, 3],
