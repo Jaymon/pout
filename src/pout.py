@@ -5,6 +5,13 @@ print was too hard to read, pprint wasn't much better. I was getting sick of typ
 print "var name: {}".format(var). This tries to print out variables with their name, 
 and where the print statement was called (so you can easily find it and delete it later).
 
+link -- http://stackoverflow.com/questions/3229419/pretty-printing-nested-dictionaries-in-python
+link -- http://docs.python.org/library/pprint.html
+link -- http://docs.python.org/library/inspect.html
+
+in the future, to list method arguments:
+link -- http://stackoverflow.com/questions/3517892/python-list-function-argument-names
+
 note -- this is still really basic, I'm adding things as I need them
 
 api --
@@ -214,6 +221,8 @@ def _str_iterator(iterator, name_callback=None, prefix="\n", left_paren='[', rig
 def _add_indent(val, indent):
     '''
     add whitespace to the beginning of each line of val
+    
+    link -- http://code.activestate.com/recipes/66055-changing-the-indentation-of-a-multi-line-string/
     
     val -- string
     indent -- integer -- how much whitespace we want in front of each line of val
