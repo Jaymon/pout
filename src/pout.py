@@ -31,6 +31,7 @@ license -- MIT -- http://www.opensource.org/licenses/mit-license.php
 import inspect
 import os
 import sys
+import traceback
 
 def h(count=0):
     '''
@@ -93,6 +94,8 @@ def _print(args, call_info):
     args -- list -- the list of string args to print
     call_info -- dict -- returned from _get_arg_info()
     '''
+
+    sys.stderr.write("\n")
 
     for arg in args:
         sys.stderr.write(str(arg))
@@ -169,25 +172,50 @@ def _str_val(val, depth=0):
         
     elif isinstance(val, basestring):
         s = '"{}"'.format(str(val))
-        
-    elif hasattr(val, '__dict__'):
     
-        full_name = "{}.{}".format(val.__module__, val.__class__.__name__)
+    elif isinstance(val, BaseException):
+    
+        # http://docs.python.org/library/traceback.html
+        # http://www.doughellmann.com/PyMOTW/traceback/
+        # http://stackoverflow.com/questions/4564559
+        # http://stackoverflow.com/questions/6626342
+    
+        full_name = _get_name(val)
+        exc_type, exc_value, exc_tb = sys.exc_info()
         
+        # todo -- go through the traceback and collapse site-packages files as they make
+        # the traceback a lot harder to read and most of the time the problem is in our
+        # code
+        
+        s = "{} - {}\n\n{}".format(full_name, val, "".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+    
+    elif hasattr(val, '__dict__'):
+        
+        full_name = _get_name(val)
+        d = {}
+    
+        try:
+            d = {k: v for k, v in inspect.getmembers(val) if not callable(getattr(val,k)) and (k[:2] != '__' and k[-2:] != '__')}
+        except Exception, e:
+            # that failed, so try something else
+            try:
+                d = vars(val)
+            except Exception, e:
+                d = {'pout': "failed to extract class members"}
+                pass
+    
         if hasattr(val, '__str__'):
+            d["__str__"] = '"{}"'.format(str(val))
         
-            s = '{} instance\n"{}"'.format(full_name, str(val))
-            
-        else:
-        
-            # http://stackoverflow.com/questions/109087/python-get-instance-variables
-            s = _str_iterator(
-                iterator={k: v for k, v in inspect.getmembers(val) if not callable(getattr(val,k)) and (k[:2] != '__' and k[-2:] != '__')}.iteritems(), 
-                prefix="{}\n".format(full_name),
-                left_paren='<', 
-                right_paren='>',
-                depth=depth
-            )
+    
+        # http://stackoverflow.com/questions/109087/python-get-instance-variables
+        s = _str_iterator(
+            iterator=d.iteritems(), 
+            prefix="{} instance\n".format(full_name),
+            left_paren='<', 
+            right_paren='>',
+            depth=depth
+        )
         
     else:
         s = str(val)
@@ -226,6 +254,23 @@ def _str_iterator(iterator, name_callback=None, prefix="\n", left_paren='[', rig
     
     return s
 
+def _get_name(val, default='Unknown'):
+    '''
+    get the full namespaced (module + class) name of the val object
+    
+    since -- 6-28-12
+    
+    val -- mixed -- the value (everything is an object) object
+    default -- string -- the default name if a decent name can't be found programmatically
+    
+    return -- string -- the full.module.Name
+    '''
+    module_name = '{}.'.format(getattr(val, '__module__', '')).lstrip('.')
+    class_name = getattr(getattr(val, '__class__'), '__name__', default)
+    full_name = "{}{}".format(module_name, class_name)
+    
+    return full_name
+
 def _add_indent(val, indent):
     '''
     add whitespace to the beginning of each line of val
@@ -259,39 +304,54 @@ def _get_arg_info(arg_vals={}, back_i=0):
     return -- dict -- a bunch of info on the call
     '''
     
-    ret_dict = {}
+    ret_dict = {
+        'args': {},
+        'frame': None,
+        'line': 'Unknown',
+        'file': 'Unknown'
+    }
     args = {}
     
     back_i += 2 # move past the call to the outer frames and the call to this function
     frame = inspect.currentframe()
     frames = inspect.getouterframes(frame)
     
-    ret_dict['frame'] = frames[back_i]
-    ret_dict['line'] = frames[back_i][2]
-    ret_dict['file'] = os.path.abspath(inspect.getfile(frames[back_i][0]))
+    if len(frames) > back_i:
+        ret_dict['frame'] = frames[back_i]
+        ret_dict['line'] = frames[back_i][2]
+        ret_dict['file'] = os.path.abspath(inspect.getfile(frames[back_i][0]))
     
     # build the arg list if values have been passed in
     if len(arg_vals) > 0:
         
-        # first thing we need to do is move to the first paren:
-        append = False
-        arg_str = ''
-        for c in frames[back_i][4][0]:
-    
-            if c == '(':
-                append = True
-                continue
-            elif c == ')':
-                append = False
-                continue
+        args = {}
         
-            if append:
-                arg_str += c
+        if frames[back_i][4] is not None:
+            
+            # first thing we need to do is move to the first paren:
+            append = False
+            arg_str = ''
+            for c in frames[back_i][4][0]:
         
-        for i, arg_name in enumerate([x.strip() for x in arg_str.split(',')]):
-            args[arg_name] = arg_vals[i]
+                if c == '(':
+                    append = True
+                    continue
+                elif c == ')':
+                    append = False
+                    continue
+            
+                if append:
+                    arg_str += c
+            
+            for i, arg_name in enumerate([x.strip() for x in arg_str.split(',')]):
+                args[arg_name] = arg_vals[i]
+            
+        else:
+            # we can't autodiscover the names, in an interactive shell session?
+            for arg_val in arg_vals:
+                args['Unknown'] = arg_val
         
-        ret_dict['args'] = args
+        ret_dict['args'] = args    
     
     return ret_dict
 

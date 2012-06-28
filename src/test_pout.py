@@ -17,7 +17,32 @@ class Bar(object):
     def __str__(self):
         return u"Bar"
 
+class Che(object):
+
+    def __getattr__(self, key):
+        return self.__getattr(key)
+
+    def __str__(self):
+        return u"Che"
+
 class PoutTest(unittest.TestCase):
+
+    def test_object(self):
+    
+        c = Che()
+        pout.v(c)
+
+    def test_exception(self):
+    
+        e = IndexError("foo")
+        pout.v(e)
+        
+        try:
+            
+            raise e
+            
+        except Exception, e:
+            pout.v(e)
 
     def test_h(self):
         
