@@ -27,7 +27,41 @@ class Che(object):
 
 class PoutTest(unittest.TestCase):
 
+    def test_multi(self):
+    
+        foo = 1
+        bar = 2
+        che = {'foo': 3, 'bar': 4}
+        
+        def func(a, b):
+            return a + b
+        
+        pout.v('this string is formatted {} {}'.format(foo, bar))
+        return
+        pout.v('this string' + " is added together")
+        pout.v(func('this string', " has 'single quotes'"))
+        pout.v('this string has \'single quotes\'')
+        pout.v("this string has \"quotes\"")
+        pout.v(che['foo'], che['bar'])
+        pout.v(foo, "this isn't a string, just kidding")
+        pout.v(foo, "(a) this is a string")
+        
+        pout.v(foo, "(a this is a string")
+        pout.v(foo, "a) this is a string")  
+        pout.v(foo, "this is a, string")
+        pout.v(foo, "this is a simple string")
+            
+        pout.v(foo, bar, func(1, 2))
+
     def test_object(self):
+    
+        f = Foo()
+        
+        print vars(f.__class__)
+        
+        pout.v(f)
+        
+        return 
     
         c = Che()
         pout.v(c)

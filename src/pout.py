@@ -80,7 +80,7 @@ def v(*args):
     
     call_info = _get_arg_info(args)
     
-    args = ["{}\n".format(_str(k, v)) for k, v in call_info['args'].items()]
+    args = ["{}\n\n".format(_str(v['name'], v['val'])) for v in call_info['args']]
     _print(args, call_info)
 
 def _print(args, call_info):
@@ -119,18 +119,16 @@ def _str(name, val):
     
     s = ''
     
-    if isinstance(val, dict):
+    if isinstance(val, (dict, list, tuple)):
     
         count = len(val)
         s = "{} ({}) = {}".format(name, count, _str_val(val, depth=0))
        
-    elif isinstance(val, list):
-    
-        count = len(val)
-        s = "{} ({}) = {}".format(name, count, _str_val(val, depth=0))
-    
     else:
-        s = "{} = {}".format(name, _str_val(val))
+        if name:
+            s = "{} = {}".format(name, _str_val(val))
+        else:
+            s = _str_val(val)
     
     return s
 
@@ -256,7 +254,6 @@ def _str_iterator(iterator, name_callback=None, prefix="\n", left_paren='[', rig
     for k, v in iterator:
         k = k if name_callback is None else name_callback(k)
         try:
-            print k
             s_body += "{}: {},\n".format(k, _str_val(v, depth=depth+1))
         except RuntimeError, e:
             # I've never gotten this to work
@@ -340,33 +337,70 @@ def _get_arg_info(arg_vals={}, back_i=0):
     # build the arg list if values have been passed in
     if len(arg_vals) > 0:
         
-        args = {}
+        args = []
         
         if frames[back_i][4] is not None:
             
-            # first thing we need to do is move to the first paren:
-            append = False
-            arg_str = ''
+            stack_paren = []
+            stack_bracket = []
+            stack_quote = []
+            has_name = True
+            arg_build = False
+            arg_name = ''
+            arg_names = []
+            
             for c in frames[back_i][4][0]:
-        
-                if c == '(':
-                    append = True
-                    continue
-                elif c == ')':
-                    append = False
-                    continue
             
-                if append:
-                    arg_str += c
+                if c == '(' and (len(stack_quote) == 0):
+                    stack_paren.append(c)
+                    if len(stack_paren) == 1:
+                        # we've found the first paren of the pout call
+                        arg_build = True
+                        continue
+                
+                elif c == ')' and (len(stack_quote) == 0):
+                    stack_paren.pop()
+                    
+                    if len(stack_paren) == 0:
+                        arg_names.append(arg_name if has_name else '')
+                        break
+                
+                elif c == '[' and (len(stack_quote) == 0):
+                    stack_bracket.append(c)
+                elif c == ']' and (len(stack_quote) == 0):
+                    stack_bracket.pop()
+                elif c == '"' or c == "'":
+                    # we only pop on matches, because strings that start with ' can have " and vice versa
+                    if len(stack_quote) > 0:
+                        if stack_quote[-1] == c:
+                            stack_quote.pop()
+                    else:
+                        # a string was passed in
+                        if (len(stack_paren) == 1) and (len(stack_bracket) == 0):
+                            has_name = False
+                    
+                        stack_quote.append(c)
+                
+                elif c == ',':
+                    # we have finished compiling an argument name
+                    if (len(stack_paren) == 1) and (len(stack_bracket) == 0) and (len(stack_quote) == 0):
+                        arg_names.append(arg_name if has_name else '')
+                        has_name = True
+                        arg_name = ''
+                        continue
+                
+                if arg_build:
+                    arg_name += c
             
-            for i, arg_name in enumerate([x.strip() for x in arg_str.split(',')]):
-                args[arg_name] = arg_vals[i]
+            # match the found arg names to their respective values
+            for i, arg_name in enumerate(arg_names):
+                args.append({'name': arg_name.strip(), 'val': arg_vals[i]})
             
         else:
             # we can't autodiscover the names, in an interactive shell session?
-            for arg_val in arg_vals:
-                args['Unknown'] = arg_val
-        
+            for i, arg_val in enumerate(arg_vals):
+                args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
+            
         ret_dict['args'] = args    
     
     return ret_dict
