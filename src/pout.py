@@ -169,7 +169,16 @@ def _str_val(val, depth=0):
       
         else:
             s = "[]"
-        
+     
+    elif isinstance(val, tuple):
+
+        if len(val) > 0:
+      
+            s = _str_iterator(iterator=enumerate(val), left_paren='(', right_paren=')', depth=depth)
+      
+        else:
+            s = "()"
+      
     elif isinstance(val, basestring):
         s = '"{}"'.format(str(val))
     
@@ -191,31 +200,33 @@ def _str_val(val, depth=0):
     
     elif hasattr(val, '__dict__'):
         
-        full_name = _get_name(val)
         d = {}
-    
-        try:
-            d = {k: v for k, v in inspect.getmembers(val) if not callable(getattr(val,k)) and (k[:2] != '__' and k[-2:] != '__')}
-        except Exception, e:
-            # that failed, so try something else
-            try:
-                d = vars(val)
-            except Exception, e:
-                d = {'pout': "failed to extract class members"}
-                pass
-    
+        full_name = _get_name(val)
+        to_string = ''
         if hasattr(val, '__str__'):
-            d["__str__"] = '"{}"'.format(str(val))
+            to_string = '{}'.format(str(val))
         
-    
-        # http://stackoverflow.com/questions/109087/python-get-instance-variables
-        s = _str_iterator(
-            iterator=d.iteritems(), 
-            prefix="{} instance\n".format(full_name),
-            left_paren='<', 
-            right_paren='>',
-            depth=depth
-        )
+        if depth < 2:
+        
+            # this would get into a recursion error when used with Django models
+            #d = {k: v for k, v in inspect.getmembers(val) if not callable(getattr(val,k)) and (k[:2] != '__' and k[-2:] != '__')}
+            
+            # todo -- vars does not get class members
+            d = vars(val)
+            d["__str__"] = to_string
+        
+            # http://stackoverflow.com/questions/109087/python-get-instance-variables
+            
+            s = _str_iterator(
+                iterator=d.iteritems(), 
+                prefix="{} instance\n".format(full_name),
+                left_paren='<', 
+                right_paren='>',
+                depth=depth
+            )
+            
+        else:
+            s = '{} instance\n"{}"'.format(full_name, to_string)
         
     else:
         s = str(val)
@@ -241,10 +252,15 @@ def _str_iterator(iterator, name_callback=None, prefix="\n", left_paren='[', rig
     s = '{}{}\n'.format(prefix, _add_indent(left_paren, indent))
             
     s_body = ''
-    
+        
     for k, v in iterator:
         k = k if name_callback is None else name_callback(k)
-        s_body += "{}: {},\n".format(k, _str_val(v, depth=depth+1))
+        try:
+            print k
+            s_body += "{}: {},\n".format(k, _str_val(v, depth=depth+1))
+        except RuntimeError, e:
+            # I've never gotten this to work
+            s_body += "{}: ... Recursion error ...,\n".format(k)
     
     s_body = s_body.rstrip(",\n")
     s_body = _add_indent(s_body, indent + 1)
