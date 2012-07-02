@@ -50,9 +50,34 @@ should print something like:
     ]
     (/file.py:line)
 
-You can chain variables together
+You can send as many variables as you want into the call (though they all need to be on the same
+line, see the limitations below)
 
+    pout.v(foo, bar, che)
+
+#### Limitations
+
+Currently, multi-line method calls will lead to unexpected behavior:
+  
+    # this is bad
+    pout.v(
+        foo,
+        bar
+    )
+    
+    # this is bad also
+    pout.v(
+        foo,
+        bar)
+        
+    # still bad
+    pout.v(
+        foo,bar)
+    
+    # this is good
     pout.v(foo, bar)
+    
+Will lead to unexpected behavior.
 
 ## Install
 

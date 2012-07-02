@@ -27,7 +27,19 @@ class Che(object):
 
 class PoutTest(unittest.TestCase):
 
+    def test_multiline_call(self):
+        
+        foo = 1,
+        bar = 2
+        
+        from pout import v as voom
+        
+        voom(foo,bar)
+
     def test_multi(self):
+        '''
+        since -- 6-30-12
+        '''
     
         foo = 1
         bar = 2
@@ -35,9 +47,13 @@ class PoutTest(unittest.TestCase):
         
         def func(a, b):
             return a + b
+
         
+        pout.v("this string has 'mixed quotes\"")
+        pout.v('this string has \'mixed quotes"')
+        pout.v('this string has \'single quotes\' and "double quotes"')
+        pout.v(foo, 'this isn\'t a string, just kidding')
         pout.v('this string is formatted {} {}'.format(foo, bar))
-        return
         pout.v('this string' + " is added together")
         pout.v(func('this string', " has 'single quotes'"))
         pout.v('this string has \'single quotes\'')

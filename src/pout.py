@@ -341,6 +341,9 @@ def _get_arg_info(arg_vals={}, back_i=0):
         
         if frames[back_i][4] is not None:
             
+            #print frames[back_i][0].f_code
+            print frames[back_i]
+            
             stack_paren = []
             stack_bracket = []
             stack_quote = []
@@ -370,9 +373,9 @@ def _get_arg_info(arg_vals={}, back_i=0):
                 elif c == ']' and (len(stack_quote) == 0):
                     stack_bracket.pop()
                 elif c == '"' or c == "'":
-                    # we only pop on matches, because strings that start with ' can have " and vice versa
+                    # we only pop on unescaped matches, (eg, strings that start with ' can have ")
                     if len(stack_quote) > 0:
-                        if stack_quote[-1] == c:
+                        if (stack_quote[-1] == c) and (arg_name[-1] != '\\'):
                             stack_quote.pop()
                     else:
                         # a string was passed in
