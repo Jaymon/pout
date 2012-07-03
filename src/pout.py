@@ -12,8 +12,6 @@ link -- http://docs.python.org/library/inspect.html
 in the future, to list method arguments:
 link -- http://stackoverflow.com/questions/3517892/python-list-function-argument-names
 
-note -- this is still really basic, I'm adding things as I need them
-
 api --
     h() -- easy way to print "here" in the code
     v(arg1, [arg2, ...]) -- print out arg1 = val, etc. with info like file and line numbers
@@ -35,8 +33,6 @@ import traceback
 import ast
 import re
 
-import pout2
-
 def h(count=0):
     '''
     prints "here count"
@@ -50,7 +46,7 @@ def h(count=0):
     '''
 
     call_info = _get_arg_info()
-    args = ["here {} ".format(count if count > 0 else call_info['line'])]
+    args = [u"here {} ".format(count if count > 0 else call_info['line'])]
     _print(args, call_info)
 
 def v(*args):
@@ -84,7 +80,7 @@ def v(*args):
     
     call_info = _get_arg_info(args)
     
-    args = ["{}\n\n".format(_str(v['name'], v['val'])) for v in call_info['args']]
+    args = [u"{}\n\n".format(_str(v['name'], v['val'])) for v in call_info['args']]
     _print(args, call_info)
 
 def _print(args, call_info):
@@ -104,7 +100,7 @@ def _print(args, call_info):
     for arg in args:
         sys.stderr.write(str(arg))
         
-    sys.stderr.write("({}:{})\n\n".format(call_info['file'], call_info['line']))
+    sys.stderr.write(u"({}:{})\n\n".format(call_info['file'], call_info['line']))
     sys.stderr.flush()
     
    
@@ -126,11 +122,11 @@ def _str(name, val):
     if isinstance(val, (dict, list, tuple)):
     
         count = len(val)
-        s = "{} ({}) = {}".format(name, count, _str_val(val, depth=0))
+        s = u"{} ({}) = {}".format(name, count, _str_val(val, depth=0))
        
     else:
         if name:
-            s = "{} = {}".format(name, _str_val(val))
+            s = u"{} = {}".format(name, _str_val(val))
         else:
             s = _str_val(val)
     
@@ -153,14 +149,14 @@ def _str_val(val, depth=0):
         
             s = _str_iterator(
                 iterator=val.iteritems(), 
-                name_callback= lambda k: "'{}'".format(k),
+                name_callback= lambda k: u"'{}'".format(k),
                 left_paren='{', 
                 right_paren='}',
                 depth=depth
             )
             
         else:
-            s = "{}"
+            s = u"{}"
         
     
     elif isinstance(val, list):
@@ -170,7 +166,7 @@ def _str_val(val, depth=0):
             s = _str_iterator(iterator=enumerate(val), depth=depth)
       
         else:
-            s = "[]"
+            s = u"[]"
      
     elif isinstance(val, tuple):
 
@@ -179,10 +175,10 @@ def _str_val(val, depth=0):
             s = _str_iterator(iterator=enumerate(val), left_paren='(', right_paren=')', depth=depth)
       
         else:
-            s = "()"
+            s = u"()"
       
     elif isinstance(val, basestring):
-        s = '"{}"'.format(str(val))
+        s = u'"{}"'.format(str(val))
     
     elif isinstance(val, BaseException):
     
@@ -198,7 +194,7 @@ def _str_val(val, depth=0):
         # the traceback a lot harder to read and most of the time the problem is in our
         # code
         
-        s = "{} - {}\n\n{}".format(full_name, val, "".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+        s = u"{} - {}\n\n{}".format(full_name, val, u"".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
     
     elif hasattr(val, '__dict__'):
         
@@ -206,15 +202,18 @@ def _str_val(val, depth=0):
         full_name = _get_name(val)
         to_string = ''
         if hasattr(val, '__str__'):
-            to_string = '{}'.format(str(val))
+            to_string = u'{}'.format(str(val))
         
-        if depth < 3:
+        if depth < 4:
         
             # this would get into a recursion error when used with Django models
             #d = {k: v for k, v in inspect.getmembers(val) if not callable(getattr(val,k)) and (k[:2] != '__' and k[-2:] != '__')}
             
-            # todo -- vars does not get class members
-            d = vars(val)
+            if hasattr(val, '__class__'):
+                d['CLASS_VARS'] = {k: v for k, v in vars(val.__class__).iteritems() if (k[:2] != '__' and k[-2:] != '__')}
+                # d['CLASS_VARS'] = vars(val.__class__)
+            
+            d['INSTANCE_VARS'] = vars(val)
             d["__str__"] = to_string
         
             # http://stackoverflow.com/questions/109087/python-get-instance-variables
@@ -228,7 +227,7 @@ def _str_val(val, depth=0):
             )
             
         else:
-            s = '{} instance\n"{}"'.format(full_name, to_string)
+            s = u'{} instance\n"{}"'.format(full_name, to_string)
         
     else:
         s = str(val)
@@ -315,6 +314,11 @@ def _get_arg_info(arg_vals={}, back_i=0):
     this will find what arg names you passed into the method and tie them to their passed in values,
     it will also find file and line number
     
+    note -- 7-3-12 -- I can't help but think this whole function could be moved into other
+        parts of other functions now, since it sets defaults in ret_dict that would probably
+        be better being set in _get_call_info() and combines args that might be better
+        done in a combined _get_arg_names() method
+    
     arg_vals -- list -- the arguments passed to one of the public methods
     back_i -- integer -- how far back in the stack the method call was, this moves back from 2
         already (ie, by default, we add 2 to this value to compensate for the call to this method
@@ -345,66 +349,9 @@ def _get_arg_info(arg_vals={}, back_i=0):
         
         if ret_dict['call'] is not None:
             
-            stack_paren = []
-            stack_bracket = []
-            stack_quote = []
-            has_name = True
-            arg_build = False
-            arg_name = ''
-            arg_names = []
-            
-            for c in ret_dict['call']:
-            
-                if c == '(' and (len(stack_quote) == 0):
-                    stack_paren.append(c)
-                    if len(stack_paren) == 1:
-                        # we've found the first paren of the pout call
-                        arg_build = True
-                        continue
-                
-                elif c == ')' and (len(stack_quote) == 0):
-                    stack_paren.pop()
-                    
-                    if len(stack_paren) == 0:
-                        arg_names.append(arg_name if has_name else '')
-                        break
-                
-                elif c == '[' and (len(stack_quote) == 0):
-                    stack_bracket.append(c)
-                elif c == ']' and (len(stack_quote) == 0):
-                    stack_bracket.pop()
-                elif c == '"' or c == "'":
-                    # we only pop on unescaped matches, (eg, strings that start with ' can have ")
-                    if len(stack_quote) > 0:
-                        if (stack_quote[-1] == c) and (arg_name[-1] != '\\'):
-                            stack_quote.pop()
-                    else:
-                        # a string was passed in
-                        if (len(stack_paren) == 1) and (len(stack_bracket) == 0):
-                            has_name = False
-                    
-                        stack_quote.append(c)
-                
-                elif c == ',':
-                    # we have finished compiling an argument name
-                    if (len(stack_paren) == 1) and (len(stack_bracket) == 0) and (len(stack_quote) == 0):
-                        arg_names.append(arg_name if has_name else '')
-                        has_name = True
-                        arg_name = ''
-                        continue
-                
-                if arg_build:
-                    arg_name += c
-            
-            else:
-                # run this if we didn't break to clean up:
-                # http://psung.blogspot.com/2007/12/for-else-in-python.html
-                if arg_name:
-                    arg_names.append(arg_name if has_name else '')
-            
             # match the found arg names to their respective values
-            for i, arg_name in enumerate(arg_names):
-                args.append({'name': arg_name.strip(), 'val': arg_vals[i]})
+            for i, arg_name in enumerate(ret_dict['arg_names']):
+                args.append({'name': arg_name, 'val': arg_vals[i]})
             
         else:
             # we can't autodiscover the names, in an interactive shell session?
@@ -432,10 +379,11 @@ def _get_call_info(frame_tuple, called_module, called_func):
     '''
 
     call_info = {}
-    call_info['frame'] = frames[back_i]
+    call_info['frame'] = frame_tuple
     call_info['line'] = frame_tuple[2]
     call_info['file'] = os.path.abspath(inspect.getfile(frame_tuple[0]))
-    call_info['call'] = None
+    call_info['call'] = u''
+    call_info['arg_names'] = []
     
     if frame_tuple[4] is not None:
         
@@ -448,22 +396,36 @@ def _get_call_info(frame_tuple, called_module, called_func):
         # now get the actual calling codeblock
         regex = u"\s*(?:{})\s*\(".format(u"|".join([str(v) for v in func_calls]))
         r = re.compile(regex) 
-        if r.match(frame_tuple[4][0]):
-            call_info['call'] = frame_tuple[4][0]
-        else:
-            # we need to move up one line until we have the call, and make sure there is a closing )
-            caller_src_lines = caller_src.split("\n")
-            stop_lineno = call_info['line']
-            start_lineno = call_info['line'] - 2
-            
-            while start_lineno >= 0:
-                call = "\n".join(caller_src_lines[start_lineno:stop_lineno])
-                if(r.match(call)):
-                    break
-                else:
-                    start_lineno -= 1
+        caller_src_lines = caller_src.split("\n")
+        total_lines = len(caller_src_lines)
+        stop_lineno = call_info['line']
+        start_lineno = call_info['line'] - 1
+        arg_names = []
+        call = u''
         
-            call_info['call'] = call
+        # we need to move up one line until we get to the beginning of the call
+        while start_lineno >= 0:
+            call = "\n".join(caller_src_lines[start_lineno:stop_lineno])
+            if(r.match(call)):
+                break
+            else:
+                start_lineno -= 1
+        
+        # now we need to make sure we have the end of the call also
+        while stop_lineno < total_lines:
+        
+            arg_names, is_balanced = _get_arg_names(call)
+        
+            if is_balanced:
+                break
+            else:
+                call += "\n{}".format(caller_src_lines[stop_lineno])
+                stop_lineno += 1
+            
+        call_info['start_line'] = start_lineno
+        call_info['stop_line'] = stop_lineno
+        call_info['call'] = call
+        call_info['arg_names'] = arg_names
     
     return call_info
     
@@ -474,7 +436,17 @@ def _find_calls(ast_tree, called_module, called_func):
     
     since -- 7-2-12 -- Jay
     
-    ast_tree -- _ast.* instance -- the internal ast object that is being checked
+    example -- 
+        # import the module a couple ways:
+        import pout
+        from pout import v
+        from pout import v as voom
+        import pout as poom
+        
+        # this function would return: ['pout.v', 'v', 'voom', 'poom.v']
+    
+    ast_tree -- _ast.* instance -- the internal ast object that is being checked, returned from compile()
+        with ast.PyCF_ONLY_AST flag
     called_module -- string -- we are checking the ast for imports of this module
     called_func -- string -- we are checking the ast for aliases of this function
     
@@ -482,6 +454,9 @@ def _find_calls(ast_tree, called_module, called_func):
     ''' 
     
     s = set()
+    
+    # always add the default call, the set will make sure there are no dupes...
+    s.add(u"{}.{}".format(called_module, called_func))
     
     if hasattr(ast_tree, 'body'):
         # further down the rabbit hole we go
@@ -495,25 +470,102 @@ def _find_calls(ast_tree, called_module, called_func):
             if ast_tree.module == called_module:
                 for ast_name in ast_tree.names:
                     if ast_name.name == called_func:
-                        s.add(ast_name.asname if ast_name.asname is not None else ast_name.name)
-            
-                # if we didn't find any aliases or the method wasn't imported on it's own then
-                # the only way you can make the call is module.func
-                if len(s) < 1:
-                    s.add(u"{}.{}".format(called_module, called_func))
+                        s.add(unicode(ast_name.asname if ast_name.asname is not None else ast_name.name))
         
         else:
             # we are in a import ... statement
             for ast_name in ast_tree.names:
                 if ast_name.name == called_module:
-                    call = "{}.{}".format(
+                    call = u"{}.{}".format(
                         ast_name.asname if ast_name.asname is not None else ast_name.name,
                         called_func
                     )
                     s.add(call)
-        
+    
     return s
     
+def _get_arg_names(call_str):
+    '''
+    get the arguments that were passed into the call
+    
+    example -- 
+        call_str = "func(foo, bar, baz)"
+        arg_names, is_balanced = _get_arg_names(call_str)
+        print arg_names # ['foo', 'bar', 'baz']
+        print is_balanced # True
+    
+    since -- 7-3-12 -- Jay
+    
+    call_str -- string -- the call string to parse
+    
+    return -- tuple -- [], is_balanced where [] is a list of the parsed arg names, and is_balanced is
+        True if the right number of parens where found and False if they weren't, this is necessary
+        because functions can span multiple lines and we might night have the full call_str yet
+    '''
 
+    #canary
+    if not call_str: return [], True
+
+    stack_paren = []
+    stack_bracket = []
+    stack_quote = []
+    has_name = True
+    arg_build = False
+    arg_name = u''
+    arg_names = []
+    is_balanced = False
+    
+    for c in call_str:
+    
+        if c == '(' and (len(stack_quote) == 0):
+            stack_paren.append(c)
+            if len(stack_paren) == 1:
+                # we've found the first paren of the pout call
+                arg_build = True
+                continue
+        
+        elif c == ')' and (len(stack_quote) == 0):
+            stack_paren.pop()
+            
+            if len(stack_paren) == 0:
+                is_balanced = True
+                arg_names.append(arg_name.strip() if has_name else u'')
+                break
+        
+        elif c == '[' and (len(stack_quote) == 0):
+            stack_bracket.append(c)
+        elif c == ']' and (len(stack_quote) == 0):
+            stack_bracket.pop()
+        elif c == '"' or c == "'":
+            # we only pop on unescaped matches, (eg, strings that start with ' can have ")
+            if len(stack_quote) > 0:
+                if (stack_quote[-1] == c) and (arg_name[-1] != '\\'):
+                    stack_quote.pop()
+            else:
+                # a string was passed in
+                if (len(stack_paren) == 1) and (len(stack_bracket) == 0):
+                    has_name = False
+            
+                stack_quote.append(c)
+        
+        elif c == ',':
+            # we have finished compiling an argument name
+            if (len(stack_paren) == 1) and (len(stack_bracket) == 0) and (len(stack_quote) == 0):
+                arg_names.append(arg_name.strip() if has_name else u'')
+                has_name = True
+                arg_name = u''
+                continue
+        
+        if arg_build:
+            arg_name += c
+    
+    else:
+        # run this if we didn't break to clean up:
+        # http://psung.blogspot.com/2007/12/for-else-in-python.html
+        if arg_name:
+            is_balanced = False
+            arg_names.append(arg_name.strip() if has_name else u'')
+            
+    return arg_names, is_balanced
 
     

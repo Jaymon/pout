@@ -43,20 +43,54 @@ class PoutTest(unittest.TestCase):
         
         foo = 1
         bar = 2
+        def func(a, b):
+            return a + b
         
         from pout import v as voom
         
         voom(
             foo,bar
         )
-        
+
         pout.v(
             foo,
             bar,
             "this is a string"
         )
+        
+        from pout import v
+        
+        v(
+            foo,
+            bar)
+            
+        v(
+            foo, bar)
+        
+        v(
+            foo,
+            
+            bar
+            
+        )
+        
+        v(
+            func(1, 4)
+        )
+        
+        v(
+            func(
+                5,
+                5
+            )
+        )
+        
+        import pout as poom
+        
+        poom.v(foo)
+        
 
-    def test_multi(self):
+    def test_multi_args(self):
         '''
         since -- 6-30-12
         '''
@@ -93,7 +127,7 @@ class PoutTest(unittest.TestCase):
     
         f = Foo()
         
-        print vars(f.__class__)
+        #print vars(f.__class__)
         
         pout.v(f)
         
