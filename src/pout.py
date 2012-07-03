@@ -32,6 +32,10 @@ import inspect
 import os
 import sys
 import traceback
+import ast
+import re
+
+import pout2
 
 def h(count=0):
     '''
@@ -204,7 +208,7 @@ def _str_val(val, depth=0):
         if hasattr(val, '__str__'):
             to_string = '{}'.format(str(val))
         
-        if depth < 2:
+        if depth < 3:
         
             # this would get into a recursion error when used with Django models
             #d = {k: v for k, v in inspect.getmembers(val) if not callable(getattr(val,k)) and (k[:2] != '__' and k[-2:] != '__')}
@@ -312,7 +316,9 @@ def _get_arg_info(arg_vals={}, back_i=0):
     it will also find file and line number
     
     arg_vals -- list -- the arguments passed to one of the public methods
-    back_i -- integer -- how far back in the stack the method call was
+    back_i -- integer -- how far back in the stack the method call was, this moves back from 2
+        already (ie, by default, we add 2 to this value to compensate for the call to this method
+        and the previous method (both of which are usually internal))
     
     return -- dict -- a bunch of info on the call
     '''
@@ -330,19 +336,14 @@ def _get_arg_info(arg_vals={}, back_i=0):
     frames = inspect.getouterframes(frame)
     
     if len(frames) > back_i:
-        ret_dict['frame'] = frames[back_i]
-        ret_dict['line'] = frames[back_i][2]
-        ret_dict['file'] = os.path.abspath(inspect.getfile(frames[back_i][0]))
-    
+        ret_dict.update(_get_call_info(frames[back_i], __name__, frames[back_i - 1][3]))
+        
     # build the arg list if values have been passed in
     if len(arg_vals) > 0:
         
         args = []
         
-        if frames[back_i][4] is not None:
-            
-            #print frames[back_i][0].f_code
-            print frames[back_i]
+        if ret_dict['call'] is not None:
             
             stack_paren = []
             stack_bracket = []
@@ -352,7 +353,7 @@ def _get_arg_info(arg_vals={}, back_i=0):
             arg_name = ''
             arg_names = []
             
-            for c in frames[back_i][4][0]:
+            for c in ret_dict['call']:
             
                 if c == '(' and (len(stack_quote) == 0):
                     stack_paren.append(c)
@@ -395,6 +396,12 @@ def _get_arg_info(arg_vals={}, back_i=0):
                 if arg_build:
                     arg_name += c
             
+            else:
+                # run this if we didn't break to clean up:
+                # http://psung.blogspot.com/2007/12/for-else-in-python.html
+                if arg_name:
+                    arg_names.append(arg_name if has_name else '')
+            
             # match the found arg names to their respective values
             for i, arg_name in enumerate(arg_names):
                 args.append({'name': arg_name.strip(), 'val': arg_vals[i]})
@@ -408,3 +415,105 @@ def _get_arg_info(arg_vals={}, back_i=0):
     
     return ret_dict
 
+def _get_call_info(frame_tuple, called_module, called_func):
+    '''
+    build a dict of information about the call
+    
+    since -- 7-2-12 -- Jay
+    
+    frame_tuple -- tuple -- one row of the inspect.getouterframes return list
+    called_module -- string -- the module that was called
+    called_func -- string -- the function that was called
+    
+    return -- dict -- a bunch of information about the call:
+        line -- what line the call originated on
+        file -- the full filepath the call was made from
+        call -- the full text of the call (currently, this might be missing a closing paren)
+    '''
+
+    call_info = {}
+    call_info['frame'] = frames[back_i]
+    call_info['line'] = frame_tuple[2]
+    call_info['file'] = os.path.abspath(inspect.getfile(frame_tuple[0]))
+    call_info['call'] = None
+    
+    if frame_tuple[4] is not None:
+        
+        # get the call block
+        caller_src = open(call_info['file'], 'rU').read()
+        ast_tree = compile(caller_src, call_info['file'], 'exec', ast.PyCF_ONLY_AST)
+        
+        func_calls = _find_calls(ast_tree, called_module, called_func)
+        
+        # now get the actual calling codeblock
+        regex = u"\s*(?:{})\s*\(".format(u"|".join([str(v) for v in func_calls]))
+        r = re.compile(regex) 
+        if r.match(frame_tuple[4][0]):
+            call_info['call'] = frame_tuple[4][0]
+        else:
+            # we need to move up one line until we have the call, and make sure there is a closing )
+            caller_src_lines = caller_src.split("\n")
+            stop_lineno = call_info['line']
+            start_lineno = call_info['line'] - 2
+            
+            while start_lineno >= 0:
+                call = "\n".join(caller_src_lines[start_lineno:stop_lineno])
+                if(r.match(call)):
+                    break
+                else:
+                    start_lineno -= 1
+        
+            call_info['call'] = call
+    
+    return call_info
+    
+def _find_calls(ast_tree, called_module, called_func):
+    '''
+    scan the abstract source tree looking for possible ways to call the called_module
+    and called_func
+    
+    since -- 7-2-12 -- Jay
+    
+    ast_tree -- _ast.* instance -- the internal ast object that is being checked
+    called_module -- string -- we are checking the ast for imports of this module
+    called_func -- string -- we are checking the ast for aliases of this function
+    
+    return -- set -- the list of possible calls the ast_tree could make to call the called_func
+    ''' 
+    
+    s = set()
+    
+    if hasattr(ast_tree, 'body'):
+        # further down the rabbit hole we go
+        for ast_body in ast_tree.body:
+            s.update(_find_calls(ast_body, called_module, called_func))
+            
+    elif hasattr(ast_tree, 'names'):
+        # base case
+        if hasattr(ast_tree, 'module'):
+            # we are in a from ... import ... statement
+            if ast_tree.module == called_module:
+                for ast_name in ast_tree.names:
+                    if ast_name.name == called_func:
+                        s.add(ast_name.asname if ast_name.asname is not None else ast_name.name)
+            
+                # if we didn't find any aliases or the method wasn't imported on it's own then
+                # the only way you can make the call is module.func
+                if len(s) < 1:
+                    s.add(u"{}.{}".format(called_module, called_func))
+        
+        else:
+            # we are in a import ... statement
+            for ast_name in ast_tree.names:
+                if ast_name.name == called_module:
+                    call = "{}.{}".format(
+                        ast_name.asname if ast_name.asname is not None else ast_name.name,
+                        called_func
+                    )
+                    s.add(call)
+        
+    return s
+    
+
+
+    

@@ -1,3 +1,15 @@
+"""
+test pout
+
+right now this doesn't do much more than just print out pout statements, but someday I will
+go through and add assert statements
+
+link -- http://docs.python.org/library/unittest.html
+
+to run on the command line:
+python -m unittest test_pout.PoutTest.test_method
+"""
+
 import pout
 import unittest
 
@@ -29,12 +41,20 @@ class PoutTest(unittest.TestCase):
 
     def test_multiline_call(self):
         
-        foo = 1,
+        foo = 1
         bar = 2
         
         from pout import v as voom
         
-        voom(foo,bar)
+        voom(
+            foo,bar
+        )
+        
+        pout.v(
+            foo,
+            bar,
+            "this is a string"
+        )
 
     def test_multi(self):
         '''
