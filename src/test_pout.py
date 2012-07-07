@@ -7,7 +7,7 @@ go through and add assert statements
 link -- http://docs.python.org/library/unittest.html
 
 to run on the command line:
-python -m unittest test_pout.PoutTest.test_method
+python -m unittest test_pout[.ClassTest[.test_method]]
 """
 
 import pout
@@ -19,6 +19,10 @@ class Foo(object):
         self.bar = 1
         self.che = 2
         self.baz = 3
+
+    def raise_error(self):
+        e = IndexError("foo")
+        raise e
 
 class Bar(object):
     def __init__(self):
@@ -37,7 +41,25 @@ class Che(object):
     def __str__(self):
         return u"Che"
 
-class PoutTest(unittest.TestCase):
+class TTest(unittest.TestCase):
+    """
+    test the pout.t() method
+    """
+
+    def test_t(self):
+        pout.t()
+
+class HTest(unittest.TestCase):
+    """
+    test the pout.h() method
+    """
+    def test_h(self):
+        
+        pout.h(1)
+        
+        pout.h()
+
+class VTest(unittest.TestCase):
 
     def test_multiline_call(self):
         
@@ -139,20 +161,17 @@ class PoutTest(unittest.TestCase):
     def test_exception(self):
     
         e = IndexError("foo")
-        pout.v(e)
+        #pout.v(e)
         
         try:
+        
+            f = Foo()
+            f.raise_error()
             
             raise e
             
         except Exception, e:
             pout.v(e)
-
-    def test_h(self):
-        
-        pout.h(1)
-        
-        pout.h()
 
     def test_instance_str_method(self):
     

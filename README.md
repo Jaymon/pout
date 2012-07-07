@@ -60,7 +60,37 @@ You can send as many variables as you want into the call
         foo,
         bar
     )
+
+### pout.t() -- print a backtrace
+
+Prints a nicely formatted backtrace, by default this should compact system python
+calls (eg, anything in dist-packages) which makes the backtrace easier for me to
+read.
+
+example:
+
+    pout.t()
     
+should print something like:
+
+    15 - C:\Python27\lib\runpy.py:162
+    14 - C:\Python27\lib\runpy.py:72
+    13 - C:\Python27\lib\unittest\__main__.py:12
+    12 - C:\Python27\lib\unittest\main.py:95
+    11 - C:\Python27\lib\unittest\main.py:229
+    10 - C:\Python27\lib\unittest\runner.py:151
+    09 - C:\Python27\lib\unittest\suite.py:65
+    08 - C:\Python27\lib\unittest\suite.py:103
+    07 - C:\Python27\lib\unittest\suite.py:65
+    06 - C:\Python27\lib\unittest\suite.py:103
+    05 - C:\Python27\lib\unittest\suite.py:65
+    04 - C:\Python27\lib\unittest\suite.py:103
+    03 - C:\Python27\lib\unittest\case.py:376
+    02 - C:\Python27\lib\unittest\case.py:318
+    01 - C:\Projects\Pout\_pout\src\test_pout.py:50
+    
+            pout.t()
+   
 ## Install
 
 Use PIP

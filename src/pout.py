@@ -32,7 +32,30 @@ import sys
 import traceback
 import ast
 import re
+import collections
+import types
 
+#import pout2
+
+def t(inspect_packages=False, depth=0):
+    '''
+    print a backtrace
+    
+    since -- 7-6-12
+    
+    ignore_packages -- boolean -- if True, then anything from site-packages will be skipped
+    inpsect_packages -- boolean -- by default, this only prints code of packages that are not 
+        in the pythonN directories, that cuts out a lot of the noise, set this to True if you
+        want a full stacktrace
+    depth -- integer -- how deep you want the stack trace to print (ie, if you only care about
+        the last three calls, pass in depth=3 so you only get the last 3 rows of the stack
+    '''
+    frame = inspect.currentframe()
+    frames = inspect.getouterframes(frame)
+    call_info = _get_arg_info()
+    calls = _get_backtrace(frames=frames, inspect_packages=inspect_packages, depth=depth)
+    _print(calls, call_info)
+    
 def h(count=0):
     '''
     prints "here count"
@@ -187,14 +210,27 @@ def _str_val(val, depth=0):
         # http://stackoverflow.com/questions/4564559
         # http://stackoverflow.com/questions/6626342
     
+        calls = []
         full_name = _get_name(val)
         exc_type, exc_value, exc_tb = sys.exc_info()
         
-        # todo -- go through the traceback and collapse site-packages files as they make
-        # the traceback a lot harder to read and most of the time the problem is in our
-        # code
+        # this just doesn't work right
+        if exc_tb:
+            frames = inspect.getinnerframes(exc_tb)[::-1]
+            for i, frame in enumerate(frames, 1):
+                calls.append(
+                    _get_call_summary(_get_call_info(frame), index=i, inspect_packages=False)
+                )
         
-        s = u"{} - {}\n\n{}".format(full_name, val, u"".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+                calls.reverse()
+        
+        else:
+            frame = inspect.currentframe()
+            frames = inspect.getouterframes(frame)[2:]
+            calls = _get_backtrace(frames)
+        
+        s = u"{} - {}\n\n{}".format(full_name, val, u"".join(calls))
+        #s = u"{} - {}\n\n{}".format(full_name, val, u"".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
     
     elif hasattr(val, '__dict__'):
         
@@ -210,8 +246,15 @@ def _str_val(val, depth=0):
             #d = {k: v for k, v in inspect.getmembers(val) if not callable(getattr(val,k)) and (k[:2] != '__' and k[-2:] != '__')}
             
             if hasattr(val, '__class__'):
-                d['CLASS_VARS'] = {k: v for k, v in vars(val.__class__).iteritems() if (k[:2] != '__' and k[-2:] != '__')}
-                # d['CLASS_VARS'] = vars(val.__class__)
+                
+                d['CLASS_VARS'] = {}
+                for k, v in vars(val.__class__).iteritems():        
+                    # we don't want any __blah__ type values
+                    if(k[:2] != '__' and k[-2:] != '__'):
+                        # we don't want any functions
+                        # http://stackoverflow.com/questions/624926/
+                        if not isinstance(v, types.FunctionType):
+                            d['CLASS_VARS'][k] = v
             
             d['INSTANCE_VARS'] = vars(val)
             d["__str__"] = to_string
@@ -362,15 +405,15 @@ def _get_arg_info(arg_vals={}, back_i=0):
     
     return ret_dict
 
-def _get_call_info(frame_tuple, called_module, called_func):
+def _get_call_info(frame_tuple, called_module='', called_func=''):
     '''
     build a dict of information about the call
     
     since -- 7-2-12 -- Jay
     
     frame_tuple -- tuple -- one row of the inspect.getouterframes return list
-    called_module -- string -- the module that was called
-    called_func -- string -- the function that was called
+    called_module -- string -- the module that was called, the module we're looking for in the frame_tuple
+    called_func -- string -- the function that was called, the function we're looking for in the frame_tuple
     
     return -- dict -- a bunch of information about the call:
         line -- what line the call originated on
@@ -387,44 +430,59 @@ def _get_call_info(frame_tuple, called_module, called_func):
     
     if frame_tuple[4] is not None:
         
-        # get the call block
-        caller_src = open(call_info['file'], 'rU').read()
-        ast_tree = compile(caller_src, call_info['file'], 'exec', ast.PyCF_ONLY_AST)
-        
-        func_calls = _find_calls(ast_tree, called_module, called_func)
-        
-        # now get the actual calling codeblock
-        regex = u"\s*(?:{})\s*\(".format(u"|".join([str(v) for v in func_calls]))
-        r = re.compile(regex) 
-        caller_src_lines = caller_src.split("\n")
-        total_lines = len(caller_src_lines)
         stop_lineno = call_info['line']
         start_lineno = call_info['line'] - 1
         arg_names = []
         call = u''
         
-        # we need to move up one line until we get to the beginning of the call
-        while start_lineno >= 0:
-            call = "\n".join(caller_src_lines[start_lineno:stop_lineno])
-            if(r.match(call)):
-                break
+        if called_func and called_func != '__call__':
+            
+            # get the call block
+            caller_src = open(call_info['file'], 'rU').read()
+            ast_tree = compile(caller_src, call_info['file'], 'exec', ast.PyCF_ONLY_AST)
+            
+            func_calls = _find_calls(ast_tree, called_module, called_func)
+            
+            # now get the actual calling codeblock
+            regex = u"\s*(?:{})\s*\(".format(u"|".join([str(v) for v in func_calls]))
+            r = re.compile(regex) 
+            caller_src_lines = caller_src.split("\n")
+            total_lines = len(caller_src_lines)
+            
+            # we need to move up one line until we get to the beginning of the call
+            while start_lineno >= 0:
+            
+                call = u"\n".join(caller_src_lines[start_lineno:stop_lineno])
+                if(r.search(call)):
+                    break
+                else:
+                    start_lineno -= 1
+            
+            if start_lineno > -1:
+                # now we need to make sure we have the end of the call also
+                while stop_lineno < total_lines:
+                
+                    arg_names, is_balanced = _get_arg_names(call)
+                
+                    if is_balanced:
+                        break
+                    else:
+                        call += u"\n{}".format(caller_src_lines[stop_lineno])
+                        stop_lineno += 1
+                        
             else:
-                start_lineno -= 1
+                call = u''
+                    
         
-        # now we need to make sure we have the end of the call also
-        while stop_lineno < total_lines:
-        
-            arg_names, is_balanced = _get_arg_names(call)
-        
-            if is_balanced:
-                break
-            else:
-                call += "\n{}".format(caller_src_lines[stop_lineno])
-                stop_lineno += 1
+        if not call:
+            # we couldn't find the call, so let's just use what python gave us, this can
+            # happen when something like: method = func; method() is done and we were looking for func() 
+            call = frame_tuple[4][0]
+            start_lineno = frame_tuple[2]
             
         call_info['start_line'] = start_lineno
         call_info['stop_line'] = stop_lineno
-        call_info['call'] = call
+        call_info['call'] = call.strip()
         call_info['arg_names'] = arg_names
     
     return call_info
@@ -457,11 +515,17 @@ def _find_calls(ast_tree, called_module, called_func):
     
     # always add the default call, the set will make sure there are no dupes...
     s.add(u"{}.{}".format(called_module, called_func))
+
+    if hasattr(ast_tree, 'name'):
+        if ast_tree.name == called_func:
+            # the function is defined in this module
+            s.add(called_func)
     
     if hasattr(ast_tree, 'body'):
         # further down the rabbit hole we go
-        for ast_body in ast_tree.body:
-            s.update(_find_calls(ast_body, called_module, called_func))
+        if isinstance(ast_tree.body, collections.Iterable):
+            for ast_body in ast_tree.body:
+                s.update(_find_calls(ast_body, called_module, called_func))
             
     elif hasattr(ast_tree, 'names'):
         # base case
@@ -514,7 +578,7 @@ def _get_arg_names(call_str):
     arg_name = u''
     arg_names = []
     is_balanced = False
-    
+
     for c in call_str:
     
         if c == '(' and (len(stack_quote) == 0):
@@ -568,4 +632,79 @@ def _get_arg_names(call_str):
             
     return arg_names, is_balanced
 
+def _get_backtrace(frames, inspect_packages=False, depth=0):
+    '''
+    get a nicely formatted backtrace
     
+    since -- 7-6-12
+    
+    frames -- list -- the frame_tuple frames to format
+    inpsect_packages -- boolean -- by default, this only prints code of packages that are not 
+        in the pythonN directories, that cuts out a lot of the noise, set this to True if you
+        want a full stacktrace
+    depth -- integer -- how deep you want the stack trace to print (ie, if you only care about
+        the last three calls, pass in depth=3 so you only get the last 3 rows of the stack
+       
+    return -- list -- each line will be a nicely formatted entry of the backtrace
+    '''
+    calls = []
+    count = 1
+    
+    for i, f in enumerate(frames[1:]):
+        prev_f = frames[i]
+        called_module = inspect.getmodule(prev_f[0]).__name__
+        called_func = prev_f[3]
+        
+        d = _get_call_info(f, called_module, called_func)
+        s = _get_call_summary(d, inspect_packages=inspect_packages, index=count)
+        calls.append(s)
+        count += 1
+        
+        if depth and (count > depth):
+            break
+    
+    # reverse the order on return so most recent is on the bottom
+    return calls[::-1]
+
+def _get_call_summary(call_info, index=0, inspect_packages=True):
+    '''
+    get a call summary
+    
+    a call summary is a nicely formatted string synopsis of the call
+    
+    handy for backtraces
+    
+    since -- 7-6-12
+    
+    call_info -- dict -- the dict returned from _get_call_info()
+    index -- integer -- set to something above 0 if you would like the summary to be numbered
+    inspect_packages -- boolean -- set to True to get the full format even for system frames
+    
+    return -- string
+    '''
+    inspect_regex = re.compile(u'[\\\\/]python\d(?:\.\d+)?', re.I)
+    
+    # truncate the filepath if it is super long
+    f = call_info['file']
+    if len(f) > 75:
+        f = u"{}...{}".format(f[0:30], f[-45:])
+    
+    if inspect_packages or not inspect_regex.search(call_info['file']): 
+            
+        s = u"{}:{}\n\n{}\n\n".format(
+            f,
+            call_info['line'],
+            _add_indent(call_info['call'], 1)
+        )
+        
+    else:
+        
+        s = u"{}:{}\n".format(
+            f,
+            call_info['line']
+        )
+    
+    if index > 0:
+        s = u"{:02d} - {}".format(index, s)
+
+    return s
