@@ -276,7 +276,7 @@ def _str_val(val, depth=0):
                             if vt == 'OBJECT':
                                 s_var += repr(v)
                             else:
-                                s_var += _str_val(v, depth=depth)
+                                s_var += _str_val(v, depth=depth+1)
                             
                             s_body += _add_indent(s_var, 1)
                             s_body += "\n"
@@ -286,7 +286,14 @@ def _str_val(val, depth=0):
                 s_body += "\nInstance Variables:\n"                
                 
                 for k, v in instance_dict.iteritems():
-                    s_body += _add_indent(u'{} = {}'.format(k, _str_val(v, depth=depth)), 1)
+                    vt = _get_type(v)
+                    s_var = u'{} = '.format(k)
+                    if vt == 'OBJECT':
+                        s_var += repr(v)
+                    else:
+                        s_var += _str_val(v, depth=depth+1)
+                    
+                    s_body += _add_indent(s_var, 1)
                     s_body += "\n"
             
             s += _add_indent(s_body.rstrip(), 1)
