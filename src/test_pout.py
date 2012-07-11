@@ -10,6 +10,7 @@ to run on the command line:
 python -m unittest test_pout[.ClassTest[.test_method]]
 """
 
+import sys
 import pout
 import unittest
 
@@ -25,6 +26,9 @@ class Foo(object):
         raise e
 
 class Bar(object):
+
+    f = Foo()
+
     def __init__(self):
         self.foo = 1
         self.che = 2
@@ -35,11 +39,64 @@ class Bar(object):
 
 class Che(object):
 
+    f = Foo()
+    b = Bar()
+
     def __getattr__(self, key):
         return self.__getattr(key)
 
     def __str__(self):
         return u"Che"
+
+class Bax():
+    '''
+    old school defined class that doesn't inherit from object
+    '''
+    pass
+
+def baz():
+    pass
+
+class PoutTest(unittest.TestCase):
+    '''
+    any non specific function testing should go here
+    '''
+    
+    def test_get_type(self):
+    
+        v = 'foo'
+        self.assertEqual('STRING', pout._get_type(v))
+        
+        v = 123
+        self.assertEqual('DEFAULT', pout._get_type(v))
+        
+        v = True
+        self.assertEqual('DEFAULT', pout._get_type(v))
+        
+        v = Foo()
+        self.assertEqual('OBJECT', pout._get_type(v))
+        self.assertEqual('FUNCTION', pout._get_type(Foo.__init__))
+
+        self.assertEqual('FUNCTION', pout._get_type(baz))
+        
+        v = TypeError()
+        self.assertEqual('EXCEPTION', pout._get_type(v))
+        
+        v = {}
+        self.assertEqual('DICT', pout._get_type(v))
+        
+        v = []
+        self.assertEqual('LIST', pout._get_type(v))
+        
+        v = ()
+        self.assertEqual('TUPLE', pout._get_type(v))
+        
+        self.assertEqual('MODULE', pout._get_type(pout))
+        
+        import ast
+        self.assertEqual('MODULE', pout._get_type(ast))
+        
+        #self.assertEqual('CLASS', pout._get_type(self.__class__))
 
 class TTest(unittest.TestCase):
     """
@@ -145,16 +202,16 @@ class VTest(unittest.TestCase):
             
         pout.v(foo, bar, func(1, 2))
 
+    def test_module(self):
+    
+        pout.v(pout)
+        pout.v(sys.modules[__name__])
+
     def test_object(self):
     
         f = Foo()
-        
-        #print vars(f.__class__)
-        
         pout.v(f)
         
-        return 
-    
         c = Che()
         pout.v(c)
 

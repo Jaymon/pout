@@ -8,9 +8,17 @@ and where the print statement was called (so you can easily find it and delete i
 link -- http://stackoverflow.com/questions/3229419/pretty-printing-nested-dictionaries-in-python
 link -- http://docs.python.org/library/pprint.html
 link -- http://docs.python.org/library/inspect.html
+link -- http://www.doughellmann.com/PyMOTW/inspect/
 
 in the future, to list method arguments:
 link -- http://stackoverflow.com/questions/3517892/python-list-function-argument-names
+
+should take a look at this in more detail:
+link -- http://docs.python.org/library/repr.html
+
+module finder might be useful someday
+link -- http://docs.python.org/library/modulefinder.html
+link -- http://stackoverflow.com/questions/2572582/return-a-list-of-imported-python-modules-used-in-a-script
 
 api --
     h() -- easy way to print "here" in the code
@@ -142,16 +150,17 @@ def _str(name, val):
     
     s = ''
     
-    if isinstance(val, (dict, list, tuple)):
-    
-        count = len(val)
-        s = u"{} ({}) = {}".format(name, count, _str_val(val, depth=0))
-       
-    else:
-        if name:
-            s = u"{} = {}".format(name, _str_val(val))
+    if name:
+        
+        if hasattr(val, '__len__'):
+            count = len(val)
+            s = u"{} ({}) = {}".format(name, count, _str_val(val, depth=0))
+           
         else:
-            s = _str_val(val)
+            s = u"{} = {}".format(name, _str_val(val))
+            
+    else:
+        s = _str_val(val)
     
     return s
 
@@ -166,7 +175,9 @@ def _str_val(val, depth=0):
     '''
 
     s = ''
-    if isinstance(val, dict):
+    t = _get_type(val)
+    
+    if t == 'DICT':
         
         if len(val) > 0:
         
@@ -182,7 +193,7 @@ def _str_val(val, depth=0):
             s = u"{}"
         
     
-    elif isinstance(val, list):
+    elif t == 'LIST':
     
         if len(val) > 0:
       
@@ -191,7 +202,7 @@ def _str_val(val, depth=0):
         else:
             s = u"[]"
      
-    elif isinstance(val, tuple):
+    elif t == 'TUPLE':
 
         if len(val) > 0:
       
@@ -200,11 +211,10 @@ def _str_val(val, depth=0):
         else:
             s = u"()"
       
-    elif isinstance(val, basestring):
+    elif t == 'STRING':
         s = u'"{}"'.format(str(val))
     
-    elif isinstance(val, BaseException):
-    
+    elif t == 'EXCEPTION':
         # http://docs.python.org/library/traceback.html
         # http://www.doughellmann.com/PyMOTW/traceback/
         # http://stackoverflow.com/questions/4564559
@@ -232,46 +242,129 @@ def _str_val(val, depth=0):
         s = u"{} - {}\n\n{}".format(full_name, val, u"".join(calls))
         #s = u"{} - {}\n\n{}".format(full_name, val, u"".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
     
-    elif hasattr(val, '__dict__'):
-        
+    elif t == 'OBJECT':
         d = {}
         full_name = _get_name(val)
-        to_string = ''
-        if hasattr(val, '__str__'):
-            to_string = u'{}'.format(str(val))
+        
+        s = u"{} instance".format(full_name)
         
         if depth < 4:
         
-            # this would get into a recursion error when used with Django models
-            #d = {k: v for k, v in inspect.getmembers(val) if not callable(getattr(val,k)) and (k[:2] != '__' and k[-2:] != '__')}
-            
-            if hasattr(val, '__class__'):
-                
-                d['CLASS_VARS'] = {}
-                for k, v in vars(val.__class__).iteritems():        
-                    # we don't want any __blah__ type values
-                    if(k[:2] != '__' and k[-2:] != '__'):
-                        # we don't want any functions
-                        # http://stackoverflow.com/questions/624926/
-                        if not isinstance(v, types.FunctionType):
-                            d['CLASS_VARS'][k] = v
-            
-            d['INSTANCE_VARS'] = vars(val)
-            d["__str__"] = to_string
+            s += "\n<"
+            s_body = u''
         
-            # http://stackoverflow.com/questions/109087/python-get-instance-variables
+            if hasattr(val, '__str__'):
+                
+                s_body += "\n__str__:\n"
+                s_body += _add_indent(str(val), 1)
+                s_body += "\n"
+
+            if hasattr(val, '__class__'):
+
+                # we don't want any __blah__ type values
+                class_dict = {k: v for k, v in vars(val.__class__).iteritems() if not _is_magic(k)}
+                if class_dict:
+                
+                    s_body += "\nClass Variables:\n"
+                
+                    for k, v in class_dict.iteritems():
+                        vt = _get_type(v)
+                        if vt != 'FUNCTION':
+                        
+                            s_var = u'{} = '.format(k)
+                        
+                            if vt == 'OBJECT':
+                                s_var += repr(v)
+                            else:
+                                s_var += _str_val(v, depth=depth)
+                            
+                            s_body += _add_indent(s_var, 1)
+                            s_body += "\n"
+        
+            instance_dict = vars(val)
+            if instance_dict:
+                s_body += "\nInstance Variables:\n"                
+                
+                for k, v in instance_dict.iteritems():
+                    s_body += _add_indent(u'{} = {}'.format(k, _str_val(v, depth=depth)), 1)
+                    s_body += "\n"
             
-            s = _str_iterator(
-                iterator=d.iteritems(), 
-                prefix="{} instance\n".format(full_name),
-                left_paren='<', 
-                right_paren='>',
-                depth=depth
-            )
+            s += _add_indent(s_body.rstrip(), 1)
+            s += "\n>\n"
             
         else:
-            s = u'{} instance\n"{}"'.format(full_name, to_string)
+            s = repr(val)
+    
+    elif t == 'MODULE':
+    
+        file_path = os.path.realpath(inspect.getfile(val))
+        s = u'{} module ({})\n'.format(val.__name__, file_path, '')
         
+        modules = {}
+        funcs = {}
+        classes = {}
+        
+        for k, v in inspect.getmembers(val):
+            
+            # canary, ignore magic values
+            if _is_magic(k): continue
+            
+            vt = _get_type(v)
+            if vt == 'FUNCTION':
+                funcs[k] = v
+            elif vt == 'MODULE':
+                modules[k] = v
+            elif vt == 'OBJECT':
+                classes[k] = v
+            
+            #pout2.v('%s %s: %s' % (k, vt, repr(v)))
+        
+        if modules:
+            s += "\nModules:\n"
+            for k, v in modules.iteritems():
+                try:
+                    module_path = os.path.realpath(inspect.getfile(v))
+                except TypeError:
+                    module_path = 'Unknown'
+            
+                s += _add_indent("{} ({})".format(k, module_path), 1)
+                s += "\n"
+        
+        if funcs:
+            s += "\nFunctions:\n"
+            
+            for k, v in funcs.iteritems():
+            
+                func_args = inspect.formatargspec(*inspect.getargspec(v))
+                #pout2.v(func_args)
+            
+                s += _add_indent("{}{}".format(k, func_args), 1)
+                s += "\n"
+                
+        if classes:
+            s += "\nClasses:\n"
+            
+            for k, v in classes.iteritems():
+            
+                #func_args = inspect.formatargspec(*inspect.getargspec(v))
+                #pout2.v(func_args)
+            
+                s += _add_indent("{}".format(k), 1)
+                s += "\n"
+                
+                # add methods
+                for m, mv in inspect.getmembers(v):
+                    #if _is_magic(m): continue
+                    if _get_type(mv) == 'FUNCTION':
+                        try:
+                            func_args = inspect.formatargspec(*inspect.getargspec(mv))
+                            s += _add_indent(".{}{}".format(m, func_args), 2)
+                            s += "\n"
+                        except TypeError:
+                            pass
+                
+                s += "\n"
+    
     else:
         s = str(val)
 
@@ -708,3 +801,66 @@ def _get_call_summary(call_info, index=0, inspect_packages=True):
         s = u"{:02d} - {}".format(index, s)
 
     return s
+
+def _get_type(val):
+    '''
+    get the type of val
+    
+    there are multiple places where we want to know if val is an object, or a string, or whatever,
+    this method allows us to find out that information
+    
+    since -- 7-10-12
+    
+    val -- mixed -- the value to check
+    
+    return -- string -- the type
+    '''
+
+    t = 'DEFAULT'
+
+    if isinstance(val, (types.NoneType, types.BooleanType, types.IntType, types.LongType, types.FloatType)):
+        t = 'DEFAULT'
+
+    elif isinstance(val, dict):
+        t = 'DICT'
+        
+    elif isinstance(val, list):
+        t = 'LIST'
+     
+    elif isinstance(val, tuple):
+        t = 'TUPLE'
+      
+    elif  isinstance(val, types.StringTypes): #isinstance(val, basestring):
+        t = 'STRING'
+    
+    elif isinstance(val, BaseException):
+        t = 'EXCEPTION'
+    
+    elif isinstance(val, types.ModuleType):
+        # this has to go before the object check since a module will pass the object tests
+        t = 'MODULE'
+    
+    elif isinstance(val, types.InstanceType) or hasattr(val, '__dict__') and not (hasattr(val, 'func_name') or hasattr(val, 'im_func')):
+        t = 'OBJECT'
+    
+    elif isinstance(v, (types.FunctionType, types.BuiltinFunctionType)) and hasattr(v, '__call__'):
+        # this has to go after object because lots of times objects can be classified as functions
+        # http://stackoverflow.com/questions/624926/
+        t = 'FUNCTION'
+    
+    else:
+        t = 'DEFAULT'
+
+    return t
+
+def _is_magic(name):
+    '''
+    return true if the name is __name__
+    
+    since -- 7-10-12
+    
+    name -- string -- the name to check
+    
+    return -- boolean
+    '''
+    return (name[:2] == '__' and name[-2:] == '__')
