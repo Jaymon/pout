@@ -11,8 +11,9 @@ python -m unittest test_pout[.ClassTest[.test_method]]
 """
 
 import sys
-import pout
 import unittest
+
+import pout
 
 class Foo(object):
     bax=4
@@ -117,6 +118,15 @@ class HTest(unittest.TestCase):
         pout.h()
 
 class VTest(unittest.TestCase):
+
+    def test_sys_module(self):
+        '''
+        built-in modules fail, which they shouldn't
+        
+        since -- 7-19-12
+        '''
+        pout.v(sys)
+        
 
     def test_multiline_call(self):
         

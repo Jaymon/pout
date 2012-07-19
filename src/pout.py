@@ -253,6 +253,8 @@ def _str_val(val, depth=0):
             s += "\n<"
             s_body = u''
         
+            s_body += "\nid: {}\n".format(id(val))
+        
             if hasattr(val, '__str__'):
                 
                 s_body += "\n__str__:\n"
@@ -304,8 +306,10 @@ def _str_val(val, depth=0):
     
     elif t == 'MODULE':
     
-        file_path = os.path.realpath(inspect.getfile(val))
-        s = u'{} module ({})\n'.format(val.__name__, file_path, '')
+        file_path = _get_src_file(val)
+        s = u'{} module ({})\n'.format(val.__name__, file_path)
+        
+        s += "\nid: {}\n".format(id(val))
         
         modules = {}
         funcs = {}
@@ -329,11 +333,7 @@ def _str_val(val, depth=0):
         if modules:
             s += "\nModules:\n"
             for k, v in modules.iteritems():
-                try:
-                    module_path = os.path.realpath(inspect.getfile(v))
-                except TypeError:
-                    module_path = 'Unknown'
-            
+                module_path = _get_src_file(v)
                 s += _add_indent("{} ({})".format(k, module_path), 1)
                 s += "\n"
         
@@ -342,7 +342,10 @@ def _str_val(val, depth=0):
             
             for k, v in funcs.iteritems():
             
-                func_args = inspect.formatargspec(*inspect.getargspec(v))
+                try:
+                    func_args = inspect.formatargspec(*inspect.getargspec(v))
+                except TypeError:
+                    func_args = "(...)"
                 #pout2.v(func_args)
             
                 s += _add_indent("{}{}".format(k, func_args), 1)
@@ -537,42 +540,45 @@ def _get_call_info(frame_tuple, called_module='', called_func=''):
         
         if called_func and called_func != '__call__':
             
-            # get the call block
-            caller_src = open(call_info['file'], 'rU').read()
-            ast_tree = compile(caller_src, call_info['file'], 'exec', ast.PyCF_ONLY_AST)
-            
-            func_calls = _find_calls(ast_tree, called_module, called_func)
-            
-            # now get the actual calling codeblock
-            regex = u"\s*(?:{})\s*\(".format(u"|".join([str(v) for v in func_calls]))
-            r = re.compile(regex) 
-            caller_src_lines = caller_src.split("\n")
-            total_lines = len(caller_src_lines)
-            
-            # we need to move up one line until we get to the beginning of the call
-            while start_lineno >= 0:
-            
-                call = u"\n".join(caller_src_lines[start_lineno:stop_lineno])
-                if(r.search(call)):
-                    break
-                else:
-                    start_lineno -= 1
-            
-            if start_lineno > -1:
-                # now we need to make sure we have the end of the call also
-                while stop_lineno < total_lines:
+            try:
+                # get the call block (throws in IOError in ipython
+                caller_src = open(call_info['file'], 'rU').read()
+                ast_tree = compile(caller_src, call_info['file'], 'exec', ast.PyCF_ONLY_AST)
                 
-                    arg_names, is_balanced = _get_arg_names(call)
+                func_calls = _find_calls(ast_tree, called_module, called_func)
                 
-                    if is_balanced:
+                # now get the actual calling codeblock
+                regex = u"\s*(?:{})\s*\(".format(u"|".join([str(v) for v in func_calls]))
+                r = re.compile(regex) 
+                caller_src_lines = caller_src.split("\n")
+                total_lines = len(caller_src_lines)
+                
+                # we need to move up one line until we get to the beginning of the call
+                while start_lineno >= 0:
+                
+                    call = u"\n".join(caller_src_lines[start_lineno:stop_lineno])
+                    if(r.search(call)):
                         break
                     else:
-                        call += u"\n{}".format(caller_src_lines[stop_lineno])
-                        stop_lineno += 1
-                        
-            else:
-                call = u''
+                        start_lineno -= 1
+                
+                if start_lineno > -1:
+                    # now we need to make sure we have the end of the call also
+                    while stop_lineno < total_lines:
                     
+                        arg_names, is_balanced = _get_arg_names(call)
+                    
+                        if is_balanced:
+                            break
+                        else:
+                            call += u"\n{}".format(caller_src_lines[stop_lineno])
+                            stop_lineno += 1
+                            
+                else:
+                    call = u''
+            
+            except IOError:
+                call = u''
         
         if not call:
             # we couldn't find the call, so let's just use what python gave us, this can
@@ -871,3 +877,24 @@ def _is_magic(name):
     return -- boolean
     '''
     return (name[:2] == '__' and name[-2:] == '__')
+
+def _get_src_file(val):
+    '''
+    return the source file path
+    
+    since -- 7-19-12 -- Jay
+    
+    val -- mixed -- the value whose path you want
+    
+    return -- string -- the path, or something like 'Unknown' if you can't find the path
+    '''
+    path = u'Unkown'
+
+    try:
+        # can also use inspect.getFile() here
+        # http://stackoverflow.com/questions/6761337/inspect-getfile-vs-inspect-getsourcefile
+        path = os.path.realpath(inspect.getsourcefile(val))
+    except TypeError:
+        path = u'Unknown'
+    
+    return path
