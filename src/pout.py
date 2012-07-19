@@ -493,7 +493,7 @@ def _get_arg_info(arg_vals={}, back_i=0):
         
         args = []
         
-        if ret_dict['call']:
+        if len(ret_dict['arg_names']) > 0:
             
             # match the found arg names to their respective values
             for i, arg_name in enumerate(ret_dict['arg_names']):
@@ -578,7 +578,13 @@ def _get_call_info(frame_tuple, called_module='', called_func=''):
                     call = u''
             
             except IOError:
-                call = u''
+                if len(frame_tuple[4]) > 0:
+                    call = frame_tuple[4][0]
+                    arg_names, is_balanced = _get_arg_names(call)
+                    if not arg_names or not is_balanced:
+                        call = u''
+                        arg_names = []
+                        
         
         if not call:
             # we couldn't find the call, so let's just use what python gave us, this can
