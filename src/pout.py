@@ -493,7 +493,7 @@ def _get_arg_info(arg_vals={}, back_i=0):
         
         args = []
         
-        if ret_dict['call'] is not None:
+        if ret_dict['call']:
             
             # match the found arg names to their respective values
             for i, arg_name in enumerate(ret_dict['arg_names']):
