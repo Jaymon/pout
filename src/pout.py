@@ -129,7 +129,7 @@ def _print(args, call_info):
     sys.stderr.write("\n")
 
     for arg in args:
-        sys.stderr.write(str(arg))
+        sys.stderr.write(u"{}".format(arg))
         
     sys.stderr.write(u"({}:{})\n\n".format(call_info['file'], call_info['line']))
     sys.stderr.flush()
@@ -174,7 +174,7 @@ def _str_val(val, depth=0):
     return -- string
     '''
 
-    s = ''
+    s = u''
     t = _get_type(val)
     
     if t == 'DICT':
@@ -212,7 +212,14 @@ def _str_val(val, depth=0):
             s = u"()"
       
     elif t == 'STRING':
-        s = u'"{}"'.format(str(val))
+        #s = unicode(val, encoding='utf-8', errors='replace')
+        #s = unicode(val, errors='replace')
+        #s = val.decode('utf-8', errors='replace')
+        try:
+            s = u"{}".format(val)
+        except (TypeError, UnicodeError), e:
+            s = u"<TRANSLATION ERROR>"
+            
     
     elif t == 'EXCEPTION':
         # http://docs.python.org/library/traceback.html
@@ -373,8 +380,9 @@ def _str_val(val, depth=0):
                 s += "\n"
     
     else:
-        s = str(val)
+        s = u"{}".format(val)
 
+    s = u"{}".format(s)
     return s
 
 def _str_iterator(iterator, name_callback=None, prefix="\n", left_paren='[', right_paren=']', depth=0):
@@ -485,12 +493,13 @@ def _get_arg_info(arg_vals={}, back_i=0):
     if len(frames) > back_i:
         ret_dict.update(_get_call_info(frames[back_i], __name__, frames[back_i - 1][3]))
         
+    print ret_dict
     # build the arg list if values have been passed in
     if len(arg_vals) > 0:
         
         args = []
         
-        if ret_dict['call'] is not None:
+        if len(ret_dict['arg_names']) > 0:
             
             # match the found arg names to their respective values
             for i, arg_name in enumerate(ret_dict['arg_names']):
@@ -538,40 +547,45 @@ def _get_call_info(frame_tuple, called_module='', called_func=''):
         if called_func and called_func != '__call__':
             
             # get the call block
-            caller_src = open(call_info['file'], 'rU').read()
-            ast_tree = compile(caller_src, call_info['file'], 'exec', ast.PyCF_ONLY_AST)
-            
-            func_calls = _find_calls(ast_tree, called_module, called_func)
-            
-            # now get the actual calling codeblock
-            regex = u"\s*(?:{})\s*\(".format(u"|".join([str(v) for v in func_calls]))
-            r = re.compile(regex) 
-            caller_src_lines = caller_src.split("\n")
-            total_lines = len(caller_src_lines)
-            
-            # we need to move up one line until we get to the beginning of the call
-            while start_lineno >= 0:
-            
-                call = u"\n".join(caller_src_lines[start_lineno:stop_lineno])
-                if(r.search(call)):
-                    break
-                else:
-                    start_lineno -= 1
-            
-            if start_lineno > -1:
-                # now we need to make sure we have the end of the call also
-                while stop_lineno < total_lines:
+            try:
+                caller_src = open(call_info['file'], 'rU').read()
+                ast_tree = compile(caller_src, call_info['file'], 'exec', ast.PyCF_ONLY_AST)
                 
-                    arg_names, is_balanced = _get_arg_names(call)
+                func_calls = _find_calls(ast_tree, called_module, called_func)
                 
-                    if is_balanced:
+                # now get the actual calling codeblock
+                regex = u"\s*(?:{})\s*\(".format(u"|".join([str(v) for v in func_calls]))
+                r = re.compile(regex) 
+                caller_src_lines = caller_src.split("\n")
+                total_lines = len(caller_src_lines)
+                
+                # we need to move up one line until we get to the beginning of the call
+                while start_lineno >= 0:
+                
+                    call = u"\n".join(caller_src_lines[start_lineno:stop_lineno])
+                    if(r.search(call)):
                         break
                     else:
-                        call += u"\n{}".format(caller_src_lines[stop_lineno])
-                        stop_lineno += 1
-                        
-            else:
-                call = u''
+                        start_lineno -= 1
+                
+                if start_lineno > -1:
+                    # now we need to make sure we have the end of the call also
+                    while stop_lineno < total_lines:
+                    
+                        arg_names, is_balanced = _get_arg_names(call)
+                    
+                        if is_balanced:
+                            break
+                        else:
+                            call += u"\n{}".format(caller_src_lines[stop_lineno])
+                            stop_lineno += 1
+                            
+                else:
+                    call = u''
+
+            except IOError:
+                # we failed to open the file, IPython has this problem
+                pass
                     
         
         if not call:
@@ -850,7 +864,7 @@ def _get_type(val):
     elif isinstance(val, types.InstanceType) or hasattr(val, '__dict__') and not (hasattr(val, 'func_name') or hasattr(val, 'im_func')):
         t = 'OBJECT'
     
-    elif isinstance(v, (types.FunctionType, types.BuiltinFunctionType)) and hasattr(v, '__call__'):
+    elif isinstance(val, (types.FunctionType, types.BuiltinFunctionType)) and hasattr(val, '__call__'):
         # this has to go after object because lots of times objects can be classified as functions
         # http://stackoverflow.com/questions/624926/
         t = 'FUNCTION'
