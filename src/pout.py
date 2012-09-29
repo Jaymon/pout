@@ -496,7 +496,6 @@ def _get_arg_info(arg_vals={}, back_i=0):
     if len(frames) > back_i:
         ret_dict.update(_get_call_info(frames[back_i], __name__, frames[back_i - 1][3]))
         
-    print ret_dict
     # build the arg list if values have been passed in
     if len(arg_vals) > 0:
         
