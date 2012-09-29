@@ -404,23 +404,23 @@ def _str_iterator(iterator, name_callback=None, prefix="\n", left_paren='[', rig
 
     indent = 1 if depth > 0 else 0
 
-    s = '{}{}\n'.format(prefix, _add_indent(left_paren, indent))
+    s = u'{}{}\n'.format(prefix, _add_indent(left_paren, indent))
             
-    s_body = ''
+    s_body = u''
         
     for k, v in iterator:
         k = k if name_callback is None else name_callback(k)
         try:
-            s_body += "{}: {},\n".format(k, _str_val(v, depth=depth+1))
+            s_body += u"{}: {},\n".format(k, _str_val(v, depth=depth+1))
         except RuntimeError, e:
             # I've never gotten this to work
-            s_body += "{}: ... Recursion error ...,\n".format(k)
+            s_body += u"{}: ... Recursion error ...,\n".format(k)
     
-    s_body = s_body.rstrip(",\n")
+    s_body = s_body.rstrip(u",\n")
     s_body = _add_indent(s_body, indent + 1)
     
     s += s_body
-    s += "\n{}".format(_add_indent(right_paren, indent))
+    s += u"\n{}".format(_add_indent(right_paren, indent))
     
     return s
 
