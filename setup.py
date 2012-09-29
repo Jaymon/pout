@@ -8,7 +8,7 @@ from setuptools import setup
 
 install_requires = []
 extra = {}
-version = '0.1.8'
+version = '0.2.1'
 
 
 setup(

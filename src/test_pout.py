@@ -11,8 +11,9 @@ python -m unittest test_pout[.ClassTest[.test_method]]
 """
 
 import sys
-import pout
 import unittest
+
+import pout
 
 class Foo(object):
     bax=4
@@ -61,6 +62,31 @@ class PoutTest(unittest.TestCase):
     '''
     any non specific function testing should go here
     '''
+    
+    def test_ipython_fail(self):
+        '''
+        ipython would fail because the source file couldn't be read
+        
+        since -- 7-19-12
+        '''
+        mp_orig = pout._get_call_info
+        
+        def _get_call_info_fake(frame_tuple, called_module='', called_func=''):
+            call_info = {}
+            call_info['frame'] = frame_tuple
+            call_info['line'] = frame_tuple[2]
+            call_info['file'] = '/fake/file/path'
+            call_info['call'] = u''
+            call_info['arg_names'] = []
+            return call_info
+            
+        # monkey patch to do get what would be returned in an iPython shell
+        pout._get_call_info = _get_call_info_fake
+        
+        # this should print out
+        pout.v(range(5))
+        
+        mp_orig = pout._get_call_info = mp_orig
     
     def test_get_type(self):
     
@@ -117,6 +143,15 @@ class HTest(unittest.TestCase):
         pout.h()
 
 class VTest(unittest.TestCase):
+
+    def test_sys_module(self):
+        '''
+        built-in modules fail, which they shouldn't
+        
+        since -- 7-19-12
+        '''
+        pout.v(sys)
+        
 
     def test_multiline_call(self):
         
