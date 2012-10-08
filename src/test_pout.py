@@ -132,6 +132,20 @@ class TTest(unittest.TestCase):
     def test_t(self):
         pout.t()
 
+    def test_t_with_assign(self):
+        '''
+        there was a problem where the functions to get parse the call would fail
+        when one of the inputs was a dict key assignment, this test makes sure that
+        is fixed
+
+        since -- 10-8-12 -- Jay
+        '''
+        r = {}
+        r['foo'] = self.get_trace()
+
+    def get_trace(self):
+        pout.t()
+
 class HTest(unittest.TestCase):
     """
     test the pout.h() method
