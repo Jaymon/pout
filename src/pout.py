@@ -895,7 +895,7 @@ def _get_src_file(val):
     '''
     return the source file path
     
-    since -- 7-19-12 -- Jay
+    since -- 7-19-12
     
     val -- mixed -- the value whose path you want
     
@@ -904,9 +904,16 @@ def _get_src_file(val):
     path = u'Unkown'
 
     try:
-        # can also use inspect.getFile() here
         # http://stackoverflow.com/questions/6761337/inspect-getfile-vs-inspect-getsourcefile
-        path = os.path.realpath(inspect.getsourcefile(val))
+        # first try and get the actual source file
+        source_file = inspect.getsourcefile(val)
+        if not source_file:
+            # get the raw file since val doesn't have a source file (could be a .pyc or .so file)
+            source_file = inspect.getfile(val)
+
+        if source_file:
+            path = os.path.realpath(source_file)
+
     except TypeError:
         path = u'Unknown'
     
