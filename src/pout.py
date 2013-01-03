@@ -658,7 +658,7 @@ def _find_calls(ast_tree, called_module, called_func):
         else:
             # we are in a import ... statement
             for ast_name in ast_tree.names:
-                if ast_name.name == called_module:
+                if hasattr(ast_name, 'name') and (ast_name.name == called_module):
                     call = u"{}.{}".format(
                         ast_name.asname if ast_name.asname is not None else ast_name.name,
                         called_func
@@ -722,7 +722,7 @@ def _get_arg_names(call_str):
         elif c == '"' or c == "'":
             # we only pop on unescaped matches, (eg, strings that start with ' can have ")
             if len(stack_quote) > 0:
-                if (stack_quote[-1] == c) and (arg_name[-1] != '\\'):
+                if (stack_quote[-1] == c) and (not arg_name or (arg_name[-1] != '\\')):
                     stack_quote.pop()
             else:
                 # a string was passed in
