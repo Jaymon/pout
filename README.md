@@ -16,11 +16,16 @@ example
     # do something else
     pout.h(2)
     
+    # do even more of something else
+    pout.h()
+    
 Should print something like:
 
     here 1 (/file.py:line)
     
     here 2 (/file.py:line)
+
+    here (/file.py:line)
 
 ### pout.v(arg1, [arg2, ...]) -- easy way to print variables
 
@@ -41,12 +46,12 @@ should print something like:
     [
             0: 1,
             1: 2,
-            3:
+            2:
                     [
                             0: 3,
                             1: 4
                     ],
-            4: 5
+            3: 5
     ]
     (/file.py:line)
 
