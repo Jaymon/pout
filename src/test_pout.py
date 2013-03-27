@@ -101,6 +101,9 @@ class PoutTest(unittest.TestCase):
         
         v = Foo()
         self.assertEqual('OBJECT', pout._get_type(v))
+        #import types
+        #print dir(Foo.__init__)
+        #print "{}".format(isinstance(Foo.__init__, (types.FunctionType, types.BuiltinFunctionType, types.MethodType)))
         self.assertEqual('FUNCTION', pout._get_type(Foo.__init__))
 
         self.assertEqual('FUNCTION', pout._get_type(baz))

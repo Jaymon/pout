@@ -122,16 +122,17 @@ def _print(args, call_info):
 
     link -- http://stackoverflow.com/questions/5574702/how-to-print-to-stderr-in-python
     
-    args -- list -- the list of string args to print
+    args -- list -- the list of unicode args to print
     call_info -- dict -- returned from _get_arg_info()
     '''
 
+    # unicode sandwich, everything printed should be a byte string
     sys.stderr.write("\n")
 
     for arg in args:
-        sys.stderr.write(u"{}".format(arg))
+        sys.stderr.write(arg.encode('utf-8', 'replace'))
         
-    sys.stderr.write(u"({}:{})\n\n".format(call_info['file'], call_info['line']))
+    sys.stderr.write("({}:{})\n\n".format(call_info['file'], call_info['line']))
     sys.stderr.flush()
     
    
@@ -148,7 +149,7 @@ def _str(name, val):
     return -- string
     '''
     
-    s = ''
+    s = u''
     
     if name:
         
@@ -184,8 +185,8 @@ def _str_val(val, depth=0):
             s = _str_iterator(
                 iterator=val.iteritems(), 
                 name_callback= lambda k: u"'{}'".format(k),
-                left_paren='{', 
-                right_paren='}',
+                left_paren=u'{', 
+                right_paren=u'}',
                 depth=depth
             )
             
@@ -257,16 +258,16 @@ def _str_val(val, depth=0):
         
         if depth < 4:
         
-            s += "\n<"
+            s += u"\n<"
             s_body = u''
         
-            s_body += "\nid: {}\n".format(id(val))
+            s_body += u"\nid: {}\n".format(id(val))
         
             if hasattr(val, '__str__'):
                 
-                s_body += "\n__str__:\n"
+                s_body += u"\n__str__:\n"
                 s_body += _add_indent(str(val), 1)
-                s_body += "\n"
+                s_body += u"\n"
 
             if hasattr(val, '__class__'):
 
@@ -274,7 +275,7 @@ def _str_val(val, depth=0):
                 class_dict = {k: v for k, v in vars(val.__class__).iteritems() if not _is_magic(k)}
                 if class_dict:
                 
-                    s_body += "\nClass Variables:\n"
+                    s_body += u"\nClass Variables:\n"
                 
                     for k, v in class_dict.iteritems():
                         vt = _get_type(v)
@@ -292,7 +293,7 @@ def _str_val(val, depth=0):
         
             instance_dict = vars(val)
             if instance_dict:
-                s_body += "\nInstance Variables:\n"                
+                s_body += u"\nInstance Variables:\n"
                 
                 for k, v in instance_dict.iteritems():
                     vt = _get_type(v)
@@ -303,10 +304,10 @@ def _str_val(val, depth=0):
                         s_var += _str_val(v, depth=depth+1)
                     
                     s_body += _add_indent(s_var, 1)
-                    s_body += "\n"
+                    s_body += u"\n"
             
             s += _add_indent(s_body.rstrip(), 1)
-            s += "\n>\n"
+            s += u"\n>\n"
             
         else:
             s = repr(val)
@@ -316,7 +317,7 @@ def _str_val(val, depth=0):
         file_path = _get_src_file(val)
         s = u'{} module ({})\n'.format(val.__name__, file_path)
         
-        s += "\nid: {}\n".format(id(val))
+        s += u"\nid: {}\n".format(id(val))
         
         modules = {}
         funcs = {}
@@ -338,36 +339,36 @@ def _str_val(val, depth=0):
             #pout2.v('%s %s: %s' % (k, vt, repr(v)))
         
         if modules:
-            s += "\nModules:\n"
+            s += u"\nModules:\n"
             for k, v in modules.iteritems():
                 module_path = _get_src_file(v)
-                s += _add_indent("{} ({})".format(k, module_path), 1)
-                s += "\n"
+                s += _add_indent(u"{} ({})".format(k, module_path), 1)
+                s += u"\n"
         
         if funcs:
-            s += "\nFunctions:\n"
+            s += u"\nFunctions:\n"
             
             for k, v in funcs.iteritems():
             
                 try:
                     func_args = inspect.formatargspec(*inspect.getargspec(v))
                 except TypeError:
-                    func_args = "(...)"
+                    func_args = u"(...)"
                 #pout2.v(func_args)
             
-                s += _add_indent("{}{}".format(k, func_args), 1)
-                s += "\n"
+                s += _add_indent(u"{}{}".format(k, func_args), 1)
+                s += u"\n"
                 
         if classes:
-            s += "\nClasses:\n"
+            s += u"\nClasses:\n"
             
             for k, v in classes.iteritems():
             
                 #func_args = inspect.formatargspec(*inspect.getargspec(v))
                 #pout2.v(func_args)
             
-                s += _add_indent("{}".format(k), 1)
-                s += "\n"
+                s += _add_indent(u"{}".format(k), 1)
+                s += u"\n"
                 
                 # add methods
                 for m, mv in inspect.getmembers(v):
@@ -375,12 +376,12 @@ def _str_val(val, depth=0):
                     if _get_type(mv) == 'FUNCTION':
                         try:
                             func_args = inspect.formatargspec(*inspect.getargspec(mv))
-                            s += _add_indent(".{}{}".format(m, func_args), 2)
-                            s += "\n"
+                            s += _add_indent(u".{}{}".format(m, func_args), 2)
+                            s += u"\n"
                         except TypeError:
                             pass
                 
-                s += "\n"
+                s += u"\n"
     
     else:
         s = u"{}".format(val)
@@ -388,7 +389,7 @@ def _str_val(val, depth=0):
     s = u"{}".format(s)
     return s
 
-def _str_iterator(iterator, name_callback=None, prefix="\n", left_paren='[', right_paren=']', depth=0):
+def _str_iterator(iterator, name_callback=None, prefix=u"\n", left_paren=u'[', right_paren=u']', depth=0):
     '''
     turn an iteratable value into a string representation
     
@@ -435,9 +436,9 @@ def _get_name(val, default='Unknown'):
     
     return -- string -- the full.module.Name
     '''
-    module_name = '{}.'.format(getattr(val, '__module__', '')).lstrip('.')
+    module_name = u'{}.'.format(getattr(val, '__module__', '')).lstrip('.')
     class_name = getattr(getattr(val, '__class__'), '__name__', default)
-    full_name = "{}{}".format(module_name, class_name)
+    full_name = u"{}{}".format(module_name, class_name)
     
     return full_name
 
@@ -457,8 +458,8 @@ def _add_indent(val, indent):
     if indent < 1: return val
 
     s = val.split('\n')
-    s = [("\t" * indent) + line for line in s]
-    s = "\n".join(s)
+    s = [(u"\t" * indent) + line for line in s]
+    s = u"\n".join(s)
     return s
 
 def _get_arg_info(arg_vals={}, back_i=0):
@@ -484,8 +485,8 @@ def _get_arg_info(arg_vals={}, back_i=0):
     ret_dict = {
         'args': {},
         'frame': None,
-        'line': 'Unknown',
-        'file': 'Unknown'
+        'line': u'Unknown',
+        'file': u'Unknown'
     }
     args = {}
     
@@ -700,14 +701,14 @@ def _get_arg_names(call_str):
 
     for c in call_str:
     
-        if c == '(' and (len(stack_quote) == 0):
+        if c == u'(' and (len(stack_quote) == 0):
             stack_paren.append(c)
             if len(stack_paren) == 1:
                 # we've found the first paren of the pout call
                 arg_build = True
                 continue
         
-        elif c == ')' and (len(stack_quote) == 0):
+        elif c == u')' and (len(stack_quote) == 0):
             stack_paren.pop()
             
             if len(stack_paren) == 0:
@@ -715,11 +716,11 @@ def _get_arg_names(call_str):
                 arg_names.append(arg_name.strip() if has_name else u'')
                 break
         
-        elif c == '[' and (len(stack_quote) == 0):
+        elif c == u'[' and (len(stack_quote) == 0):
             stack_bracket.append(c)
-        elif c == ']' and (len(stack_quote) == 0):
+        elif c == u']' and (len(stack_quote) == 0):
             stack_bracket.pop()
-        elif c == '"' or c == "'":
+        elif c == u'"' or c == u"'":
             # we only pop on unescaped matches, (eg, strings that start with ' can have ")
             if len(stack_quote) > 0:
                 if (stack_quote[-1] == c) and (not arg_name or (arg_name[-1] != '\\')):
@@ -731,7 +732,7 @@ def _get_arg_names(call_str):
             
                 stack_quote.append(c)
         
-        elif c == ',':
+        elif c == u',':
             # we have finished compiling an argument name
             if (len(stack_paren) == 1) and (len(stack_bracket) == 0) and (len(stack_quote) == 0):
                 arg_names.append(arg_name.strip() if has_name else u'')
@@ -843,6 +844,8 @@ def _get_type(val):
     '''
 
     t = 'DEFAULT'
+    # http://docs.python.org/2/library/types.html
+    func_types = (types.FunctionType, types.BuiltinFunctionType, types.MethodType, types.UnboundMethodType, types.BuiltinFunctionType, types.BuiltinMethodType)
 
     if isinstance(val, (types.NoneType, types.BooleanType, types.IntType, types.LongType, types.FloatType)):
         t = 'DEFAULT'
@@ -869,7 +872,7 @@ def _get_type(val):
     elif isinstance(val, types.InstanceType) or hasattr(val, '__dict__') and not (hasattr(val, 'func_name') or hasattr(val, 'im_func')):
         t = 'OBJECT'
     
-    elif isinstance(val, (types.FunctionType, types.BuiltinFunctionType)) and hasattr(val, '__call__'):
+    elif isinstance(val, func_types) and hasattr(val, '__call__'):
         # this has to go after object because lots of times objects can be classified as functions
         # http://stackoverflow.com/questions/624926/
         t = 'FUNCTION'
@@ -889,7 +892,7 @@ def _is_magic(name):
     
     return -- boolean
     '''
-    return (name[:2] == '__' and name[-2:] == '__')
+    return (name[:2] == u'__' and name[-2:] == u'__')
 
 def _get_src_file(val):
     '''
