@@ -213,13 +213,14 @@ def _str_val(val, depth=0):
             s = u"()"
       
     elif t == 'STRING':
-        #s = unicode(val, encoding='utf-8', errors='replace')
-        #s = unicode(val, errors='replace')
-        #s = val.decode('utf-8', errors='replace')
         try:
-            s = u"{}".format(val)
+            if isinstance(val, unicode):
+                s = u'u"{}"'.format(val)
+            else:
+                s = u'"{}"'.format(val)
+
         except (TypeError, UnicodeError), e:
-            s = u"<TRANSLATION ERROR>"
+            s = u"<UNICODE ERROR>"
             
     
     elif t == 'EXCEPTION':

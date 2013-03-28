@@ -161,6 +161,25 @@ class HTest(unittest.TestCase):
 
 class VTest(unittest.TestCase):
 
+    def test_str(self):
+        '''
+        since -- 3-28-2013
+        '''
+        s_unicode = u"this is a unicode string"
+        s_byte = "this is a byte string"
+        pout.v(s_unicode)
+        pout.v(s_byte)
+        s_unicode = u""
+        s_byte = ""
+        pout.v(s_unicode)
+        pout.v(s_byte)
+
+        d = {
+            'foo': u"foo is a unicode str",
+            'bar': "bar is a byte string"
+        }
+        pout.v(d)
+
     def test_sys_module(self):
         '''
         built-in modules fail, which they shouldn't
