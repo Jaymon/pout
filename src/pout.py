@@ -217,7 +217,8 @@ def _str_val(val, depth=0):
             if isinstance(val, unicode):
                 s = u'u"{}"'.format(val)
             else:
-                s = u'"{}"'.format(val)
+                # we need to convert the byte string to unicode, we will change it back to byte string on output
+                s = u'"{}"'.format(val.decode('utf-8'))
 
         except (TypeError, UnicodeError), e:
             s = u"<UNICODE ERROR>"
