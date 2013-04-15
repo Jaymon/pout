@@ -8,25 +8,6 @@ where the print statement is located (so you can easily find it and delete it wh
 
 ## Methods
 
-### pout.h() -- easy way to print "here" in the code
-
-example
-
-    pout.h(1)
-    # do something else
-    pout.h(2)
-    
-    # do even more of something else
-    pout.h()
-    
-Should print something like:
-
-    here 1 (/file.py:line)
-    
-    here 2 (/file.py:line)
-
-    here (/file.py:line)
-
 ### pout.v(arg1, [arg2, ...]) -- easy way to print variables
 
 example
@@ -65,6 +46,25 @@ You can send as many variables as you want into the call
         foo,
         bar
     )
+
+### pout.h() -- easy way to print "here" in the code
+
+example
+
+    pout.h(1)
+    # do something else
+    pout.h(2)
+    
+    # do even more of something else
+    pout.h()
+    
+Should print something like:
+
+    here 1 (/file.py:line)
+    
+    here 2 (/file.py:line)
+
+    here (/file.py:line)
 
 ### pout.t() -- print a backtrace
 
@@ -112,9 +112,12 @@ want to use `pout` in, you can put this snippet of code in your dev environment 
 have to import pout:
 
     # handy for dev environment, make pout available to all modules without an import
-    import pout
     import __builtin__
-    __builtin__.pout = pout
+    try:
+      import pout
+      __builtin__.pout = pout
+    except ImportError:
+      pass
     
 [Read more](http://stackoverflow.com/questions/142545/python-how-to-make-a-cross-module-variable) 
 on what the above snippet does.

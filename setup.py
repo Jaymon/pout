@@ -1,15 +1,12 @@
 #!/usr/bin/env python
-# I shamefully ripped most of this off from fbconsole because it was a setup.py I had
-# readily available.
+# I shamefully ripped most of this off from fbconsole
 # http://docs.python.org/distutils/setupscript.html
+# http://docs.python.org/2/distutils/examples.html
 
 import sys
 from setuptools import setup
 
-install_requires = []
-extra = {}
-version = '0.2.1'
-
+version = '0.2.2'
 
 setup(
     name='pout',
@@ -18,12 +15,10 @@ setup(
     author='Jay Marcyes',
     author_email='jay@marcyes.com',
     url='http://github.com/Jaymon/pout',
-    package_dir={'': 'src'},
     py_modules=[
         'pout',
     ],
     license="MIT",
-    install_requires=install_requires,
     zip_safe=True,
     classifiers=[
         'Development Status :: {}'.format(version),
@@ -33,7 +28,5 @@ setup(
         'Operating System :: OS Independent',
         'Topic :: Debug',
         ],
-    test_suite = "fbconsole.test_pout",
-    entry_points = "", # http://stackoverflow.com/questions/774824/explain-python-entry-points
-    **extra
+    test_suite = "test_pout",
 )
