@@ -107,6 +107,8 @@ I'll add more stuff, and fix bugs, as I find, and fix, them.
 
 ## Other Things
 
+### Make Pout easier to use
+
 If, like me, you hate having to constantly do `import pout` at the top of every module you
 want to use `pout` in, you can put this snippet of code in your dev environment so you no longer
 have to import pout:
@@ -118,6 +120,38 @@ have to import pout:
       __builtin__.pout = pout
     except ImportError:
       pass
-    
+      
 [Read more](http://stackoverflow.com/questions/142545/python-how-to-make-a-cross-module-variable) 
 on what the above snippet does.
+
+If even having to import pout once is too much work, you can actually edit Python's `site.py` file. If you do this, you
+should most definitely only ever do it on your dev box in your dev environment, I would **NOT** do something
+like this on a production server:
+
+1 - Find the `site.py` file for your python installation
+
+    You can find where your python installation lives through the Python shell:
+
+        $ python
+        >>> import sys
+        >>> sys.prefix
+        '/path/to/python/install'
+
+2 - Go to that directory's `lib/pythonX.Y` directory
+
+    So, if you were using Python 2.7, you would go to `/path/to/python/install/lib/python2.7`
+
+3 - edit the `site.py` file
+    
+    add this to somewhere near the end of the `site.py` file
+
+        try:
+          import pout
+          __builtin__.pout = pout
+        except ImportError:
+          pass
+
+4 - Now any python code will be able to use `pout` without you having to explicitely import it.
+
+[Read more](http://docs.python.org/2/library/site.html), also [here](http://stackoverflow.com/a/8255752)
+
