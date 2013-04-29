@@ -130,26 +130,26 @@ like this on a production server:
 
 1 - Find the `site.py` file for your python installation
 
-    You can find where your python installation lives through the Python shell:
+You can find where your python installation lives through the Python shell:
 
-        $ python
-        >>> import sys
-        >>> sys.prefix
-        '/path/to/python/install'
+    $ python
+    >>> import sys
+    >>> sys.prefix
+    '/path/to/python/install'
 
 2 - Go to that directory's `lib/pythonX.Y` directory
 
-    So, if you were using Python 2.7, you would go to `/path/to/python/install/lib/python2.7`
+So, if you were using Python 2.7, you would go to `/path/to/python/install/lib/python2.7`
 
 3 - edit the `site.py` file
     
-    add this to somewhere near the end of the `site.py` file
+add this to somewhere near the end of the `site.py` file
 
-        try:
-          import pout
-          __builtin__.pout = pout
-        except ImportError:
-          pass
+    try:
+      import pout
+      __builtin__.pout = pout
+    except ImportError:
+      pass
 
 4 - Now any python code will be able to use `pout` without you having to explicitely import it.
 
