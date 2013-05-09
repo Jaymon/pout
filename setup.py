@@ -6,7 +6,7 @@
 import sys
 from setuptools import setup
 
-version = '0.2.2'
+version = '0.3.0'
 
 setup(
     name='pout',
