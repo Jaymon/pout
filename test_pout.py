@@ -9,9 +9,13 @@ link -- http://docs.python.org/library/unittest.html
 to run on the command line:
 python -m unittest test_pout[.ClassTest[.test_method]]
 """
-
 import sys
+import time
 import unittest
+
+# remove any global pout (this is to overcome me putting pout in sites.py
+if 'pout' in sys.modules:
+    del sys.modules['pout']
 
 import pout
 
@@ -127,6 +131,42 @@ class PoutTest(unittest.TestCase):
         
         #self.assertEqual('CLASS', pout._get_type(self.__class__))
 
+class CTest(unittest.TestCase):
+    def test_c(self):
+        pout.c('this is the input')
+        pout.c(u'\u304f')
+        pout.c(u'just\r\ntesting')
+        pout.c(u'just', u'testing')
+        pout.c(u'\U00020731')
+
+class BTest(unittest.TestCase):
+    def test_b(self):
+        pout.b()
+        pout.b(5)
+        pout.b('this is the title')
+        pout.b('this is the title 2', 5)
+        pout.b('this is the title 3', 3, '=')
+
+
+class PTest(unittest.TestCase):
+    def test_p_one_level(self):
+        pout.p('foo')
+        time.sleep(1)
+        pout.p()
+
+    def test_p_multi_levels(self):
+        pout.p('multi foo')
+        pout.p(u'multi bar')
+        time.sleep(0.5)
+        pout.p()
+        time.sleep(0.5)
+        pout.p()
+
+class XTest(unittest.TestCase):
+    def test_x(self):
+        # pout.x()
+        pass
+
 class TTest(unittest.TestCase):
     """
     test the pout.t() method
@@ -160,6 +200,11 @@ class HTest(unittest.TestCase):
         pout.h()
 
 class VTest(unittest.TestCase):
+
+    def test_type(self):
+
+        pout.v(type(100))
+        pout.v(type([]))
 
     def test_str(self):
         '''

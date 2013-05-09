@@ -96,6 +96,108 @@ should print something like:
     
             pout.t()
    
+### pout.p([title]) -- quick and dirty profiling
+
+example
+
+    p("starting profile")
+    time.sleep(1)
+    p() # stop the "starting profile" session
+
+    # you can go N levels deep
+    p("one")
+    p("two")
+    time.sleep(0.5)
+    p() # stop profiling of "two"
+    time.sleep(0.5)
+    p() # stop profiling of "one"
+
+should print something like:
+
+    starting profile - 1008.2 ms
+      start: 1368137723.7 (/file/path:n)
+      stop: 1368137724.71(/file/path:n)
+
+
+    one > two - 509.2 ms
+      start: 1368137722.69 (/file/path:n)
+      stop: 1368137723.2(/file/path:n)
+
+
+    one - 1025.9 ms
+      start: 1368137722.68 (/file/path:n)
+      stop: 1368137723.7(/file/path:n)
+
+### pout.x([exit_code]) -- like sys.exit(exit_code)
+
+This just prints out where it was called from, so you can remember you exited the code
+while debugging
+
+example:
+  
+    pout.x()
+
+will print something like this before exiting with an exit code of 1:
+
+    exit (/file/path:n)
+
+
+### pout.b([title[, rows[, sep]]]) -- prints lots of lines to break up output
+
+This is is handy if you are printing lots of stuff in a loop and you want to break up
+the output into sections
+
+example:
+
+    pout.b()
+    pout.b('this is the title')
+    pout.b('this is the title 2', 5)
+    pout.b('this is the title 3', 3, '=')
+
+Would result in output like:
+
+    ********************************************************************************
+    (/file/path:n)
+
+
+    ****************************** this is the title *******************************
+    (/file/path:n)
+
+
+    ********************************************************************************
+    ********************************************************************************
+    ***************************** this is the title 2 ******************************
+    ********************************************************************************
+    ********************************************************************************
+    (/file/path:n)
+
+
+    ================================================================================
+    ============================= this is the title 3 ==============================
+    ===============================================================================
+    (/file/path:n)
+
+### pout.c(str1, [str2, ...]) -- print info about each char in each str
+
+Kind of like od -c
+
+example:
+
+    pout.c('this')
+
+will print something like:
+
+    Total Characters: 4
+    t	't'	\u0074	LATIN SMALL LETTER T
+    h	'h'	\u0068	LATIN SMALL LETTER H
+    i	'i'	\u0069	LATIN SMALL LETTER I
+    s	's'	\u0073	LATIN SMALL LETTER S
+    (/file/path:n)
+
+This could fail if Python isn't compiled with 4 byte unicode support, just something
+to be aware of, but chances are, if you don't have 4 byte unicode supported Python, you're
+not doing much with 4 byte unicode.
+
 ## Install
 
 Use PIP

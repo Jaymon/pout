@@ -33,7 +33,6 @@ since -- 6-26-12
 author -- Jay Marcyes
 license -- MIT -- http://www.opensource.org/licenses/mit-license.php
 """
-
 import inspect
 import os
 import sys
@@ -42,8 +41,172 @@ import ast
 import re
 import collections
 import types
+import time
+import math
+import unicodedata
 
 #import pout2
+# profiler p() state is held here
+_stack = []
+
+def b(*args):
+    '''
+    create a big text break, you just kind of have to run it and see
+
+    since -- 2013-5-9
+
+    *args -- 1 arg = title if string, rows if int
+        2 args = title, int
+        3 args = title, int, sep
+    '''
+    lines = []
+
+    title = u''
+    rows = 1
+    sep = u'*'
+
+    if len(args) == 1:
+        t = _get_type(args[0])
+        if t == 'STRING':
+            title = args[0]
+        else:
+            rows = int(args[0])
+    elif len(args) == 2:
+        title = args[0]
+        rows = args[1]
+    elif len(args) == 3:
+        title = args[0]
+        rows = args[1]
+        sep = _get_unicode(args[2])
+
+    if not rows: rows = 1
+    half_rows = int(math.floor(rows / 2))
+    is_even = (rows >= 2) and ((rows % 2) == 0)
+
+    line_len = title_len = 80
+    if title:
+        title = u' {} '.format(_get_unicode(title))
+        title_len = len(title)
+        if title_len > line_len:
+            line_len = title_len
+
+        for x in xrange(half_rows):
+            lines.append(sep * line_len)
+
+        #title_format_line = u'{{:{}^{}}}'.format(sep, line_len)
+        #title_line = title_format.format(title)
+        title_line = u'{0:{sep}^{length}}'.format(title, sep=sep, length=line_len)
+        lines.append(title_line)
+
+        for x in xrange(half_rows):
+            lines.append(sep * line_len)
+
+    else:
+        for x in xrange(rows):
+            lines.append(sep * line_len)
+
+
+    lines.append(u'')
+    call_info = _get_arg_info()
+    _print([os.linesep.join(lines)], call_info)
+
+def c(*args):
+    '''
+    kind of like od -c on the command line, basically it dumps each character and info
+    about that char
+
+    since -- 2013-5-9
+
+    *args -- tuple -- one or more strings to dump
+    '''
+    lines = []
+    call_info = _get_arg_info()
+    for arg in args:
+        arg = _get_unicode(arg)
+        lines.append(u'Total Characters: {}'.format(len(arg)))
+        for c in arg:
+
+            line = []
+            line.append(c)
+            line.append(repr(c.encode('utf-8')))
+
+            cint = ord(c)
+            if cint > 65535:
+                line.append(u'\\U{:0>8X}'.format(cint))
+            else:
+                line.append(u'\\u{:0>4X}'.format(cint))
+
+            line.append(unicodedata.name(c, 'UNKNOWN'))
+            lines.append(u'\t'.join(line))
+
+        lines.append(u'')
+        lines.append(u'')
+
+    _print([os.linesep.join(lines)], call_info)
+
+def x(exit_code=1):
+    '''
+    same as sys.exit(1) but prints out where it was called from before exiting
+
+    I just find this really handy for debugging sometimes
+
+    since -- 2013-5-9
+
+    exit_code -- int -- if you want it something other than 1
+    '''
+    call_info = _get_arg_info()
+    _print([u'exit '], call_info)
+    sys.exit(exit_code)
+
+def p(name=None):
+    '''
+    really quick and dirty profiling
+
+    you start a profile by passing in name, you stop the top profiling by not passing in a name
+
+    This is for when you just want to get a really back of envelope view of how your fast your
+    code is, super handy, not super accurate
+
+    since -- 2013-5-9
+    example --
+        p("starting profile")
+        time.sleep(1)
+        p() # stop the "starting profile" session
+
+        # you can go N levels deep
+        p("one")
+        p("two")
+        time.sleep(0.5)
+        p() # stop profiling of "two"
+        time.sleep(0.5)
+        p() # stop profiling of "one"
+
+    name -- string -- pass this in to start a profiling session
+    '''
+    if name: #PUSH
+        d = {}
+        d['start'] = time.time()
+        d['name'] = _get_unicode(name)
+        d['start_call_info'] = _get_arg_info()
+        _stack.append(d)
+
+    else: #POP
+        if len(_stack) > 0:
+            call_info = _get_arg_info()
+            get_elapsed = lambda start, stop, multiplier, rnd: round(abs(stop - start) * float(multiplier), rnd)
+            name = u' > '.join((d['name'] for d in _stack))
+            d = _stack.pop()
+            d['stop'] = time.time()
+            d['elapsed'] = get_elapsed(d['start'], d['stop'], 1000.00, 1)
+            d['total'] = u"%0.1f ms" % (d['elapsed'])
+
+            summary = []
+            summary.append(u"{} - {}".format(name, d['total']))
+            summary.append(u"  start: {} ({}:{})".format(d['start'], d['start_call_info']['file'], d['start_call_info']['line']))
+            summary.append(u"  stop: {}".format(d['stop'], call_info['file'], call_info['line']))
+
+            calls = [os.linesep.join(summary)]
+            _print(calls, call_info)
 
 def t(inspect_packages=False, depth=0):
     '''
@@ -51,7 +214,6 @@ def t(inspect_packages=False, depth=0):
     
     since -- 7-6-12
     
-    ignore_packages -- boolean -- if True, then anything from site-packages will be skipped
     inpsect_packages -- boolean -- by default, this only prints code of packages that are not 
         in the pythonN directories, that cuts out a lot of the noise, set this to True if you
         want a full stacktrace
@@ -152,12 +314,15 @@ def _str(name, val):
     s = u''
     
     if name:
-        
         if hasattr(val, '__len__'):
-            count = len(val)
-            s = u"{} ({}) = {}".format(name, count, _str_val(val, depth=0))
+            # for some reason, type([]) will pass the hasattr check, but fail when getting length
+            try:
+                count = len(val)
+                s = u"{} ({}) = {}".format(name, count, _str_val(val, depth=0))
+            except TypeError:
+                pass
            
-        else:
+        if not s:
             s = u"{} = {}".format(name, _str_val(val))
             
     else:
@@ -223,7 +388,6 @@ def _str_val(val, depth=0):
         except (TypeError, UnicodeError), e:
             s = u"<UNICODE ERROR>"
             
-    
     elif t == 'EXCEPTION':
         # http://docs.python.org/library/traceback.html
         # http://www.doughellmann.com/PyMOTW/traceback/
@@ -384,6 +548,9 @@ def _str_val(val, depth=0):
                             pass
                 
                 s += u"\n"
+
+    elif t == 'TYPE':
+        s = u'{}'.format(val)
     
     else:
         s = u"{}".format(val)
@@ -860,6 +1027,9 @@ def _get_type(val):
      
     elif isinstance(val, tuple):
         t = 'TUPLE'
+    
+    elif isinstance(val, type):
+        t = 'TYPE'
       
     elif  isinstance(val, types.StringTypes): #isinstance(val, basestring):
         t = 'STRING'
@@ -923,3 +1093,19 @@ def _get_src_file(val):
         path = u'Unknown'
     
     return path
+
+def _get_unicode(arg):
+    '''
+    make sure arg is a unicode byte string
+
+    arg -- mixed -- arg can be anything
+    return -- unicode -- a u'' string will always be returned
+    '''
+    if isinstance(arg, str):
+        arg = arg.decode('utf-8')
+    else:
+        if not isinstance(arg, unicode):
+            arg = unicode(arg)
+
+    return arg
+
