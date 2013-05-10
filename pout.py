@@ -124,9 +124,9 @@ def c(*args):
     for arg in args:
         arg = _get_unicode(arg)
         lines.append(u'Total Characters: {}'.format(len(arg)))
-        for c in arg:
+        for i, c in enumerate(arg, 1):
 
-            line = []
+            line = [u'{}.'.format(i)]
             if c == u'\n':
                 line.append(u'\\n')
             elif c == u'\r':
