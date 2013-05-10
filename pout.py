@@ -127,7 +127,15 @@ def c(*args):
         for c in arg:
 
             line = []
-            line.append(c)
+            if c == u'\n':
+                line.append(u'\\n')
+            elif c == u'\r':
+                line.append(u'\\r')
+            elif c == u'\t':
+                line.append(u'\\t')
+            else:
+                line.append(c)
+
             line.append(repr(c.encode('utf-8')))
 
             cint = ord(c)
