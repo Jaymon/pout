@@ -1,10 +1,10 @@
-# Pout -- Easy Python variable printing
+# Pout
 
-`print()` was too hard to read, `pprint` wasn't much better. I was also getting sick of typing: 
-`print "var = {}".format(var)`. 
+A collection of handy functions for printing out variables and debugging code.
 
-This tries to print out variables with their name, for good measure, it also prints 
-where the print statement is located (so you can easily find it and delete it when you're done).
+`print()` was too hard to read, `pprint` wasn't much better. I was also getting sick of typing: `print "var = {}".format(var)`. 
+
+This tries to print out variables with their name, and for good measure, it also prints where the pout function was called from, so you can easily find it and delete it when you're done.
 
 ## Methods
 
@@ -130,7 +130,7 @@ should print something like:
 
 ### pout.x([exit_code]) -- like sys.exit(exit_code)
 
-This just prints out where it was called from, so you can remember you exited the code
+This just prints out where it was called from, so you can remember where you exited the code
 while debugging
 
 example:
@@ -202,14 +202,15 @@ not doing much with 4 byte unicode.
 
 Use PIP
 
+    pip install pout
+
+Generally, the pypi version and the github version shouldn't be that out of sync, but just in case, you can install from github also:
+
     pip install git+https://github.com/Jaymon/pout#egg=pout
 
-that's it, the module is still pretty basic but scratches my itch right now, I'm sure
-I'll add more stuff, and fix bugs, as I find, and fix, them.
+## Make Pout easier to use
 
-## Other Things
-
-### Make Pout easier to use
+### Add pout to a configuration file for you app
 
 If, like me, you hate having to constantly do `import pout` at the top of every module you
 want to use `pout` in, you can put this snippet of code in your dev environment so you no longer
@@ -225,6 +226,42 @@ have to import pout:
       
 [Read more](http://stackoverflow.com/questions/142545/python-how-to-make-a-cross-module-variable) 
 on what the above snippet does.
+
+### Add pout to usercustomize.py
+
+run this in terminal:
+
+    $ python -c "import site; site._script()"
+
+if at the end you see something like this:
+
+    USER_BASE: '/home/USERNAME/.local' (exists)
+    USER_SITE: '/home/USERNAME/.local/lib/python2.7/site-packages' (exists)
+    ENABLE_USER_SITE: True
+
+that means you can add a usercustomize.py module:
+
+    $ mkdir -p ~/.local/lib/python2.7/site-packages
+    $ touch ~/.local/lib/python2.7/site-packages/usercustomize.py
+
+that will be included every time python is ran and so you can put this code in:
+
+    import __builtin__
+    try:
+      import pout
+      __builtin__.pout = pout
+    except ImportError:
+      pass
+
+### Add pout to sitecustomize.py
+
+run this in terminal:
+
+    $ python -c "import site; print site.getsitepackages()[0]
+
+That should print out a good place to add a `sitecustomize.py` file. Create that file and include the pout import code in it.
+
+### Add pout to site.py
 
 If even having to import pout once is too much work, you can actually edit Python's `site.py` file. If you do this, you
 should most definitely only ever do it on your dev box in your dev environment, I would **NOT** do something

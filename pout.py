@@ -20,15 +20,6 @@ module finder might be useful someday
 link -- http://docs.python.org/library/modulefinder.html
 link -- http://stackoverflow.com/questions/2572582/return-a-list-of-imported-python-modules-used-in-a-script
 
-api --
-    h() -- easy way to print "here" in the code
-    v(arg1, [arg2, ...]) -- print out arg1 = val, etc. with info like file and line numbers
-
-example -- put this module in every other module without having to import it
-    import pout
-    import __builtin__
-    __builtin__.pout = pout
-
 since -- 6-26-12
 author -- Jay Marcyes
 license -- MIT -- http://www.opensource.org/licenses/mit-license.php
@@ -44,6 +35,8 @@ import types
 import time
 import math
 import unicodedata
+
+__version__ = '0.4'
 
 #import pout2
 # profiler p() state is held here
