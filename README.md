@@ -210,7 +210,7 @@ Generally, the pypi version and the github version shouldn't be that out of sync
 
 ## Make Pout easier to use
 
-### Add pout to a configuration file for you app
+### Add pout to a configuration file for your app
 
 If, like me, you hate having to constantly do `import pout` at the top of every module you
 want to use `pout` in, you can put this snippet of code in your dev environment so you no longer
@@ -263,9 +263,7 @@ That should print out a good place to add a `sitecustomize.py` file. Create that
 
 ### Add pout to site.py
 
-If even having to import pout once is too much work, you can actually edit Python's `site.py` file. If you do this, you
-should most definitely only ever do it on your dev box in your dev environment, I would **NOT** do something
-like this on a production server:
+If none of the above options work for you, you can also actually edit Python's `site.py` file. If you do this, you should most definitely only ever do it on your dev box in your dev environment, I would **NOT** do something like this on a production server:
 
 1 - Find the `site.py` file for your python installation
 
@@ -293,4 +291,10 @@ add this to somewhere near the end of the `site.py` file
 4 - Now any python code will be able to use `pout` without you having to explicitely import it.
 
 [Read more](http://docs.python.org/2/library/site.html), also [here](http://stackoverflow.com/a/8255752)
+
+## Bugs
+
+This doesn't work:
+
+    if hasattr(self, name): pout.v(name); return object.__setattr__(self, name, val)
 
