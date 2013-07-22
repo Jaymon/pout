@@ -41,6 +41,7 @@ __version__ = '0.5'
 
 logger = logging.getLogger(__name__)
 # don't try and configure the logger for default if it has been configured elsewhere
+# http://stackoverflow.com/questions/6333916/python-logging-ensure-a-handler-is-added-only-once
 if len(logger.handlers) == 0:
     logger.setLevel(logging.DEBUG)
     log_handler = logging.StreamHandler(stream=sys.stderr)
