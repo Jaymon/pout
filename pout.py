@@ -35,10 +35,21 @@ import types
 import time
 import math
 import unicodedata
+import logging
 
-__version__ = '0.4'
+__version__ = '0.5'
+
+logger = logging.getLogger(__name__)
+# don't try and configure the logger for default if it has been configured elsewhere
+if len(logger.handlers) == 0:
+    logger.setLevel(logging.DEBUG)
+    log_handler = logging.StreamHandler(stream=sys.stderr)
+    log_formatter = logging.Formatter('%(message)s')
+    log_handler.setFormatter(log_formatter)
+    logger.addHandler(log_handler)
 
 #import pout2
+
 # profiler p() state is held here
 _stack = []
 
@@ -86,10 +97,7 @@ def b(*args):
         for x in xrange(half_rows):
             lines.append(sep * line_len)
 
-        #title_format_line = u'{{:{}^{}}}'.format(sep, line_len)
-        #title_line = title_format.format(title)
-        title_line = u'{0:{sep}^{length}}'.format(title, sep=sep, length=line_len)
-        lines.append(title_line)
+        lines.append(title.center(line_len, sep))
 
         for x in xrange(half_rows):
             lines.append(sep * line_len)
@@ -280,25 +288,23 @@ def v(*args):
 def _print(args, call_info):
     '''
     handle printing args to the screen
-    
-    currently, we use stderr
 
-    link -- http://stackoverflow.com/questions/5574702/how-to-print-to-stderr-in-python
-    
+    this uses the global logger, so you can configure where output goes by configuring the "pout"
+    pythong logger
+
     args -- list -- the list of unicode args to print
     call_info -- dict -- returned from _get_arg_info()
     '''
 
     # unicode sandwich, everything printed should be a byte string
-    sys.stderr.write("\n")
+    s = "\n"
 
     for arg in args:
-        sys.stderr.write(arg.encode('utf-8', 'replace'))
-        
-    sys.stderr.write("({}:{})\n\n".format(call_info['file'], call_info['line']))
-    sys.stderr.flush()
-    
-   
+        s += arg.encode('utf-8', 'replace')
+
+    s += "({}:{})\n\n".format(call_info['file'], call_info['line'])
+    logger.debug(s)
+
 def _str(name, val):
     '''
     return a string version of name = val that can be printed
