@@ -37,7 +37,7 @@ import math
 import unicodedata
 import logging
 
-__version__ = '0.5'
+__version__ = '0.5.1'
 
 logger = logging.getLogger(__name__)
 # don't try and configure the logger for default if it has been configured elsewhere
@@ -48,6 +48,7 @@ if len(logger.handlers) == 0:
     log_formatter = logging.Formatter('%(message)s')
     log_handler.setFormatter(log_formatter)
     logger.addHandler(log_handler)
+    logger.propagate = False
 
 #import pout2
 
