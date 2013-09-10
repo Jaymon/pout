@@ -179,7 +179,7 @@ Would result in output like:
 
 ### pout.c(str1, [str2, ...]) -- print info about each char in each str
 
-Kind of like od -c
+Kind of like `od -c`
 
 example:
 
@@ -197,6 +197,20 @@ will print something like:
 This could fail if Python isn't compiled with 4 byte unicode support, just something
 to be aware of, but chances are, if you don't have 4 byte unicode supported Python, you're
 not doing much with 4 byte unicode.
+
+## Console commands
+
+### pout.json
+
+running a command on the command line that outputs a whole a bunch of json? Pout can help:
+
+    $ some-command-that-outputs-json | pout.json
+
+### pout.char
+
+Runs `pout.c` but on the output from a command line script:
+
+    $ echo "some string with chars to analyze" | pout.char
 
 ## Install
 

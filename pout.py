@@ -36,8 +36,9 @@ import time
 import math
 import unicodedata
 import logging
+import json
 
-__version__ = '0.5.1'
+__version__ = '0.5.2'
 
 logger = logging.getLogger(__name__)
 # don't try and configure the logger for default if it has been configured elsewhere
@@ -54,6 +55,21 @@ if len(logger.handlers) == 0:
 
 # profiler p() state is held here
 _stack = []
+
+def j(*args):
+    """
+    dump json
+
+    since -- 2013-9-10
+
+    *args -- tuple -- one or more json strings to dump
+    """
+
+    assert len(args) > 0, "you didn't pass any arguments to print out"
+
+    call_info = _get_arg_info(args)
+    args = [u"{}\n\n".format(_str(v['name'], json.loads(v['val']))) for v in call_info['args']]
+    _print(args, call_info)
 
 def b(*args):
     '''
@@ -614,8 +630,11 @@ def _get_name(val, default='Unknown'):
     
     return -- string -- the full.module.Name
     '''
-    module_name = u'{}.'.format(getattr(val, '__module__', '')).lstrip('.')
-    class_name = getattr(getattr(val, '__class__'), '__name__', default)
+    module_name = u'{}.'.format(getattr(val, '__module__', default)).lstrip('.')
+    class_name = default
+    cls = getattr(val, '__class__', None)
+    if cls:
+        class_name = getattr(cls, '__name__', default)
     full_name = u"{}{}".format(module_name, class_name)
     
     return full_name
@@ -1117,4 +1136,26 @@ def _get_unicode(arg):
             arg = unicode(arg)
 
     return arg
+
+def console_json():
+    """
+    mapped to pout.json on command line, use in a pipe
+
+    since -- 2013-9-10
+    link -- http://stackoverflow.com/questions/8478137/how-redirect-a-shell-command-output-to-a-python-script-input
+
+        $ command-that-outputs-json | pout.json
+    """
+    data = sys.stdin.readlines()
+    j(os.sep.join(data))
+
+def console_char():
+    """
+    mapped to pout.char on the command line, use in a pipe
+    since -- 2013-9-10
+
+        $ echo "some string I want to see char values for" | pout.char
+    """
+    data = sys.stdin.readlines()
+    c(os.sep.join(data))
 

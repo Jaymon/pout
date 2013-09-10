@@ -37,4 +37,10 @@ setup(
         'Programming Language :: Python :: 2.7',
     ],
     test_suite = "test_pout",
+    entry_points = {
+        'console_scripts': [
+            '{}.json = {}:console_json'.format(name, name),
+            '{}.char = {}:console_char'.format(name, name)
+        ],
+    }
 )

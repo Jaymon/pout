@@ -12,6 +12,7 @@ python -m unittest test_pout[.ClassTest[.test_method]]
 import sys
 import time
 import unittest
+import Queue
 
 # remove any global pout (this is to overcome me putting pout in sites.py
 if 'pout' in sys.modules:
@@ -394,6 +395,10 @@ class VTest(unittest.TestCase):
         pout.v(foo)
         
         #pout._get_arg_info([foo])
+
+    def test_queue(self):
+        """Queue.Queue was failing, let's fix that"""
+        pout.v(Queue.Queue)
 
 if __name__ == '__main__':
     unittest.main()
