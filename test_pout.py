@@ -400,5 +400,17 @@ class VTest(unittest.TestCase):
         """Queue.Queue was failing, let's fix that"""
         pout.v(Queue.Queue)
 
+    def test_precision(self):
+        """float precision was cutting off at 2 decimal places"""
+
+        f = 1380142261.454746
+        pout.v(f)
+
+        i = 1232432435
+        pout.v(i)
+
+        b = True
+        pout.v(b)
+
 if __name__ == '__main__':
     unittest.main()

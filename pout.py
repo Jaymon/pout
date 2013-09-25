@@ -578,7 +578,7 @@ def _str_val(val, depth=0):
         s = u'{}'.format(val)
     
     else:
-        s = u"{}".format(val)
+        s = u"{}".format(repr(val))
 
     s = u"{}".format(s)
     return s
