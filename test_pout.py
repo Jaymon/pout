@@ -412,5 +412,12 @@ class VTest(unittest.TestCase):
         b = True
         pout.v(b)
 
+class MTest(unittest.TestCase):
+    def test_m(self):
+        pout.m() # around 11
+        l = range(1, 1000000)
+        pout.m("after big list creation") # around 43
+
 if __name__ == '__main__':
     unittest.main()
+

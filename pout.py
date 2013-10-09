@@ -38,7 +38,9 @@ import unicodedata
 import logging
 import json
 
-__version__ = '0.5.2'
+import resource
+
+__version__ = '0.5.4'
 
 logger = logging.getLogger(__name__)
 # don't try and configure the logger for default if it has been configured elsewhere
@@ -55,6 +57,31 @@ if len(logger.handlers) == 0:
 
 # profiler p() state is held here
 _stack = []
+
+def m(name=u''):
+    """
+    Print out memory usage at this point in time
+
+    http://docs.python.org/2/library/resource.html
+    http://stackoverflow.com/a/15448600/5006
+    http://stackoverflow.com/questions/110259/which-python-memory-profiler-is-recommended
+    """
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    # according to the docs, this should give something good but it doesn't jive
+    # with activity monitor, so I'm using the value that gives me what activity 
+    # monitor gives me
+    # http://docs.python.org/2/library/resource.html#resource.getpagesize
+    # (usage[2] * resource.getpagesize()) / (1024 * 1024)
+    # http://stackoverflow.com/questions/5194057/better-way-to-convert-file-sizes-in-python
+    rss = float(usage[2]) / (1024.0 * 1024.0)
+    call_info = _get_arg_info()
+    summary = u''
+    if name:
+        summary += u"{}: ".format(name)
+
+    summary += u"{0} mb{1}{1}".format(round(rss, 2), os.linesep)
+    calls = [summary]
+    _print(calls, call_info)
 
 def j(*args):
     """
