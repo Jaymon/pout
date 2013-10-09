@@ -37,10 +37,10 @@ import math
 import unicodedata
 import logging
 import json
-
+import platform
 import resource
 
-__version__ = '0.5.4'
+__version__ = '0.5.5'
 
 logger = logging.getLogger(__name__)
 # don't try and configure the logger for default if it has been configured elsewhere
@@ -73,7 +73,14 @@ def m(name=u''):
     # http://docs.python.org/2/library/resource.html#resource.getpagesize
     # (usage[2] * resource.getpagesize()) / (1024 * 1024)
     # http://stackoverflow.com/questions/5194057/better-way-to-convert-file-sizes-in-python
-    rss = float(usage[2]) / (1024.0 * 1024.0)
+    rss = 0.0
+    platform_name = platform.system()
+    if platform_name == 'Linux':
+        # linux seems to return KB, while OSX returns B
+        rss = float(usage[2]) / 1024.0
+    else:
+        rss = float(usage[2]) / (1024.0 * 1024.0)
+
     call_info = _get_arg_info()
     summary = u''
     if name:
