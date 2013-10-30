@@ -200,6 +200,11 @@ class HTest(unittest.TestCase):
         
         pout.h()
 
+class VVTest(unittest.TestCase):
+    def test_vv(self):
+        d = {'foo': 1, 'bar': 2}
+        pout.vv(d)
+
 class VTest(unittest.TestCase):
 
     def test_type(self):

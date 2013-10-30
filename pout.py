@@ -40,7 +40,7 @@ import json
 import platform
 import resource
 
-__version__ = '0.5.5'
+__version__ = '0.5.6'
 
 logger = logging.getLogger(__name__)
 # don't try and configure the logger for default if it has been configured elsewhere
@@ -279,7 +279,7 @@ def t(inspect_packages=False, depth=0):
         in the pythonN directories, that cuts out a lot of the noise, set this to True if you
         want a full stacktrace
     depth -- integer -- how deep you want the stack trace to print (ie, if you only care about
-        the last three calls, pass in depth=3 so you only get the last 3 rows of the stack
+        the last three calls, pass in depth=3 so you only get the last 3 rows of the stack)
     '''
     frame = inspect.currentframe()
     frames = inspect.getouterframes(frame)
@@ -290,11 +290,10 @@ def t(inspect_packages=False, depth=0):
 def h(count=0):
     '''
     prints "here count"
-    
+
     example -- 
         h(1) # here 1 (/file:line)
         h() # here line (/file:line)
-        
 
     count -- integer -- the number you want to put after "here"
     '''
@@ -302,6 +301,16 @@ def h(count=0):
     call_info = _get_arg_info()
     args = [u"here {} ".format(count if count > 0 else call_info['line'])]
     _print(args, call_info)
+
+def vv(*args):
+    """
+    exactly like v, but doesn't print variable names or file positions (useful for logging)
+    """
+    assert len(args) > 0, "you didn't pass any arguments to print out"
+
+    call_info = _get_arg_info(args)
+    args = [u"{}\n\n".format(_str(None, v['val'])) for v in call_info['args']]
+    _print(args)
 
 def v(*args):
     '''
@@ -328,8 +337,7 @@ def v(*args):
         """
     
     *args -- list -- the variables you want to see pretty printed for humans
-    '''    
-    
+    '''
     assert len(args) > 0, "you didn't pass any arguments to print out"
     
     call_info = _get_arg_info(args)
@@ -337,7 +345,7 @@ def v(*args):
     args = [u"{}\n\n".format(_str(v['name'], v['val'])) for v in call_info['args']]
     _print(args, call_info)
 
-def _print(args, call_info):
+def _print(args, call_info=None):
     '''
     handle printing args to the screen
 
@@ -354,7 +362,9 @@ def _print(args, call_info):
     for arg in args:
         s += arg.encode('utf-8', 'replace')
 
-    s += "({}:{})\n\n".format(call_info['file'], call_info['line'])
+    if call_info:
+        s += "({}:{})\n\n".format(call_info['file'], call_info['line'])
+
     logger.debug(s)
 
 def _str(name, val):
