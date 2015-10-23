@@ -284,6 +284,9 @@ class Pout(object):
 
                 # match the found arg names to their respective values
                 for i, arg_name in enumerate(ret_dict['arg_names']):
+                    # TODO -- you can check for a __pout__ method and wrap it in
+                    # an object that will figure out the name and then print what
+                    # was returned from the __pout__ method also
                     args.append({'name': arg_name, 'val': arg_vals[i]})
 
             else:
@@ -291,7 +294,7 @@ class Pout(object):
                 for i, arg_val in enumerate(arg_vals):
                     args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
 
-            ret_dict['args'] = args    
+            ret_dict['args'] = args
 
         return ret_dict
 
