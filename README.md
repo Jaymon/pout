@@ -234,6 +234,25 @@ This could fail if Python isn't compiled with 4 byte unicode support, just somet
   Just like `pout.vv()` but will return the value as a string
 
 
+## Customizing Pout
+
+### object magic method
+
+Any class object can define a `__pout__` magic method, similar to Python's built in `__str__` magic method that can return a customized string of the object if you want to. This method can return anything, it will be run through Pout's internal stringify methods to convert it to a string and print it out.
+
+### pout.pout_class
+
+You can create your own class and set this module variable and any pout method will then use your custom class:
+
+```python
+class PoutChild(pout.Pout):
+    pass
+
+# any pout.* calls will now use your child class, customize as you like
+pout.pout_class = PoutChild
+```
+
+
 ## Console commands
 
 ### pout.json

@@ -41,10 +41,12 @@ import platform
 import resource
 import codecs
 
-# import pout2
-# pout2.b("remember to remove pout2")
+# try:
+#     import pout2
+#     pout2.b("remember to remove pout2")
+# except ImportError: pass
 
-__version__ = '0.5.7'
+__version__ = '0.5.8'
 
 
 logger = logging.getLogger(__name__)
@@ -144,6 +146,7 @@ class Pout(object):
         """this handles replacing bad characters when printing out
         http://www.programcreek.com/python/example/3643/codecs.register_error
         http://bioportal.weizmann.ac.il/course/python/PyMOTW/PyMOTW/docs/codecs/index.html
+        https://pymotw.com/2/codecs/
         """
         count = e.end - e.start
         return u"." * count, e.end
@@ -177,7 +180,6 @@ class Pout(object):
         s = val.split('\n')
         s = [(u"\t" * indent_count) + line for line in s]
         s = u"\n".join(s)
-        print "s.join ", s
         return s
 
 
@@ -255,38 +257,34 @@ class Pout(object):
 
         arg_vals -- list -- the arguments passed to one of the public methods
         back_i -- integer -- how far back in the stack the method call was, this moves back from 2
+            DEPRECATED -- if _find_entry_frame() proves reliable in the real world
         already (ie, by default, we add 2 to this value to compensate for the call to this method
                 and the previous method (both of which are usually internal))
 
         return -- dict -- a bunch of info on the call
         '''
         ret_dict = {
-            'args': {},
+            'args': [],
             'frame': None,
             'line': u'Unknown',
             'file': u'Unknown'
         }
-        args = {}
 
-        back_i += 3 # move past the call to the outer frames and the call to this function
+        #back_i += 3 # move past the call to the outer frames and the call to this function
         frame = inspect.currentframe()
         frames = inspect.getouterframes(frame)
+        back_i = self._find_entry_frame(frames)
 
         if len(frames) > back_i:
             ret_dict.update(self._get_call_info(frames[back_i], __name__, frames[back_i - 1][3]))
 
         # build the arg list if values have been passed in
         if len(arg_vals) > 0:
-
             args = []
 
             if len(ret_dict['arg_names']) > 0:
-
                 # match the found arg names to their respective values
                 for i, arg_name in enumerate(ret_dict['arg_names']):
-                    # TODO -- you can check for a __pout__ method and wrap it in
-                    # an object that will figure out the name and then print what
-                    # was returned from the __pout__ method also
                     args.append({'name': arg_name, 'val': arg_vals[i]})
 
             else:
@@ -298,6 +296,15 @@ class Pout(object):
 
         return ret_dict
 
+    def _find_entry_frame(self, frames):
+        """attempts to auto-discover the correct frame"""
+        back_i = 0
+        pout_path = self._get_src_file(sys.modules[__name__])
+        for frame_i, frame in enumerate(frames):
+            if frame[1] == pout_path:
+                back_i = frame_i
+
+        return back_i + 1
 
     def _get_arg_names(self, call_str):
         '''
@@ -662,64 +669,72 @@ class Pout(object):
         elif t == 'OBJECT':
             d = {}
             full_name = self._get_name(val)
+            instance_dict = vars(val)
 
             s = u"{} instance".format(full_name)
 
-            if depth < 4:
-
-                s += u"\n<"
-                s_body = u''
-
-                s_body += u"\nid: {}\n".format(id(val))
-
-                if hasattr(val, '__str__'):
-
-                    s_body += u"\n__str__:\n"
-                    s_body += self._add_indent(str(val), 1)
-                    s_body += u"\n"
-
-                if hasattr(val, '__class__'):
-
-                    # we don't want any __blah__ type values
-                    class_dict = {k: v for k, v in vars(val.__class__).iteritems() if not self._is_magic(k)}
-                    if class_dict:
-
-                        s_body += u"\nClass Variables:\n"
-
-                        for k, v in class_dict.iteritems():
-                            vt = self._get_type(v)
-                            if vt != 'FUNCTION':
-
-                                s_var = u'{} = '.format(k)
-
-                                if vt == 'OBJECT':
-                                    s_var += repr(v)
-                                else:
-                                    s_var += self._str_val(v, depth=depth+1)
-
-                                s_body += self._add_indent(s_var, 1)
-                                s_body += "\n"
-
-                instance_dict = vars(val)
-                if instance_dict:
-                    s_body += u"\nInstance Variables:\n"
-
-                    for k, v in instance_dict.iteritems():
-                        vt = self._get_type(v)
-                        s_var = u'{} = '.format(k)
-                        if vt == 'OBJECT':
-                            s_var += repr(v)
-                        else:
-                            s_var += self._str_val(v, depth=depth+1)
-
-                        s_body += self._add_indent(s_var, 1)
-                        s_body += u"\n"
-
-                s += self._add_indent(s_body.rstrip(), 1)
-                s += u"\n>\n"
+            if hasattr(val, '__pout__'):
+                s += self._str_val(val.__pout__())
 
             else:
-                s = repr(val)
+                if depth < 4:
+                    s += u"\n<"
+                    s_body = u''
+
+                    s_body += u"\nid: {}\n".format(id(val))
+                    if hasattr(val, '__class__'):
+                        s_body += u"\npath: {}\n".format(self._get_src_file(val.__class__))
+
+                    if hasattr(val, '__str__'):
+
+                        s_body += u"\n__str__:\n"
+                        s_body += self._add_indent(str(val), 1)
+                        s_body += u"\n"
+
+                    if hasattr(val, '__class__'):
+
+                        # we don't want any __blah__ type values
+                        class_dict = {k: v for k, v in vars(val.__class__).items() if not self._is_magic(k)}
+                        if class_dict:
+
+                            s_body += u"\nClass Properties:\n"
+
+                            for k, v in class_dict.items():
+                                if k in instance_dict:
+                                    continue
+
+                                vt = self._get_type(v)
+                                if vt != 'FUNCTION':
+
+                                    s_var = u'{} = '.format(k)
+
+                                    if vt == 'OBJECT':
+                                        s_var += repr(v)
+                                    else:
+                                        s_var += self._str_val(v, depth=depth+1)
+
+                                    s_body += self._add_indent(s_var, 1)
+                                    s_body += "\n"
+
+                    if instance_dict:
+                        s_body += u"\nInstance Properties:\n"
+
+                        for k, v in instance_dict.items():
+                            vt = self._get_type(v)
+                            s_var = u'{} = '.format(k)
+                            if vt == 'OBJECT':
+                                s_var += repr(v)
+                            else:
+                                s_var += self._str_val(v, depth=depth+1)
+
+                            s_body += self._add_indent(s_var, 1)
+                            s_body += u"\n"
+
+                    s += self._add_indent(s_body.rstrip(), 1)
+                    s += u"\n>\n"
+
+                else:
+                    s = repr(val)
 
         elif t == 'MODULE':
 
@@ -916,14 +931,15 @@ class Pout(object):
         '''
         t = 'DEFAULT'
         # http://docs.python.org/2/library/types.html
-        func_types = (
-            types.FunctionType,
-            types.BuiltinFunctionType,
-            types.MethodType,
-            types.UnboundMethodType,
-            types.BuiltinFunctionType,
-            types.BuiltinMethodType
-        )
+#         func_types = (
+#             types.FunctionType,
+#             types.BuiltinFunctionType,
+#             types.MethodType,
+#             types.UnboundMethodType,
+#             types.BuiltinFunctionType,
+#             types.BuiltinMethodType,
+#             classmethod
+#         )
 
         if isinstance(val, (types.NoneType, types.BooleanType, types.IntType, types.LongType, types.FloatType)):
             t = 'DEFAULT'
@@ -953,10 +969,23 @@ class Pout(object):
         elif isinstance(val, types.InstanceType) or hasattr(val, '__dict__') and not (hasattr(val, 'func_name') or hasattr(val, 'im_func')):
             t = 'OBJECT'
 
-        elif isinstance(val, func_types) and hasattr(val, '__call__'):
-            # this has to go after object because lots of times objects can be classified as functions
-            # http://stackoverflow.com/questions/624926/
+#         elif isinstance(val, func_types) and hasattr(val, '__call__'):
+#             # this has to go after object because lots of times objects can be classified as functions
+#             # http://stackoverflow.com/questions/624926/
+#             t = 'FUNCTION'
+
+        elif isinstance(val, collections.Callable):
             t = 'FUNCTION'
+
+        elif isinstance(val, classmethod):
+            # not sure why class methods pulled from __class__ fail the above callable check
+            t = 'FUNCTION'
+
+            # not doing this one since it can cause the class instance to do unexpected
+            # things just to print it out
+            #elif isinstance(val, property):
+            # uses the @property decorator and the like
+            #t = 'PROPERTY'
 
         else:
             t = 'DEFAULT'
@@ -973,7 +1002,8 @@ class Pout(object):
 
         return -- boolean
         '''
-        return (name[:2] == u'__' and name[-2:] == u'__')
+        #return (name[:2] == u'__' and name[-2:] == u'__')
+        return name.startswith(u'__') and name.endswith(u'__')
 
     def _get_src_file(self, val):
         '''
@@ -998,7 +1028,7 @@ class Pout(object):
             if source_file:
                 path = os.path.realpath(source_file)
 
-        except TypeError:
+        except TypeError as e:
             path = u'Unknown'
 
         return path
