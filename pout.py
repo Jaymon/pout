@@ -102,7 +102,7 @@ class Profiler(object):
         #d = type(self).stack.pop()
         self.stop = time.time()
         self.elapsed = self.get_elapsed(self.start, self.stop, 1000.00, 1)
-        self.total = u"%0.1f ms" % (self.elapsed)
+        self.total = u"{:.1f} ms".format(self.elapsed)
 
         summary = []
         summary.append(u"{} - {}".format(name, self.total))
