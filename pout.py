@@ -322,74 +322,102 @@ class Pout(object):
 
         return -- tuple -- [], is_balanced where [] is a list of the parsed arg names, and is_balanced is
             True if the right number of parens where found and False if they weren't, this is necessary
-            because functions can span multiple lines and we might night have the full call_str yet
+            because functions can span multiple lines and we might not have the full call_str yet
         '''
-
-        #canary
         if not call_str: return [], True
 
-        stack_paren = []
-        stack_bracket = []
-        stack_quote = []
-        has_name = True
-        arg_build = False
-        arg_name = u''
+        def string_part(quote, i, call_len, call_str):
+            """responsible for finding the beginning and end of a string"""
+            arg_name = quote
+            i += 1
+            in_str = True
+            while i < call_len:
+                c = call_str[i]
+                if in_str:
+                    if c == quote and (arg_name[-1] != '\\'):
+                        in_str = False
+
+                else:
+                    if c == quote:
+                        in_str = True
+
+                    elif c == u'(':
+                        an, i = delim_part(c, i, call_len, call_str)
+                        arg_name += an
+                        continue
+
+                    elif c == u')' or c == u',':
+                        i -= 1
+                        break
+
+                arg_name += c
+                i += 1
+
+            return arg_name, i
+
+        def delim_part(start_delim, i, call_len, call_str): 
+            """responsible for finding the beginnging and end of something like a paren"""
+            stop_delim = u')' if start_delim == u'(' else u']'
+            arg_name = start_delim
+            pc = 1
+            i += 1
+            while i < call_len:
+                c = call_str[i]
+                arg_name += c
+                if c == start_delim:
+                    pc += 1
+                elif c == stop_delim:
+                    pc -= 1
+                    if not pc:
+                        break
+
+                i += 1
+
+            return arg_name, i
+
         arg_names = []
+        arg_name = u''
+        is_str = False
+        delim_c = set([u'(', u'['])
+        quote_c = set([u'"', u"'"])
+        stop_c = set([u')', u';', u','])
+
         is_balanced = False
 
-        for c in call_str:
+        call_len = len(call_str)
+        # find the opening paren
+        i = call_str.find(u'(') + 1
 
-            if c == u'(' and (len(stack_quote) == 0):
-                stack_paren.append(c)
-                if len(stack_paren) == 1:
-                    # we've found the first paren of the pout call
-                    arg_build = True
-                    continue
+        while i < call_len:
+            c = call_str[i]
+            if c in delim_c:
+                an, i = delim_part(c, i, call_len, call_str)
+                arg_name += an
 
-            elif c == u')' and (len(stack_quote) == 0):
-                stack_paren.pop()
+            elif c in quote_c:
+                an, i = string_part(c, i, call_len, call_str)
+                arg_name += an
+                is_str = True
 
-                if len(stack_paren) == 0:
-                    is_balanced = True
-                    arg_names.append(arg_name.strip() if has_name else u'')
+            elif c in stop_c:
+                if arg_name:
+                    arg_names.append(u'' if is_str else arg_name.strip())
+                arg_name = u''
+                is_str = False
+                is_balanced = c == u')'
+                if c != u',':
                     break
 
-            elif c == u'[' and (len(stack_quote) == 0):
-                stack_bracket.append(c)
-            elif c == u']' and (len(stack_quote) == 0):
-                stack_bracket.pop()
-            elif c == u'"' or c == u"'":
-                # we only pop on unescaped matches, (eg, strings that start with ' can have ")
-                if len(stack_quote) > 0:
-                    if (stack_quote[-1] == c) and (not arg_name or (arg_name[-1] != '\\')):
-                        stack_quote.pop()
-                else:
-                    # a string was passed in
-                    if (len(stack_paren) == 1) and (len(stack_bracket) == 0):
-                        has_name = False
+            else:
+                if not c.isspace():
+                    arg_name += c
 
-                    stack_quote.append(c)
+            i += 1
 
-            elif c == u',':
-                # we have finished compiling an argument name
-                if (len(stack_paren) == 1) and (len(stack_bracket) == 0) and (len(stack_quote) == 0):
-                    arg_names.append(arg_name.strip() if has_name else u'')
-                    has_name = True
-                    arg_name = u''
-                    continue
-
-            if arg_build:
-                arg_name += c
-
-        else:
-            # run this if we didn't break to clean up:
-            # http://psung.blogspot.com/2007/12/for-else-in-python.html
-            if arg_name:
-                is_balanced = False
-                arg_names.append(arg_name.strip() if has_name else u'')
+        if arg_name:
+            arg_names.append(u'' if is_str else arg_name.strip())
 
         return arg_names, is_balanced
-
 
     def _get_call_info(self, frame_tuple, called_module='', called_func=''):
         '''
