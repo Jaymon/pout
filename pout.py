@@ -698,8 +698,9 @@ class Pout(object):
             d = {}
 
             src_file = ""
-            if hasattr(val, '__class__'):
-                src_file = self._get_src_file(val.__class__, default=u"")
+            cls = val.__class__ if hasattr(val, '__class__') else None
+            if cls:
+                src_file = self._get_src_file(cls, default=u"")
 
             full_name = self._get_name(val, src_file=src_file)
             instance_dict = vars(val)
@@ -716,7 +717,22 @@ class Pout(object):
 
                     s_body += u"\nid: {}\n".format(id(val))
                     if src_file:
-                        s_body += u"\npath: {}\n".format(src_file)
+                        s_body += u"\npath: {}\n".format(os.path.relpath(src_file))
+
+                    if cls:
+                        pclses = inspect.getmro(cls)
+                        if pclses:
+                            s_body += u"\nAncestry:\n"
+                            for pcls in pclses[1:]:
+                                psrc_file = self._get_src_file(pcls, default=u"")
+                                if psrc_file:
+                                    psrc_file = os.path.relpath(psrc_file)
+                                pname = self._get_name(pcls, src_file=psrc_file)
+                                s_body += self._add_indent(
+                                    u"{} ({})".format(pname, psrc_file),
+                                    1
+                                )
+                                s_body += u"\n"
 
                     if hasattr(val, '__str__'):
 
@@ -900,10 +916,14 @@ class Pout(object):
         module_name = u''
         if src_file:
             module_name = u'{}.'.format(getattr(val, '__module__', default)).lstrip('.')
-        class_name = default
-        cls = getattr(val, '__class__', None)
-        if cls:
-            class_name = getattr(cls, '__name__', default)
+
+        class_name = getattr(val, '__name__', None)
+        if not class_name:
+            class_name = default
+            cls = getattr(val, '__class__', None)
+            if cls:
+                class_name = getattr(cls, '__name__', default)
+
         full_name = u"{}{}".format(module_name, class_name)
 
         return full_name
