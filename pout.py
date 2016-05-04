@@ -569,7 +569,7 @@ class Pout(object):
             s += arg.encode('utf-8', 'pout.replace')
 
         if call_info:
-            s += "({}:{})\n\n".format(call_info['file'], call_info['line'])
+            s += "({}:{})\n\n".format(os.path.relpath(call_info['file']), call_info['line'])
 
         return s
 
