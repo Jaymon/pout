@@ -666,37 +666,42 @@ class Pout(object):
             except (TypeError, UnicodeError) as e:
                 s = u"<UNICODE ERROR>"
 
-        elif t == 'EXCEPTION':
-            # http://docs.python.org/library/traceback.html
-            # http://www.doughellmann.com/PyMOTW/traceback/
-            # http://stackoverflow.com/questions/4564559
-            # http://stackoverflow.com/questions/6626342
+#         elif t == 'EXCEPTION':
+#             # http://docs.python.org/library/traceback.html
+#             # http://www.doughellmann.com/PyMOTW/traceback/
+#             # http://stackoverflow.com/questions/4564559
+#             # http://stackoverflow.com/questions/6626342
+# 
+#             calls = []
+#             full_name = self._get_name(val)
+#             exc_type, exc_value, exc_tb = sys.exc_info()
+# 
+#             # this just doesn't work right
+#             if exc_tb:
+#                 frames = inspect.getinnerframes(exc_tb)[::-1]
+#                 for i, frame in enumerate(frames, 1):
+#                     calls.append(
+#                         self._get_call_summary(self._get_call_info(frame), index=i, inspect_packages=False)
+#                     )
+# 
+#                     calls.reverse()
+# 
+#             else:
+#                 frame = inspect.currentframe()
+#                 frames = inspect.getouterframes(frame)[2:]
+#                 calls = self._get_backtrace(frames)
+# 
+#             s = u"{} - {}\n\n{}".format(full_name, val, u"".join(calls))
+#             #s = u"{} - {}\n\n{}".format(full_name, val, u"".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
 
-            calls = []
-            full_name = self._get_name(val)
-            exc_type, exc_value, exc_tb = sys.exc_info()
-
-            # this just doesn't work right
-            if exc_tb:
-                frames = inspect.getinnerframes(exc_tb)[::-1]
-                for i, frame in enumerate(frames, 1):
-                    calls.append(
-                        self._get_call_summary(self._get_call_info(frame), index=i, inspect_packages=False)
-                    )
-
-                    calls.reverse()
-
-            else:
-                frame = inspect.currentframe()
-                frames = inspect.getouterframes(frame)[2:]
-                calls = self._get_backtrace(frames)
-
-            s = u"{} - {}\n\n{}".format(full_name, val, u"".join(calls))
-            #s = u"{} - {}\n\n{}".format(full_name, val, u"".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
-
-        elif t == 'OBJECT':
+        elif t == 'OBJECT' or t == 'EXCEPTION':
             d = {}
-            full_name = self._get_name(val)
+
+            src_file = ""
+            if hasattr(val, '__class__'):
+                src_file = self._get_src_file(val.__class__, default=u"")
+
+            full_name = self._get_name(val, src_file=src_file)
             instance_dict = vars(val)
 
             s = u"{} instance".format(full_name)
@@ -710,8 +715,8 @@ class Pout(object):
                     s_body = u''
 
                     s_body += u"\nid: {}\n".format(id(val))
-                    if hasattr(val, '__class__'):
-                        s_body += u"\npath: {}\n".format(self._get_src_file(val.__class__))
+                    if src_file:
+                        s_body += u"\npath: {}\n".format(src_file)
 
                     if hasattr(val, '__str__'):
 
@@ -881,7 +886,7 @@ class Pout(object):
         return s
 
 
-    def _get_name(self, val, default='Unknown'):
+    def _get_name(self, val, src_file, default='Unknown'):
         '''
         get the full namespaced (module + class) name of the val object
 
@@ -892,7 +897,9 @@ class Pout(object):
 
         return -- string -- the full.module.Name
         '''
-        module_name = u'{}.'.format(getattr(val, '__module__', default)).lstrip('.')
+        module_name = u''
+        if src_file:
+            module_name = u'{}.'.format(getattr(val, '__module__', default)).lstrip('.')
         class_name = default
         cls = getattr(val, '__class__', None)
         if cls:
@@ -1033,7 +1040,7 @@ class Pout(object):
         #return (name[:2] == u'__' and name[-2:] == u'__')
         return name.startswith(u'__') and name.endswith(u'__')
 
-    def _get_src_file(self, val):
+    def _get_src_file(self, val, default=u'Unknown'):
         '''
         return the source file path
 
@@ -1043,7 +1050,7 @@ class Pout(object):
 
         return -- string -- the path, or something like 'Unknown' if you can't find the path
         '''
-        path = u'Unknown'
+        path = default
 
         try:
             # http://stackoverflow.com/questions/6761337/inspect-getfile-vs-inspect-getsourcefile
@@ -1057,7 +1064,7 @@ class Pout(object):
                 path = os.path.realpath(source_file)
 
         except TypeError as e:
-            path = u'Unknown'
+            path = default
 
         return path
 
