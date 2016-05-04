@@ -619,14 +619,30 @@ class Pout(object):
         s = u''
         t = self._get_type(val)
 
-        if t == 'DICT':
+        if t == 'DICT_PROXY':
+            if len(val) > 0:
+
+                s = self._str_iterator(
+                    iterator=val.items(), 
+                    name_callback= lambda k: u"'{}'".format(k),
+                    left_paren=u'dict_proxy({',
+                    right_paren=u'})',
+                    prefix=u'',
+                    depth=depth
+                )
+
+            else:
+                s = u"dict_proxy({})"
+
+
+        elif t == 'DICT':
 
             if len(val) > 0:
 
                 s = self._str_iterator(
-                    iterator=val.iteritems(), 
+                    iterator=val.items(), 
                     name_callback= lambda k: u"'{}'".format(k),
-                    left_paren=u'{', 
+                    left_paren=u'{',
                     right_paren=u'}',
                     depth=depth
                 )
@@ -1043,7 +1059,14 @@ class Pout(object):
             #t = 'PROPERTY'
 
         else:
-            t = 'DEFAULT'
+            # maybe we have a dict proxy?
+            if hasattr(val, "__getitem__") and hasattr(val, "keys") and hasattr(val, "values"):
+                # NOTE -- in 3.3+ dict proxy is exposed, from types import MappingProxyType
+                # https://github.com/eevee/dictproxyhack/blob/master/dictproxyhack.py
+                t = 'DICT_PROXY'
+
+            else:
+                t = 'DEFAULT'
 
         return t
 
