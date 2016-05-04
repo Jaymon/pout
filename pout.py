@@ -756,10 +756,15 @@ class Pout(object):
                         s_body += self._add_indent(str(val), 1)
                         s_body += u"\n"
 
-                    if hasattr(val, '__class__'):
+                    if cls:
 
-                        # we don't want any __blah__ type values
-                        class_dict = {k: v for k, v in vars(val.__class__).items() if not self._is_magic(k)}
+                        # build a full class variables dict with the variables of 
+                        # the full class hierarchy
+                        class_dict = {}
+                        for pcls in inspect.getmro(cls):
+                            # we don't want any __blah__ type values
+                            class_dict.update({k: v for k, v in vars(pcls).items() if not self._is_magic(k)})
+
                         if class_dict:
 
                             s_body += u"\nClass Properties:\n"
