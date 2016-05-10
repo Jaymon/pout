@@ -46,7 +46,7 @@ import codecs
 #     pout2.b("remember to remove pout2")
 # except ImportError: pass
 
-__version__ = '0.5.9'
+__version__ = '0.6.0'
 
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,7 @@ class Profiler(object):
 
     def stop(self, call_info=None):
         name = self.name
+        p = pout_class.create_instance()
         if len(type(self).stack) > 0:
             name = u' > '.join((d.name for d in type(self).stack))
             name += u' > {}'.format(self.name)
@@ -108,13 +109,13 @@ class Profiler(object):
         summary.append(u"{} - {}".format(name, self.total))
         summary.append(u"  start: {} ({}:{})".format(
             self.start,
-            self.start_call_info['file'],
+            p._get_path(self.start_call_info['file']),
             self.start_call_info['line']
         ))
         if call_info:
             summary.append(u"  stop: {} ({}:{})".format(
                 self.stop,
-                call_info['file'],
+                p._get_path(call_info['file']),
                 call_info['line']
             ))
             self.call_info = call_info
@@ -306,6 +307,12 @@ class Pout(object):
 
         return back_i + 1
 
+    def _get_path(self, path):
+        cwd = os.getcwd()
+        if path.startswith(cwd):
+            path = path.replace(cwd, "", 1).lstrip(os.sep)
+        return path
+
     def _get_arg_names(self, call_str):
         '''
         get the arguments that were passed into the call
@@ -437,7 +444,7 @@ class Pout(object):
         call_info = {}
         call_info['frame'] = frame_tuple
         call_info['line'] = frame_tuple[2]
-        call_info['file'] = os.path.abspath(inspect.getfile(frame_tuple[0]))
+        call_info['file'] = self._get_path(os.path.abspath(inspect.getfile(frame_tuple[0])))
         call_info['call'] = u''
         call_info['arg_names'] = []
 
@@ -569,7 +576,7 @@ class Pout(object):
             s += arg.encode('utf-8', 'pout.replace')
 
         if call_info:
-            s += "({}:{})\n\n".format(os.path.relpath(call_info['file']), call_info['line'])
+            s += "({}:{})\n\n".format(self._get_path(call_info['file']), call_info['line'])
 
         return s
 
@@ -733,7 +740,7 @@ class Pout(object):
 
                     s_body += u"\nid: {}\n".format(id(val))
                     if src_file:
-                        s_body += u"\npath: {}\n".format(os.path.relpath(src_file))
+                        s_body += u"\npath: {}\n".format(self._get_path(src_file))
 
                     if cls:
                         pclses = inspect.getmro(cls)
@@ -742,12 +749,18 @@ class Pout(object):
                             for pcls in pclses[1:]:
                                 psrc_file = self._get_src_file(pcls, default=u"")
                                 if psrc_file:
-                                    psrc_file = os.path.relpath(psrc_file)
+                                    psrc_file = self._get_path(psrc_file)
                                 pname = self._get_name(pcls, src_file=psrc_file)
-                                s_body += self._add_indent(
-                                    u"{} ({})".format(pname, psrc_file),
-                                    1
-                                )
+                                if psrc_file:
+                                    s_body += self._add_indent(
+                                        u"{} ({})".format(pname, psrc_file),
+                                        1
+                                    )
+                                else:
+                                    s_body += self._add_indent(
+                                        u"{}".format(pname),
+                                        1
+                                    )
                                 s_body += u"\n"
 
                     if hasattr(val, '__str__'):
@@ -808,7 +821,7 @@ class Pout(object):
 
         elif t == 'MODULE':
 
-            file_path = self._get_src_file(val)
+            file_path = self._get_path(self._get_src_file(val))
             s = u'{} module ({})\n'.format(val.__name__, file_path)
 
             s += u"\nid: {}\n".format(id(val))
@@ -835,7 +848,7 @@ class Pout(object):
             if modules:
                 s += u"\nModules:\n"
                 for k, v in modules.iteritems():
-                    module_path = self._get_src_file(v)
+                    module_path = self._get_path(self._get_src_file(v))
                     s += self._add_indent(u"{} ({})".format(k, module_path), 1)
                     s += u"\n"
 
