@@ -41,12 +41,13 @@ import platform
 import resource
 import codecs
 
+# NOTE -- pout2 is not put in builtins by pout_test, so this isn't needed when testing
 # try:
 #     import pout2
 #     pout2.b("remember to remove pout2")
 # except ImportError: pass
 
-__version__ = '0.6.0'
+__version__ = '0.6.1'
 
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,163 @@ class Profiler(object):
 
     def get_elapsed(self, start, stop, multiplier, rnd):
         return round(abs(stop - start) * float(multiplier), rnd)
+
+
+class Inspect(object):
+
+    @property
+    def cls(self):
+        return self.val.__class__ if self.has_attr('__class__') else None
+
+    @property
+    def typename(self):
+        '''
+        get the type of val
+
+        there are multiple places where we want to know if val is an object, or a string, or whatever,
+        this method allows us to find out that information
+
+        since -- 7-10-12
+
+        val -- mixed -- the value to check
+
+        return -- string -- the type
+        '''
+        t = 'DEFAULT'
+        # http://docs.python.org/2/library/types.html
+#         func_types = (
+#             types.FunctionType,
+#             types.BuiltinFunctionType,
+#             types.MethodType,
+#             types.UnboundMethodType,
+#             types.BuiltinFunctionType,
+#             types.BuiltinMethodType,
+#             classmethod
+#         )
+
+        if self.is_primitive():
+            t = 'DEFAULT'
+
+        elif self.is_dict():
+            t = 'DICT'
+
+        elif self.is_list():
+            t = 'LIST'
+
+        elif self.is_tuple():
+            t = 'TUPLE'
+
+        elif self.is_type():
+            t = 'TYPE'
+
+        elif self.is_str():
+            t = 'STRING'
+
+        elif self.is_exception():
+            t = 'EXCEPTION'
+
+        elif self.is_module():
+            # this has to go before the object check since a module will pass the object tests
+            t = 'MODULE'
+
+        elif self.is_object():
+            t = 'OBJECT'
+
+#         elif isinstance(val, func_types) and hasattr(val, '__call__'):
+#             # this has to go after object because lots of times objects can be classified as functions
+#             # http://stackoverflow.com/questions/624926/
+#             t = 'FUNCTION'
+
+        elif self.is_callable():
+            t = 'FUNCTION'
+
+            # not doing this one since it can cause the class instance to do unexpected
+            # things just to print it out
+            #elif isinstance(val, property):
+            # uses the @property decorator and the like
+            #t = 'PROPERTY'
+
+        elif self.is_dict_proxy():
+            # maybe we have a dict proxy?
+            t = 'DICT_PROXY'
+
+        else:
+            t = 'DEFAULT'
+
+        return t
+
+    def __init__(self, val):
+        self.val = val
+        self.attrs = set(dir(val))
+
+    def is_primitive(self):
+        """is the value a built-in type?"""
+        return isinstance(
+            self.val, 
+            (
+                types.NoneType,
+                types.BooleanType,
+                types.IntType,
+                types.LongType,
+                types.FloatType
+            )
+        )
+
+    def is_dict(self):
+        return isinstance(self.val, dict)
+
+    def is_list(self):
+        return isinstance(self.val, list)
+
+    def is_tuple(self):
+        return isinstance(self.val, tuple)
+
+    def is_type(self):
+        return isinstance(self.val, type)
+
+    def is_str(self):
+        return isinstance(self.val, types.StringTypes) #isinstance(val, basestring):
+
+    def is_exception(self):
+        return isinstance(self.val, BaseException)
+
+    def is_module(self):
+        # this has to go before the object check since a module will pass the object tests
+        return isinstance(self.val, types.ModuleType)
+
+    def is_object(self):
+        ret = False
+        if isinstance(self.val, types.InstanceType):
+            # this is an old-school non object inherited class
+            ret = True
+        else:
+            if self.has_attr("__dict__"):
+                ret = True
+                for a in ["func_name", "im_func"]:
+                    if self.has_attr(a):
+                        ret = False
+                        break
+
+            return ret
+
+    def is_callable(self):
+        # not sure why class methods pulled from __class__ fail the callable check
+        return isinstance(self.val, collections.Callable) or isinstance(self.val, classmethod)
+
+    def is_dict_proxy(self):
+        # NOTE -- in 3.3+ dict proxy is exposed, from types import MappingProxyType
+        # https://github.com/eevee/dictproxyhack/blob/master/dictproxyhack.py
+        ret = True
+        attrs = self.attrs
+        for a in ["__getitem__", "keys", "values"]:
+            if not self.has_attr(a):
+                ret = False
+                break
+        return ret
+
+    def has_attr(self, k):
+        """return True if this instance has the attribute"""
+        return k in self.attrs
 
 
 class Pout(object):
@@ -719,9 +877,10 @@ class Pout(object):
 
         elif t == 'OBJECT' or t == 'EXCEPTION':
             d = {}
+            vt = Inspect(val)
 
             src_file = ""
-            cls = val.__class__ if hasattr(val, '__class__') else None
+            cls = vt.cls
             if cls:
                 src_file = self._get_src_file(cls, default=u"")
 
@@ -730,7 +889,7 @@ class Pout(object):
 
             s = u"{} instance".format(full_name)
 
-            if hasattr(val, '__pout__'):
+            if vt.has_attr('__pout__'):
                 s += self._str_val(val.__pout__())
 
             else:
@@ -1006,87 +1165,8 @@ class Pout(object):
         return s
 
     def _get_type(self, val):
-        '''
-        get the type of val
-
-        there are multiple places where we want to know if val is an object, or a string, or whatever,
-        this method allows us to find out that information
-
-        since -- 7-10-12
-
-        val -- mixed -- the value to check
-
-        return -- string -- the type
-        '''
-        t = 'DEFAULT'
-        # http://docs.python.org/2/library/types.html
-#         func_types = (
-#             types.FunctionType,
-#             types.BuiltinFunctionType,
-#             types.MethodType,
-#             types.UnboundMethodType,
-#             types.BuiltinFunctionType,
-#             types.BuiltinMethodType,
-#             classmethod
-#         )
-
-        if isinstance(val, (types.NoneType, types.BooleanType, types.IntType, types.LongType, types.FloatType)):
-            t = 'DEFAULT'
-
-        elif isinstance(val, dict):
-            t = 'DICT'
-
-        elif isinstance(val, list):
-            t = 'LIST'
-
-        elif isinstance(val, tuple):
-            t = 'TUPLE'
-
-        elif isinstance(val, type):
-            t = 'TYPE'
-
-        elif  isinstance(val, types.StringTypes): #isinstance(val, basestring):
-            t = 'STRING'
-
-        elif isinstance(val, BaseException):
-            t = 'EXCEPTION'
-
-        elif isinstance(val, types.ModuleType):
-            # this has to go before the object check since a module will pass the object tests
-            t = 'MODULE'
-
-        elif isinstance(val, types.InstanceType) or hasattr(val, '__dict__') and not (hasattr(val, 'func_name') or hasattr(val, 'im_func')):
-            t = 'OBJECT'
-
-#         elif isinstance(val, func_types) and hasattr(val, '__call__'):
-#             # this has to go after object because lots of times objects can be classified as functions
-#             # http://stackoverflow.com/questions/624926/
-#             t = 'FUNCTION'
-
-        elif isinstance(val, collections.Callable):
-            t = 'FUNCTION'
-
-        elif isinstance(val, classmethod):
-            # not sure why class methods pulled from __class__ fail the above callable check
-            t = 'FUNCTION'
-
-            # not doing this one since it can cause the class instance to do unexpected
-            # things just to print it out
-            #elif isinstance(val, property):
-            # uses the @property decorator and the like
-            #t = 'PROPERTY'
-
-        else:
-            # maybe we have a dict proxy?
-            if hasattr(val, "__getitem__") and hasattr(val, "keys") and hasattr(val, "values"):
-                # NOTE -- in 3.3+ dict proxy is exposed, from types import MappingProxyType
-                # https://github.com/eevee/dictproxyhack/blob/master/dictproxyhack.py
-                t = 'DICT_PROXY'
-
-            else:
-                t = 'DEFAULT'
-
-        return t
+        vt = Inspect(val)
+        return vt.typename
 
     def _is_magic(self, name):
         '''
