@@ -47,7 +47,7 @@ import codecs
 #     pout2.b("remember to remove pout2")
 # except ImportError: pass
 
-__version__ = '0.6.1'
+__version__ = '0.6.2'
 
 
 logger = logging.getLogger(__name__)
@@ -426,16 +426,25 @@ class Pout(object):
             'args': [],
             'frame': None,
             'line': u'Unknown',
-            'file': u'Unknown'
+            'file': u'Unknown',
+            'arg_names': []
         }
 
         #back_i += 3 # move past the call to the outer frames and the call to this function
-        frame = inspect.currentframe()
-        frames = inspect.getouterframes(frame)
-        back_i = self._find_entry_frame(frames)
+        try:
+            frame = inspect.currentframe()
+            frames = inspect.getouterframes(frame)
+            back_i = self._find_entry_frame(frames)
 
-        if len(frames) > back_i:
-            ret_dict.update(self._get_call_info(frames[back_i], __name__, frames[back_i - 1][3]))
+            if len(frames) > back_i:
+                ret_dict.update(self._get_call_info(frames[back_i], __name__, frames[back_i - 1][3]))
+
+        except IndexError:
+            # There was a very specific bug that would cause inspect.getouterframes(frame)
+            # to fail when pout was called from an object's method that was called from
+            # within a Jinja template, it seemed like it was going to be annoying to
+            # reproduce and so I now catch the IndexError that inspect was throwing
+            pass
 
         # build the arg list if values have been passed in
         if len(arg_vals) > 0:
