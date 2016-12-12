@@ -47,7 +47,7 @@ import codecs
 #     pout2.b("remember to remove pout2")
 # except ImportError: pass
 
-__version__ = '0.6.2'
+__version__ = '0.6.3'
 
 
 logger = logging.getLogger(__name__)
@@ -337,7 +337,7 @@ class Pout(object):
 #         return s.fill(val)
 
         s = val.split('\n')
-        s = [(u"\t" * indent_count) + line for line in s]
+        s = [(u"\t" * indent_count) + self._get_unicode(line) for line in s]
         s = u"\n".join(s)
         return s
 
