@@ -47,7 +47,7 @@ import codecs
 #     pout2.b("remember to remove pout2")
 # except ImportError: pass
 
-__version__ = '0.6.3'
+__version__ = '0.6.4'
 
 
 logger = logging.getLogger(__name__)
@@ -1104,6 +1104,14 @@ class Pout(object):
         return s
 
 
+    def _getattr(self, val, key, default_val):
+        """wrapper around global getattr(...) method that suppresses any exception raised"""
+        try:
+            ret = getattr(val, key, default_val)
+        except Exception:
+            ret = default_val
+        return ret
+
     def _get_name(self, val, src_file, default='Unknown'):
         '''
         get the full namespaced (module + class) name of the val object
@@ -1117,14 +1125,14 @@ class Pout(object):
         '''
         module_name = u''
         if src_file:
-            module_name = u'{}.'.format(getattr(val, '__module__', default)).lstrip('.')
+            module_name = u'{}.'.format(self._getattr(val, '__module__', default)).lstrip('.')
 
-        class_name = getattr(val, '__name__', None)
+        class_name = self._getattr(val, '__name__', None)
         if not class_name:
             class_name = default
-            cls = getattr(val, '__class__', None)
+            cls = self._getattr(val, '__class__', None)
             if cls:
-                class_name = getattr(cls, '__name__', default)
+                class_name = self._getattr(cls, '__name__', default)
 
         full_name = u"{}{}".format(module_name, class_name)
 
