@@ -47,7 +47,7 @@ import codecs
 #     pout2.b("remember to remove pout2")
 # except ImportError: pass
 
-__version__ = '0.6.4'
+__version__ = '0.6.5'
 
 
 logger = logging.getLogger(__name__)
@@ -942,7 +942,7 @@ class Pout(object):
                         # build a full class variables dict with the variables of 
                         # the full class hierarchy
                         class_dict = {}
-                        for pcls in inspect.getmro(cls):
+                        for pcls in reversed(inspect.getmro(cls)):
                             # we don't want any __blah__ type values
                             class_dict.update({k: v for k, v in vars(pcls).items() if not self._is_magic(k)})
 
