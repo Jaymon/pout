@@ -852,10 +852,21 @@ class VTest(unittest.TestCase):
 
     def test_nltk(self):
         #import nltk.corpus
+
+        #v = [testdata.get_words(1) for x in range(1000)]
+        v = [testdata.get_words(1) for x in range(260818)]
+        pout.v(v)
+        return
+
+
+
+
+
         try:
             from nltk.text import Text
             #moby = Text(nltk.corpus.gutenberg.words('melville-moby_dick.txt'))
-            moby = Text(["foo", "bar"])
+            moby = Text((testdata.get_words(1) for x in range(260818)))
+            pout.b()
             pout.v(moby)
         except ImportError as e:
             raise unittest.SkipTest(e)

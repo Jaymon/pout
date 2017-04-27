@@ -825,12 +825,13 @@ class Pout(object):
             if len(val) > 0:
 
                 s = self._str_iterator(
-                    iterator=val.items(), 
+                    iterator=val.items(),
                     name_callback= lambda k: "'{}'".format(k),
                     left_paren='dict_proxy({',
                     right_paren='})',
                     prefix='',
-                    depth=depth
+                    depth=depth,
+                    size=len(val),
                 )
 
             else:
@@ -846,7 +847,8 @@ class Pout(object):
                     name_callback= lambda k: "'{}'".format(k),
                     left_paren='{',
                     right_paren='}',
-                    depth=depth
+                    depth=depth,
+                    size=len(val),
                 )
 
             else:
@@ -857,7 +859,11 @@ class Pout(object):
 
             if len(val) > 0:
 
-                s = self._str_iterator(iterator=enumerate(val), depth=depth)
+                s = self._str_iterator(
+                    iterator=enumerate(val),
+                    depth=depth,
+                    size=len(val),
+                )
 
             else:
                 s = "[]"
@@ -870,7 +876,8 @@ class Pout(object):
                     iterator=enumerate(val),
                     left_paren='(',
                     right_paren=')',
-                    depth=depth
+                    depth=depth,
+                    size=len(val),
                 )
 
             else:
@@ -1101,7 +1108,7 @@ class Pout(object):
         return s
 
 
-    def _str_iterator(self, iterator, name_callback=None, prefix="\n", left_paren='[', right_paren=']', depth=0):
+    def _str_iterator(self, iterator, name_callback=None, prefix="\n", left_paren='[', right_paren=']', depth=0, size=0):
         '''
         turn an iteratable value into a string representation
 
@@ -1116,26 +1123,36 @@ class Pout(object):
         '''
         indent = 1 if depth > 0 else 0
 
-        s = '{}{}\n'.format(prefix, self._add_indent(left_paren, indent))
+        s = []
+        s.append('{}{}'.format(prefix, self._add_indent(left_paren, indent)))
 
-        s_body = ''
+        s_body = []
+        count = 0
+        max_count = 10000000
 
         for k, v in iterator:
             k = k if name_callback is None else name_callback(k)
             try:
-                s_body += "{}: {},\n".format(k, self._str_val(v, depth=depth+1))
+                s_body.append("{}: {}".format(k, self._str_val(v, depth=depth+1)))
+
             except RuntimeError as e:
                 # I've never gotten this to work
-                s_body += "{}: ... Recursion error ...,\n".format(k)
+                s_body.append("{}: ... Recursion error ...".format(k))
+            else:
+                if count > max_count and size > max_count:
+                    s_body.append(" ... and {} more ...".format(size - count))
+                    break
 
-        s_body = s_body.rstrip(",\n")
+                else:
+                    count += 1
+
+        s_body = ",\n".join(s_body)
         s_body = self._add_indent(s_body, indent + 1)
 
-        s += s_body
-        s += "\n{}".format(self._add_indent(right_paren, indent))
+        s.append(s_body)
+        s.append("{}".format(self._add_indent(right_paren, indent)))
 
-        return s
-
+        return "\n".join(s)
 
     def _getattr(self, val, key, default_val):
         """wrapper around global getattr(...) method that suppresses any exception raised"""
