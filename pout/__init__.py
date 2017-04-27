@@ -1577,6 +1577,33 @@ class Pout(object):
         args = ["{}\n\n".format(self._str(v['name'], v['val'])) for v in call_info['args']]
         return self._printstr(args, call_info)
 
+    def sleep(self, seconds):
+        '''
+        same as time.sleep(seconds) but prints out where it was called before sleeping
+        and then again after finishing sleeping
+
+        I just find this really handy for debugging sometimes
+
+        since -- 2017-4-27
+
+        :param seconds: float|int, how many seconds to sleep
+        '''
+        if seconds <= 0: return
+
+        call_info = self._get_arg_info()
+        args = ["Sleeping {} second{} at {}:{}".format(
+            seconds,
+            "s" if seconds > 1 else "",
+            call_info["file"],
+            call_info["line"]
+        )]
+        self._print(args)
+
+        time.sleep(seconds)
+
+        args = ["Done Sleeping "]
+        self._print(args, call_info)
+
 
 # this can be changed after import to customize functionality
 pout_class = Pout
@@ -1613,6 +1640,8 @@ def vv(*args, **kwargs):
     return pout_class.create_instance().vv(*args, **kwargs)
 def x(*args, **kwargs):
     return pout_class.create_instance().x(*args, **kwargs)
+def sleep(*args, **kwargs):
+    return pout_class.create_instance().sleep(*args, **kwargs)
 
 
 def console_json():

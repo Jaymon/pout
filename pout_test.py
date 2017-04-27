@@ -856,6 +856,11 @@ class VTest(unittest.TestCase):
         v = [testdata.get_words(1) for x in range(260818)]
         pout.v(v)
 
+    def test_sleep(self):
+        start = time.time()
+        pout.sleep(1.1)
+        stop = time.time()
+        self.assertLess(1.0, stop - start)
 
 class MTest(unittest.TestCase):
     def test_m(self):
