@@ -831,7 +831,6 @@ class Pout(object):
                     right_paren='})',
                     prefix='',
                     depth=depth,
-                    size=len(val),
                 )
 
             else:
@@ -848,7 +847,6 @@ class Pout(object):
                     left_paren='{',
                     right_paren='}',
                     depth=depth,
-                    size=len(val),
                 )
 
             else:
@@ -862,7 +860,6 @@ class Pout(object):
                 s = self._str_iterator(
                     iterator=enumerate(val),
                     depth=depth,
-                    size=len(val),
                 )
 
             else:
@@ -877,7 +874,6 @@ class Pout(object):
                     left_paren='(',
                     right_paren=')',
                     depth=depth,
-                    size=len(val),
                 )
 
             else:
@@ -1108,7 +1104,7 @@ class Pout(object):
         return s
 
 
-    def _str_iterator(self, iterator, name_callback=None, prefix="\n", left_paren='[', right_paren=']', depth=0, size=0):
+    def _str_iterator(self, iterator, name_callback=None, prefix="\n", left_paren='[', right_paren=']', depth=0):
         '''
         turn an iteratable value into a string representation
 
@@ -1127,8 +1123,6 @@ class Pout(object):
         s.append('{}{}'.format(prefix, self._add_indent(left_paren, indent)))
 
         s_body = []
-        count = 0
-        max_count = 10000000
 
         for k, v in iterator:
             k = k if name_callback is None else name_callback(k)
@@ -1138,13 +1132,6 @@ class Pout(object):
             except RuntimeError as e:
                 # I've never gotten this to work
                 s_body.append("{}: ... Recursion error ...".format(k))
-            else:
-                if count > max_count and size > max_count:
-                    s_body.append(" ... and {} more ...".format(size - count))
-                    break
-
-                else:
-                    count += 1
 
         s_body = ",\n".join(s_body)
         s_body = self._add_indent(s_body, indent + 1)

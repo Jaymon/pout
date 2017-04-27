@@ -850,26 +850,11 @@ class VTest(unittest.TestCase):
             pout.v(sentinal not in val)
         self.assertTrue("sentinal not in val" in c)
 
-    def test_nltk(self):
-        #import nltk.corpus
+    def test_really_long_list(self):
+        raise unittest.SkipTest("This takes about 14 seconds to run")
 
-        #v = [testdata.get_words(1) for x in range(1000)]
         v = [testdata.get_words(1) for x in range(260818)]
         pout.v(v)
-        return
-
-
-
-
-
-        try:
-            from nltk.text import Text
-            #moby = Text(nltk.corpus.gutenberg.words('melville-moby_dick.txt'))
-            moby = Text((testdata.get_words(1) for x in range(260818)))
-            pout.b()
-            pout.v(moby)
-        except ImportError as e:
-            raise unittest.SkipTest(e)
 
 
 class MTest(unittest.TestCase):
