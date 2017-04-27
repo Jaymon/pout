@@ -26,12 +26,16 @@ if 'pout' in sys.modules:
 
     # allow the global pout to be used as pout2 without importing
     try:
-        import __builtin__
-        if hasattr(__builtin__, "pout"):
-            del __builtin__.pout
-        __builtin__.pout2 = sys.modules['pout2']
+        if sys.version_info[0] < 3:
+            import __builtin__ as builtins
+        else:
+            import builtins
 
-    except ImportError:
+        if hasattr(builtins, "pout"):
+            del builtins.pout
+        builtins.pout2 = sys.modules['pout2']
+
+    except ImportError as e:
         pass
 
 # this is the local pout that is going to be tested
@@ -838,6 +842,13 @@ class VTest(unittest.TestCase):
         with testdata.capture() as c:
             pout.v(range(5))
         self.assertTrue("range(5) (5) = " in c)
+
+    def test_not_in_val(self):
+        with testdata.capture() as c:
+            sentinal = "foo"
+            val = "foobar"
+            pout.v(sentinal not in val)
+        self.assertTrue("sentinal not in val" in c)
 
 
 class MTest(unittest.TestCase):

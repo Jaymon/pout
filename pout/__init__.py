@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, division, print_function, absolute_import
 """
 prints out variables and other handy things to help with debugging
 
@@ -26,7 +25,7 @@ since -- 6-26-12
 author -- Jay Marcyes
 license -- MIT -- http://www.opensource.org/licenses/mit-license.php
 """
-#import inspect
+from __future__ import unicode_literals, division, print_function, absolute_import
 import os
 import sys
 import traceback
@@ -590,8 +589,9 @@ class Pout(object):
                 is_str = True
 
             elif c in stop_c:
+                arg_name = arg_name.strip()
                 if arg_name:
-                    arg_names.append('' if is_str else arg_name.strip())
+                    arg_names.append('' if is_str else arg_name)
                 arg_name = ''
                 is_str = False
                 is_balanced = c == ')'
@@ -599,8 +599,9 @@ class Pout(object):
                     break
 
             else:
-                if not c.isspace():
-                    arg_name += c
+                arg_name += c
+                #if not c.isspace():
+                #    arg_name += c
 
             i += 1
 

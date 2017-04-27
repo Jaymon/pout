@@ -14,6 +14,7 @@ if is_py2:
 
     import Queue as queue
     import thread as _thread
+    import __builtin__ as builtins
     try:
         from cStringIO import StringIO
     except ImportError:
@@ -40,6 +41,7 @@ elif is_py3:
     import _thread
     from io import StringIO
     import inspect
+    import builtins
 
     # ripped from six https://bitbucket.org/gutworth/six
     def reraise(tp, value, tb=None):
