@@ -15,6 +15,7 @@ import sys
 import time
 import unittest
 import hmac
+import hashlib
 
 import testdata
 
@@ -35,7 +36,7 @@ if 'pout' in sys.modules:
 
 # this is the local pout that is going to be tested
 import pout
-import Queue
+from pout.compat import queue, range
 
 
 class Foo(object):
@@ -135,10 +136,17 @@ class PoutTest(unittest.TestCase):
                     return super(Child, self).v(*args, **kwargs)
 
         pout.pout_class = Child
-        v = "foo"
-        pout.v(v)
-        v = "bar"
-        pout.v(v)
+
+        with testdata.capture() as c:
+            v = "foo"
+            pout.v(v)
+        self.assertTrue("foo custom" in c)
+
+        with testdata.capture() as c:
+            v = "bar"
+            pout.v(v)
+        self.assertTrue('"bar"' in c)
+
         pout.pout_class = original_class
 
     def test_issue16(self):
@@ -150,7 +158,12 @@ class PoutTest(unittest.TestCase):
         self.issue_fields = {}
         k = "che"
 
-        pout.v(ret, default_val, getattr(self.issue_module, k, None), self.issue_fields.get(k, None))
+        with testdata.capture() as c:
+            pout.v(ret, default_val, getattr(self.issue_module, k, None), self.issue_fields.get(k, None))
+        self.assertTrue('ret (3) = "foo"' in c)
+        self.assertTrue('default_val (3) = "bar"' in c)
+        self.assertTrue('getattr(self.issue_module, k, None) = None' in c)
+        self.assertTrue('self.issue_fields.get(k, None) = None')
 
         del self.issue_module
         del self.issue_fields
@@ -165,8 +178,11 @@ class PoutTest(unittest.TestCase):
                 # This will raise a KeyError when key doesn't exist
                 return self.fields[key]
 
-        fgn = FooGetName()
-        pout.v(fgn)
+        with testdata.capture() as c:
+            fgn = FooGetName()
+            pout.v(fgn)
+        for s in ["pout_test.FooGetName", "id:", "path:", "Ancestry:", "__str__:", "fields = "]:
+            self.assertTrue(s in c, s)
 
     def test__get_arg_names(self):
         """see also VTest.test_multi_args() and VTest.test_multiline_comma()"""
@@ -174,84 +190,83 @@ class PoutTest(unittest.TestCase):
         p = pout.Pout()
 
         r = p._get_arg_names("\n".join([
-            u"        pout.v(",
-            u'            "foo",',
-            u'            "bar",',
-            u'            "che",',
-            u'        )'
+            "        pout.v(",
+            '            "foo",',
+            '            "bar",',
+            '            "che",',
+            '        )'
         ]))
         self.assertEqual(3, len(r[0]))
         for x in range(3):
-            self.assertEqual(u"", r[0][x])
+            self.assertEqual("", r[0][x])
         self.assertEqual(True, r[1])
 
         r = p._get_arg_names("\n".join([
-            u"        pout.v(",
-            u'"foo",',
-            u'"bar",',
-            u'"che"'
+            "        pout.v(",
+            '"foo",',
+            '"bar",',
+            '"che"'
         ]))
         self.assertEqual(3, len(r[0]))
         for x in range(3):
-            self.assertEqual(u"", r[0][x])
+            self.assertEqual("", r[0][x])
         self.assertEqual(False, r[1])
 
-        r = p._get_arg_names(u"        pout.v(\"this string has 'mixed quotes\\\"\")")
+        r = p._get_arg_names("        pout.v(\"this string has 'mixed quotes\\\"\")")
         self.assertEqual(1, len(r[0]))
-        self.assertEqual(u"", r[0][0])
+        self.assertEqual("", r[0][0])
 
-        r = p._get_arg_names(u" pout.v(name); hasattr(self, name)")
-        self.assertEqual(u"name", r[0][0])
+        r = p._get_arg_names(" pout.v(name); hasattr(self, name)")
+        self.assertEqual("name", r[0][0])
         self.assertEqual(1, len(r[0]))
 
         r = p._get_arg_names("\n".join([
-            u"        pout.v(",
-            u'"foo",',
-            u'"bar",',
-            u'"che",'
+            "        pout.v(",
+            '"foo",',
+            '"bar",',
+            '"che",'
         ]))
         for x in range(3):
-            self.assertEqual(u"", r[0][x])
+            self.assertEqual("", r[0][x])
         self.assertEqual(False, r[1])
 
-        r = p._get_arg_names(u"pout.v(foo, [bar, che])")
-        self.assertEqual(u"foo", r[0][0])
-        self.assertEqual(u"[bar, che]", r[0][1])
+        r = p._get_arg_names("pout.v(foo, [bar, che])")
+        self.assertEqual("foo", r[0][0])
+        self.assertEqual("[bar, che]", r[0][1])
 
-        r = p._get_arg_names(u"pout.v(foo, bar)")
-        self.assertEqual(u"foo", r[0][0])
-        self.assertEqual(u"bar", r[0][1])
+        r = p._get_arg_names("pout.v(foo, bar)")
+        self.assertEqual("foo", r[0][0])
+        self.assertEqual("bar", r[0][1])
 
-        r = p._get_arg_names(u"pout.v(foo)")
-        self.assertEqual(u"foo", r[0][0])
+        r = p._get_arg_names("pout.v(foo)")
+        self.assertEqual("foo", r[0][0])
 
-        r = p._get_arg_names(u"pout.v('foo')")
-        self.assertEqual(u"", r[0][0])
+        r = p._get_arg_names("pout.v('foo')")
+        self.assertEqual("", r[0][0])
 
-        r = p._get_arg_names(u'pout.v("foo")')
-        self.assertEqual(u"", r[0][0])
+        r = p._get_arg_names('pout.v("foo")')
+        self.assertEqual("", r[0][0])
 
-        r = p._get_arg_names(u"pout.v('foo\'bar')")
-        self.assertEqual(u"", r[0][0])
+        r = p._get_arg_names("pout.v('foo\'bar')")
+        self.assertEqual("", r[0][0])
 
-        r = p._get_arg_names(u"pout.v('foo, bar, che')")
-        self.assertEqual(u"", r[0][0])
+        r = p._get_arg_names("pout.v('foo, bar, che')")
+        self.assertEqual("", r[0][0])
 
-        r = p._get_arg_names(u"pout.v((foo, bar, che))")
-        self.assertEqual(u"(foo, bar, che)", r[0][0])
+        r = p._get_arg_names("pout.v((foo, bar, che))")
+        self.assertEqual("(foo, bar, che)", r[0][0])
 
-        r = p._get_arg_names(u"pout.v((foo, (bar, che)))")
-        self.assertEqual(u"(foo, (bar, che))", r[0][0])
+        r = p._get_arg_names("pout.v((foo, (bar, che)))")
+        self.assertEqual("(foo, (bar, che))", r[0][0])
 
-        r = p._get_arg_names(u"pout.v([foo, bar, che])")
-        self.assertEqual(u"[foo, bar, che]", r[0][0])
+        r = p._get_arg_names("pout.v([foo, bar, che])")
+        self.assertEqual("[foo, bar, che]", r[0][0])
 
-        r = p._get_arg_names(u"pout.v([foo, [bar, che]])")
-        self.assertEqual(u"[foo, [bar, che]]", r[0][0])
+        r = p._get_arg_names("pout.v([foo, [bar, che]])")
+        self.assertEqual("[foo, [bar, che]]", r[0][0])
 
-        r = p._get_arg_names(u"pout.v([[foo], [bar, che]])")
-        self.assertEqual(u"[[foo], [bar, che]]", r[0][0])
-
+        r = p._get_arg_names("pout.v([[foo], [bar, che]])")
+        self.assertEqual("[[foo], [bar, che]]", r[0][0])
 
     def test_find_call_depth(self):
         s = "foo"
@@ -261,22 +276,31 @@ class PoutTest(unittest.TestCase):
                 super(PoutChild, self).v(*args)
 
         pout.pout_class = PoutChild
-        pout.v(s)
+        with testdata.capture() as c:
+            pout.v(s)
+        self.assertTrue('s (3) = "foo"' in c)
         pout.pout_class = pout.Pout
 
     def test__get_arg_info(self):
         foo = 1
-        pout.v(foo)
+        with testdata.capture() as c:
+            pout.v(foo)
+        self.assertTrue('foo = 1' in c)
 
     def test_multi_command_on_one_line(self):
         """make sure we are finding the correct call on a multi command line"""
         name = "foo"
         val = 1
-        if not hasattr(self, name): pout.v(name); hasattr(self, name)
+        with testdata.capture() as c:
+            if not hasattr(self, name): pout.v(name); hasattr(self, name)
+        self.assertTrue('name (3) = "foo"' in c)
 
     def test_unicode_error(self):
-        d = hmac.new(b"this is the key", "this is the message")
-        pout.v(d.digest())
+        d = hmac.new(b"this is the key", b"this is the message", hashlib.md5)
+        with testdata.capture() as c:
+            pout.v(d.digest())
+        self.assertTrue("d.digest()" in c)
+        self.assertTrue(' b"' in c)
 
     def test_ipython_fail(self):
         '''
@@ -291,7 +315,7 @@ class PoutTest(unittest.TestCase):
             call_info['frame'] = frame_tuple
             call_info['line'] = frame_tuple[2]
             call_info['file'] = '/fake/file/path'
-            call_info['call'] = u''
+            call_info['call'] = ''
             call_info['arg_names'] = []
             return call_info
 
@@ -299,7 +323,11 @@ class PoutTest(unittest.TestCase):
         pout.Pout._get_call_info = _get_call_info_fake
 
         # this should print out
-        pout.v(range(5))
+        with testdata.capture() as c:
+            pout.v(list(range(5)))
+        self.assertTrue("Unknown 0 (5)" in c)
+        self.assertTrue("0: 0," in c)
+        self.assertTrue("4: 4" in c)
 
         pout.Pout._get_call_info = mp_orig
 
@@ -346,83 +374,127 @@ class PoutTest(unittest.TestCase):
 
 class CTest(unittest.TestCase):
     def test_c(self):
-        pout.c('this is the input')
-        pout.c(u'\u304f')
-        pout.c(u'just\r\ntesting')
-        pout.c(u'just', u'testing')
-        pout.c(u'\U00020731')
+        with testdata.capture() as c:
+            pout.c('this is the input')
+        self.assertTrue("Total Characters: 17" in c)
+
+        with testdata.capture() as c:
+            pout.c('\u304f')
+        self.assertTrue("Total Characters: 1" in c)
+
+        with testdata.capture() as c:
+            pout.c('just\r\ntesting')
+        self.assertTrue("Total Characters: 13" in c)
+
+        with testdata.capture() as c:
+            pout.c('just', u'testing')
+        self.assertTrue("Total Characters: 4" in c)
+        self.assertTrue("Total Characters: 7" in c)
+
+        # !!! py2 thinks it is 2 chars
+        with testdata.capture() as c:
+            pout.c('\U00020731')
+        self.assertTrue("Total Characters:" in c)
 
 class BTest(unittest.TestCase):
     def test_b(self):
-        pout.b()
-        pout.b(5)
-        pout.b('this is the title')
-        pout.b('this is the title 2', 5)
-        pout.b('this is the title 3', 3, '=')
+        with testdata.capture() as c:
+            pout.b()
+        self.assertTrue("*" in c)
+
+        with testdata.capture() as c:
+            pout.b(5)
+        self.assertTrue("*" in c)
+
+        with testdata.capture() as c:
+            pout.b('this is the title')
+        self.assertTrue("* this is the title *" in c)
+
+        with testdata.capture() as c:
+            pout.b('this is the title 2', 5)
+        self.assertTrue("* this is the title 2 *" in c)
+
+        with testdata.capture() as c:
+            pout.b('this is the title 3', 3, '=')
+        self.assertTrue("= this is the title 3 =" in c)
 
 
 class PTest(unittest.TestCase):
     def test_p_one_level(self):
-        pout.p('foo')
-        time.sleep(.25)
-        pout.p()
+        with testdata.capture() as c:
+            pout.p('foo')
+            time.sleep(.25)
+            pout.p()
+        self.assertTrue("foo - " in c)
 
     def test_p_multi_levels(self):
-        pout.p('multi foo')
-        pout.p(u'multi bar')
-        time.sleep(0.25)
-        pout.p()
-        time.sleep(0.25)
-        pout.p()
+        with testdata.capture() as c:
+            pout.p('multi foo')
+            pout.p(u'multi bar')
+            time.sleep(0.25)
+            pout.p()
+            time.sleep(0.25)
+            pout.p()
+        self.assertTrue("multi foo > multi bar" in c)
+        self.assertTrue("multi foo -" in c)
 
     def test_p_with(self):
-        with pout.p("with foo"):
-            time.sleep(0.25)
-
+        with testdata.capture() as c:
+            with pout.p("with foo"):
+                time.sleep(0.25)
+        self.assertTrue("with foo -" in c)
 
 
 class XTest(unittest.TestCase):
     def test_x(self):
-        # pout.x()
-        pass
+        raise unittest.SkipTest("we skip the pout.x tests unless we are working on them")
+        pout.x()
 
 class TTest(unittest.TestCase):
-    """
-    test the pout.t() method
-    """
+    """test the pout.t() method"""
+    def get_trace(self):
+        pout.t()
 
     def test_t(self):
-        pout.t()
+        with testdata.capture() as c:
+            pout.t()
+        self.assertTrue("pout.t()" in c)
 
     def test_t_with_assign(self):
         '''
-        there was a problem where the functions to get parse the call would fail
+        there was a problem where the functions to parse the call would fail
         when one of the inputs was a dict key assignment, this test makes sure that
         is fixed
 
         since -- 10-8-12 -- Jay
         '''
-        r = {}
-        r['foo'] = self.get_trace()
+        with testdata.capture() as c:
+            r = {}
+            r['foo'] = self.get_trace()
+        self.assertTrue("get_trace()" in c)
+        self.assertTrue("pout.t()" in c)
 
-    def get_trace(self):
-        pout.t()
 
 class HTest(unittest.TestCase):
     """
     test the pout.h() method
     """
     def test_h(self):
+        with testdata.capture() as c:
+            pout.h(1)
 
-        pout.h(1)
-
-        pout.h()
+            pout.h()
+        self.assertTrue("here 1" in c)
 
 
 class VVTest(unittest.TestCase):
     def test_vv(self):
-        d = {'foo': 1, 'bar': 2}
-        pout.vv(d)
+        with testdata.capture() as c:
+            d = {'foo': 1, 'bar': 2}
+            pout.vv(d)
+        self.assertFalse("d (" in c)
+        self.assertTrue("'foo':" in c)
+        self.assertTrue("'bar':" in c)
 
 
 class VTest(unittest.TestCase):
@@ -439,12 +511,17 @@ class VTest(unittest.TestCase):
                     return self.func(instance, *args, **kwargs)
                 return wrapped
 
-        class DescExample(object):
-            @Desc
-            def foo(self): pass
+        with testdata.capture() as c:
+            class DescExample(object):
+                @Desc
+                def foo(self): pass
 
-        e = DescExample()
-        e.foo()
+            e = DescExample()
+            e.foo()
+        for s in ['"__init__"', 'args (1) =', 'kwargs (0) = ']:
+            self.assertTrue(s in c, s)
+        for s in ['"__get__"', 'instance = pout_test.DescExample instance', 'klass = <']:
+            self.assertTrue(s in c, s)
 
     def test_class_vars(self):
 
@@ -456,7 +533,9 @@ class VTest(unittest.TestCase):
             def __init__(self):
                 pout.v(self)
 
-        vc = VarChild()
+        with testdata.capture() as c:
+            vc = VarChild()
+        self.assertTrue("foo = 2" in c)
 
     def test_misclassified_instance(self):
         """objects that have a __getattr__ method that always return something get
@@ -469,24 +548,36 @@ class VTest(unittest.TestCase):
             def __getattr__(self, k):
                 return 1
 
-        m = Misclass()
-        pout.v(m)
+        with testdata.capture() as c:
+            m = Misclass()
+            pout.v(m)
+        self.assertTrue("m = pout_test.1 instance" in c)
 
     def test_proxy_dict(self):
-        pout.v(FooBar.__dict__)
+        with testdata.capture() as c:
+            pout.v(FooBar.__dict__)
+        self.assertTrue("FooBar.__dict__ (2) = dict_proxy({" in c)
 
     def test_multiline_comma(self):
         # https://github.com/Jaymon/pout/issues/12
-        pout.v(
-            "foo",
-            "bar",
-            "che",
-        )
+        with testdata.capture() as c:
+            pout.v(
+                "foo",
+                "bar",
+                "che",
+            )
+        self.assertTrue('"foo"\n\n"bar"\n\n"che"' in c)
 
     def test_type(self):
+        with testdata.capture() as c:
+            pout.v(type(100))
+        self.assertTrue("type(100) =" in c)
+        self.assertTrue("'int'" in c)
 
-        pout.v(type(100))
-        pout.v(type([]))
+        with testdata.capture() as c:
+            pout.v(type([]))
+        self.assertTrue("type([]) =" in c)
+        self.assertTrue("'list'" in c)
 
     def test_str(self):
         '''
@@ -494,19 +585,30 @@ class VTest(unittest.TestCase):
         '''
         s_unicode = "this is a unicode string"
         s_byte = b"this is a byte string"
-        pout.v(s_unicode)
-        pout.v(s_byte)
+        with testdata.capture() as c:
+            pout.v(s_unicode)
+            pout.v(s_byte)
+        self.assertTrue('b"this is a byte string"' in c.stderr)
+        self.assertTrue('"this is a unicode string"' in c.stderr)
 
         s_unicode = ""
         s_byte = b""
-        pout.v(s_unicode)
-        pout.v(s_byte)
+        with testdata.capture() as c:
+            pout.v(s_unicode)
+            pout.v(s_byte)
+        self.assertTrue('b""' in c.stderr)
+        self.assertTrue('""' in c.stderr)
+
+        print(c.stderr.read())
 
         d = {
             'foo': "foo is a unicode str",
             'bar': b"bar is a byte string"
         }
-        pout.v(d)
+        with testdata.capture() as c:
+            pout.v(d)
+        self.assertTrue('\'foo\': "foo is a unicode str"' in c.stderr)
+        self.assertTrue('\'bar\': b"bar is a byte string"' in c.stderr)
 
     def test_sys_module(self):
         '''
@@ -514,59 +616,76 @@ class VTest(unittest.TestCase):
 
         since -- 7-19-12
         '''
-        pout.v(sys)
-
+        with testdata.capture() as c:
+            pout.v(sys)
+        for s in ["sys = sys module", "Functions:", "Classes:"]:
+            self.assertTrue(s in c)
 
     def test_multiline_call(self):
 
         foo = 1
         bar = 2
-        def func(a, b):
-            return a + b
 
         from pout import v as voom
 
-        voom(
-            foo,bar
-        )
+        with testdata.capture() as c:
+            voom(
+                foo,bar
+            )
+        self.assertTrue("foo = 1\n\nbar = 2" in c)
 
-        pout.v(
-            foo,
-            bar,
-            "this is a string"
-        )
+        with testdata.capture() as c:
+            pout.v(
+                foo,
+                bar,
+                "this is a string"
+            )
+        self.assertTrue("foo = 1\n\nbar = 2\n\n\"this is a string\"" in c)
 
         from pout import v
 
-        v(
-            foo,
-            bar)
+        with testdata.capture() as c:
+            v(
+                foo,
+                bar)
+        self.assertTrue("foo = 1\n\nbar = 2" in c)
 
-        v(
-            foo, bar)
+        with testdata.capture() as c:
+            v(
+                foo, bar)
+        self.assertTrue("foo = 1\n\nbar = 2" in c)
 
-        v(
-            foo,
+        with testdata.capture() as c:
+            v(
+                foo,
 
-            bar
+                bar
 
-        )
-
-        v(
-            func(1, 4)
-        )
-
-        v(
-            func(
-                5,
-                5
             )
-        )
+        self.assertTrue("foo = 1\n\nbar = 2" in c)
+
+        def func(a, b):
+            return a + b
+
+        with testdata.capture() as c:
+            v(
+                func(1, 4)
+            )
+        self.assertTrue("func(1, 4) = 5" in c)
+
+        with testdata.capture() as c:
+            v(
+                func(
+                    5,
+                    5
+                )
+            )
+        self.assertTrue("= 10" in c)
 
         import pout as poom
-
-        poom.v(foo)
-
+        with testdata.capture() as c:
+            poom.v(foo)
+        self.assertTrue("foo = 1" in c)
 
     def test_multi_args(self):
         '''
@@ -677,10 +796,10 @@ class VTest(unittest.TestCase):
         foo = []
         pout.v(foo)
 
-        foo = range(1, 10)
+        foo = list(range(1, 10))
         pout.v(foo)
 
-        foo = [range(1, 10) for x in range(2)]
+        foo = [list(range(1, 10)) for x in list(range(2))]
         pout.v(foo)
 
         foo = {}
@@ -693,25 +812,38 @@ class VTest(unittest.TestCase):
 
     def test_queue(self):
         """Queue.Queue was failing, let's fix that"""
-        pout.v(Queue.Queue)
+        pout.v(queue.Queue)
 
     def test_precision(self):
         """float precision was cutting off at 2 decimal places"""
 
-        f = 1380142261.454746
-        pout.v(f)
+        with testdata.capture() as c:
+            f = 1380142261.454746
+            pout.v(f)
+        self.assertTrue(str(f) in c)
 
-        i = 1232432435
-        pout.v(i)
+        with testdata.capture() as c:
+            i = 1232432435
+            pout.v(i)
+        self.assertTrue(str(i) in c)
 
-        b = True
-        pout.v(b)
+        with testdata.capture() as c:
+            b = True
+            pout.v(b)
+        self.assertTrue("b = True" in c)
+
+    def test_range_iterator(self):
+        #p = pout.Pout()
+        #print(p._get_type(range(5)))
+        with testdata.capture() as c:
+            pout.v(range(5))
+        self.assertTrue("range(5) (5) = " in c)
 
 
 class MTest(unittest.TestCase):
     def test_m(self):
         pout.m() # around 11
-        l = range(1, 1000000)
+        l = list(range(1, 1000000))
         pout.m("after big list creation") # around 43
 
 
