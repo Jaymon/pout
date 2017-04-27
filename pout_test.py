@@ -850,6 +850,16 @@ class VTest(unittest.TestCase):
             pout.v(sentinal not in val)
         self.assertTrue("sentinal not in val" in c)
 
+    def test_nltk(self):
+        #import nltk.corpus
+        try:
+            from nltk.text import Text
+            #moby = Text(nltk.corpus.gutenberg.words('melville-moby_dick.txt'))
+            moby = Text(["foo", "bar"])
+            pout.v(moby)
+        except ImportError as e:
+            raise unittest.SkipTest(e)
+
 
 class MTest(unittest.TestCase):
     def test_m(self):

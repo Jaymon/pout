@@ -7,7 +7,7 @@ import re
 import os
 
 name = "pout"
-with open(os.path.join("{}.py".format(name))) as f:
+with open(os.path.join("{}/__init__.py".format(name))) as f:
     version = re.search("^__version__\s*=\s*[\'\"]([^\'\"]+)", f.read(), flags=re.I | re.M).group(1)
 
 setup(
