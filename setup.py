@@ -2,7 +2,7 @@
 # http://docs.python.org/distutils/setupscript.html
 # http://docs.python.org/2/distutils/examples.html
 
-from setuptools import setup
+from setuptools import setup, find_packages
 import re
 import os
 
@@ -17,7 +17,8 @@ setup(
     author='Jay Marcyes',
     author_email='jay@marcyes.com',
     url='http://github.com/Jaymon/{}'.format(name),
-    py_modules=[name],
+    #py_modules=[name],
+    packages=find_packages(),
     license="MIT",
     classifiers=[ # https://pypi.python.org/pypi?:action=list_classifiers
         'Development Status :: 4 - Beta',
@@ -27,8 +28,10 @@ setup(
         'Operating System :: OS Independent',
         'Topic :: Software Development :: Testing',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.5',
     ],
-    test_suite = "test_pout",
+    tests_require=['testdata'],
+    #test_suite = "pout_test",
     entry_points = {
         'console_scripts': [
             '{}.json = {}:console_json'.format(name, name),
