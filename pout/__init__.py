@@ -44,7 +44,7 @@ import codecs
 
 from .compat import is_py2, is_py3, unicode, basestring, inspect, range
 
-__version__ = '0.6.6'
+__version__ = '0.6.7'
 
 
 logger = logging.getLogger(__name__)
@@ -788,7 +788,7 @@ class Pout(object):
             try:
                 count = len(val)
                 s = "{} ({}) = {}".format(name, count, self._str_val(val, depth=0))
-            except (TypeError, KeyError):
+            except (TypeError, KeyError, AttributeError):
                 pass
 
 #             if hasattr(val, '__len__'):
