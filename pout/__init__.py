@@ -41,10 +41,11 @@ import json
 import platform
 import resource
 import codecs
+import inspect
 
 from .compat import is_py2, is_py3, unicode, basestring, inspect, range
 
-__version__ = '0.6.7'
+__version__ = '0.6.8'
 
 
 logger = logging.getLogger(__name__)
@@ -174,6 +175,9 @@ class Inspect(object):
         elif self.is_type():
             t = 'TYPE'
 
+        elif self.is_binary():
+            t = 'BINARY'
+
         elif self.is_str():
             t = 'STRING'
 
@@ -200,6 +204,9 @@ class Inspect(object):
         elif self.is_generator():
             t = 'GENERATOR'
 
+        elif self.is_set():
+            t = 'SET'
+
         elif self.is_object():
             t = 'OBJECT'
 
@@ -218,7 +225,13 @@ class Inspect(object):
         self.attrs = set(dir(val))
 
     def is_generator(self):
-        return isinstance(self.val, (types.GeneratorType, range))
+        if is_py2:
+            return isinstance(self.val, (types.GeneratorType, range))
+        else:
+            return isinstance(self.val, (types.GeneratorType, range, map))
+
+    def is_set(self):
+        return isinstance(self.val, (set, frozenset))
 
     def is_primitive(self):
         """is the value a built-in type?"""
@@ -256,6 +269,9 @@ class Inspect(object):
 
     def is_type(self):
         return isinstance(self.val, type)
+
+    def is_binary(self):
+        return isinstance(self.val, (bytes, bytearray, memoryview))
 
     def is_str(self):
         return isinstance(self.val, basestring)
@@ -865,6 +881,22 @@ class Pout(object):
             else:
                 s = "[]"
 
+        elif t == 'SET':
+
+            if len(val) > 0:
+
+                s = self._str_iterator(
+                    iterator=enumerate(val), 
+                    name_callback= lambda k: None,
+                    left_paren='{',
+                    right_paren='}',
+                    depth=depth,
+                )
+
+            else:
+                s = "{}"
+
+
         elif t == 'TUPLE':
 
             if len(val) > 0:
@@ -879,12 +911,26 @@ class Pout(object):
             else:
                 s = "()"
 
+        elif t == 'BINARY':
+            try:
+                if is_py2:
+                    s = "b'{}'".format(bytes(val).decode("utf-8", 'pout.replace'))
+
+                else:
+                    s = bytes(val)
+
+            except (TypeError, UnicodeError) as e:
+                print(e)
+                s = "<UNICODE ERROR>"
+
         elif t == 'STRING':
             try:
                 if isinstance(val, unicode):
                     s = '"{}"'.format(val)
 
                 else:
+                    # !!! 12-27-2017 - with the new BINARY typename I don't think
+                    # this is reachable anymore
                     # we need to convert the byte string to unicode
                     #s = u'"{}"'.format(val.decode('utf-8', 'replace'))
                     s = 'b"{}"'.format(val.decode('utf-8', 'pout.replace'))
@@ -923,6 +969,7 @@ class Pout(object):
         elif t == 'OBJECT' or t == 'EXCEPTION':
             d = {}
             vt = Inspect(val)
+            errmsgs = []
 
             src_file = ""
             cls = vt.cls
@@ -930,7 +977,12 @@ class Pout(object):
                 src_file = self._get_src_file(cls, default="")
 
             full_name = self._get_name(val, src_file=src_file)
-            instance_dict = vars(val)
+
+            try:
+                instance_dict = vars(val)
+            except TypeError as e:
+                instance_dict = {}
+                errmsgs.append("Failed to get vars because: {}".format(e))
 
             s = "{} instance".format(full_name)
 
@@ -1016,6 +1068,11 @@ class Pout(object):
 
                             s_body += self._add_indent(s_var, 1)
                             s_body += "\n"
+
+                    if errmsgs:
+                        s_body += "\nREAD ERRORS: \n"
+                        s_body += self._add_indent("\n".join(errmsgs), 1)
+                        s_body += "\n"
 
                     s += self._add_indent(s_body.rstrip(), 1)
                     s += "\n>\n"
@@ -1127,7 +1184,10 @@ class Pout(object):
         for k, v in iterator:
             k = k if name_callback is None else name_callback(k)
             try:
-                s_body.append("{}: {}".format(k, self._str_val(v, depth=depth+1)))
+                if k is None:
+                    s_body.append("{}".format(self._str_val(v, depth=depth+1)))
+                else:
+                    s_body.append("{}: {}".format(k, self._str_val(v, depth=depth+1)))
 
             except RuntimeError as e:
                 # I've never gotten this to work
@@ -1604,6 +1664,56 @@ class Pout(object):
         args = ["Done Sleeping "]
         self._print(args, call_info)
 
+    def i(self, *args):
+        if len(args) <= 0:
+            raise ValueError("you didn't pass any arguments to print out")
+
+        call_info = self._get_arg_info(args)
+        pargs = []
+        methods = []
+        params = []
+        for v in call_info["args"]:
+            for ni, vi in inspect.getmembers(v['val']):
+                i = Inspect(vi)
+                #print(ni, i.typename, type(vi))
+                #print(ni, type(vi))
+                if i.is_type():
+                    params.append((ni, vi))
+                elif i.is_callable():
+                    methods.append((ni, vi))
+                else:
+                    params.append((ni, vi))
+
+            full_info = self._str(v['name'], v['val'])
+            info = "MEMBERS:\n"
+
+            info += self._add_indent("Methods:", 1)
+            info += "\n"
+            for name, vi in methods:
+                try:
+                    argspec = inspect.getfullargspec(vi)
+                    info += self._add_indent("{}{}".format(name, inspect.formatargspec(*argspec)), 2)
+                except TypeError:
+                    info += self._add_indent(name, 2)
+                info += "\n"
+
+            info += self._add_indent("Params:", 1)
+            info += "\n"
+            for name, vi in params:
+                info += self._add_indent(name, 2)
+                info += "\n"
+
+
+            full_info = full_info.rstrip().rstrip('>')
+            full_info += "\n"
+            full_info += self._add_indent(info.strip(), 1)
+            full_info += "\n>"
+            full_info += "\n\n"
+
+            pargs.append(full_info)
+
+        self._print(pargs, call_info)
+
 
 # this can be changed after import to customize functionality
 pout_class = Pout
@@ -1642,6 +1752,8 @@ def x(*args, **kwargs):
     return pout_class.create_instance().x(*args, **kwargs)
 def sleep(*args, **kwargs):
     return pout_class.create_instance().sleep(*args, **kwargs)
+def i(*args, **kwargs):
+    return pout_class.create_instance().i(*args, **kwargs)
 
 
 def console_json():

@@ -28,7 +28,7 @@ setup(
         'Operating System :: OS Independent',
         'Topic :: Software Development :: Testing',
         'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3',
     ],
     tests_require=['testdata'],
     #test_suite = "pout_test",

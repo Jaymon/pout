@@ -14,6 +14,7 @@ from __future__ import unicode_literals, division, print_function, absolute_impo
 import sys
 import time
 import unittest
+from unittest import TestCase
 import hmac
 import hashlib
 
@@ -40,7 +41,8 @@ if 'pout' in sys.modules:
 
 # this is the local pout that is going to be tested
 import pout
-from pout.compat import queue, range
+from pout.compat import queue, range, is_py2
+from pout import Inspect
 
 
 class Foo(object):
@@ -304,7 +306,7 @@ class PoutTest(unittest.TestCase):
         with testdata.capture() as c:
             pout.v(d.digest())
         self.assertTrue("d.digest()" in c)
-        self.assertTrue(' b"' in c)
+        self.assertTrue(" b'" in c)
 
     def test_ipython_fail(self):
         '''
@@ -502,6 +504,41 @@ class VVTest(unittest.TestCase):
 
 
 class VTest(unittest.TestCase):
+    def test_map(self):
+        v = map(str, range(5))
+        pout.v(v)
+
+    def test_binary(self):
+        with testdata.capture() as c:
+            v = memoryview(b'abcefg')
+            pout.v(v)
+
+            v = bytearray.fromhex('2Ef0 F1f2  ')
+            pout.v(v)
+
+            if is_py2:
+                v = bytes("foobar")
+            else:
+                v = bytes("foobar", "utf-8")
+            pout.v(v)
+
+        if is_py2:
+            # memoryview just gives a reference in py2
+            # bytearray is also different but I don't care enough to fix it
+            for s in ["b'foobar'", "b'....'"]:
+                self.assertTrue(s in c, s)
+        else:
+            for s in ["b'abcefg'", "b'foobar'", "b'.\\xf0\\xf1\\xf2'"]:
+                self.assertTrue(s in c, s)
+
+    def test_set(self):
+        s = set(["foo", "bar", "che"])
+        with testdata.capture() as c:
+            pout.v(s)
+
+        for s in ['"foo"', '"che"', '"bar"', "s (3) =", "{", "}"]:
+            self.assertTrue(s in c, s)
+
     def test_descriptor_error(self):
         """ https://github.com/Jaymon/pout/issues/18 """
         class Desc(object):
@@ -592,7 +629,7 @@ class VTest(unittest.TestCase):
         with testdata.capture() as c:
             pout.v(s_unicode)
             pout.v(s_byte)
-        self.assertTrue('b"this is a byte string"' in c.stderr)
+        self.assertTrue("b'this is a byte string'" in c.stderr)
         self.assertTrue('"this is a unicode string"' in c.stderr)
 
         s_unicode = ""
@@ -600,10 +637,10 @@ class VTest(unittest.TestCase):
         with testdata.capture() as c:
             pout.v(s_unicode)
             pout.v(s_byte)
-        self.assertTrue('b""' in c.stderr)
+        self.assertTrue("b''" in c.stderr)
         self.assertTrue('""' in c.stderr)
 
-        print(c.stderr.read())
+        #print(c.stderr.read())
 
         d = {
             'foo': "foo is a unicode str",
@@ -612,7 +649,7 @@ class VTest(unittest.TestCase):
         with testdata.capture() as c:
             pout.v(d)
         self.assertTrue('\'foo\': "foo is a unicode str"' in c.stderr)
-        self.assertTrue('\'bar\': b"bar is a byte string"' in c.stderr)
+        self.assertTrue("'bar': b'bar is a byte string'" in c.stderr)
 
     def test_sys_module(self):
         '''
@@ -862,11 +899,57 @@ class VTest(unittest.TestCase):
         stop = time.time()
         self.assertLess(1.0, stop - start)
 
-class MTest(unittest.TestCase):
+class MTest(TestCase):
     def test_m(self):
         pout.m() # around 11
         l = list(range(1, 1000000))
         pout.m("after big list creation") # around 43
+
+
+class ITest(TestCase):
+    def test_i(self):
+        with testdata.capture() as c:
+            v = map(str, range(5))
+            pout.i(v)
+
+        for s in ["MEMBERS:", "Methods:", "Params:"]:
+            self.assertTrue(s in c, s)
+
+
+class InspectTest(TestCase):
+    def test_is_set(self):
+        v = set(["foo", "bar", "che"])
+        t = Inspect(v)
+        self.assertTrue(t.is_set())
+        self.assertEqual("SET", t.typename)
+
+    def test_is_generator(self):
+        v = (x for x in range(100))
+        t = Inspect(v)
+        self.assertEqual("GENERATOR", t.typename)
+
+        v = map(str, range(5))
+        t = Inspect(v)
+        if is_py2:
+            self.assertEqual("LIST", t.typename)
+        else:
+            self.assertEqual("GENERATOR", t.typename)
+
+    def test_is_binary(self):
+        v = memoryview(b'abcefg')
+        t = Inspect(v)
+        self.assertEqual("BINARY", t.typename)
+
+        v = bytearray.fromhex('2Ef0 F1f2  ')
+        t = Inspect(v)
+        self.assertEqual("BINARY", t.typename)
+
+        if is_py2:
+            v = bytes("foobar")
+        else:
+            v = bytes("foobar", "utf-8")
+        t = Inspect(v)
+        self.assertEqual("BINARY", t.typename)
 
 
 if __name__ == '__main__':
