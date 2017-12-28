@@ -1074,6 +1074,10 @@ class Pout(object):
                         s_body += self._add_indent("\n".join(errmsgs), 1)
                         s_body += "\n"
 
+                    if not is_py2 and t == 'EXCEPTION':
+                        s_body += "\n"
+                        s_body += "\n".join(traceback.format_exception(None, val, val.__traceback__))
+
                     s += self._add_indent(s_body.rstrip(), 1)
                     s += "\n>\n"
 
