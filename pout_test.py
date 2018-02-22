@@ -504,6 +504,13 @@ class VVTest(unittest.TestCase):
 
 
 class VTest(unittest.TestCase):
+    def test_depth(self):
+        t = ()
+        for x in [8, 7, 6, 5, 4, 3, 2, 1]:
+            t = (x, t)
+
+        pout.v(t)
+
     def test_map(self):
         v = map(str, range(5))
         pout.v(v)
