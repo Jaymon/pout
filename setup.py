@@ -5,15 +5,27 @@
 from setuptools import setup, find_packages
 import re
 import os
+from codecs import open
+
 
 name = "pout"
-with open(os.path.join("{}/__init__.py".format(name))) as f:
-    version = re.search("^__version__\s*=\s*[\'\"]([^\'\"]+)", f.read(), flags=re.I | re.M).group(1)
+
+def read(path):
+    if os.path.isfile(path):
+        with open(path, encoding='utf-8') as f:
+            return f.read()
+    return ""
+
+path = os.path.join(name, "__init__.py")
+version = re.search("^__version__\s*=\s*[\'\"]([^\'\"]+)", read(path), flags=re.I | re.M).group(1)
+
+long_description = read('README.rst')
 
 setup(
     name=name,
     version=version,
     description='Prints out python variables in an easy to read way, handy for debugging',
+    long_description=long_description,
     author='Jay Marcyes',
     author_email='jay@marcyes.com',
     url='http://github.com/Jaymon/{}'.format(name),

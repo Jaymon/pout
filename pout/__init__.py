@@ -45,7 +45,7 @@ import inspect
 
 from .compat import is_py2, is_py3, unicode, basestring, inspect, range
 
-__version__ = '0.6.9'
+__version__ = '0.7.0'
 
 
 logger = logging.getLogger(__name__)
