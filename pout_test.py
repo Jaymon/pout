@@ -17,6 +17,8 @@ import unittest
 from unittest import TestCase
 import hmac
 import hashlib
+import subprocess
+import os
 
 import testdata
 
@@ -504,6 +506,26 @@ class VVTest(unittest.TestCase):
 
 
 class VTest(unittest.TestCase):
+    def test_unicode_in_src_file(self):
+        path = testdata.create_file("foobar.py", [
+            "# -*- coding: utf-8 -*-",
+            "from __future__ import unicode_literals, division, print_function, absolute_import",
+            "",
+            "# {}".format(testdata.get_unicode_words()),
+            "",
+            "pout.v('foo bar')"
+        ])
+
+        environ = {
+            "PYTHONPATH": os.path.abspath(os.path.expanduser("."))
+        }
+        output = subprocess.check_output(
+            ["python", path],
+            env=environ,
+            stderr=subprocess.STDOUT,
+        )
+        self.assertTrue("foo bar" in output.decode("utf-8"))
+
     def test_depth(self):
         t = ()
         for x in [8, 7, 6, 5, 4, 3, 2, 1]:

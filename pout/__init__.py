@@ -45,7 +45,7 @@ import inspect
 
 from .compat import is_py2, is_py3, unicode, basestring, inspect, range
 
-__version__ = '0.6.8'
+__version__ = '0.6.9'
 
 
 logger = logging.getLogger(__name__)
@@ -649,7 +649,6 @@ class Pout(object):
         call_info['arg_names'] = []
 
         if frame_tuple[4] is not None:
-
             stop_lineno = call_info['line']
             start_lineno = call_info['line'] - 1
             arg_names = []
@@ -658,17 +657,22 @@ class Pout(object):
             if called_func and called_func != '__call__':
                 # get the call block
                 try:
-                    with open(call_info['file'], 'r') as fp:
+                    with codecs.open(call_info['file'], mode='r', encoding="utf-8") as fp:
                         caller_src = fp.read()
 
-                    ast_tree = compile(caller_src, call_info['file'], 'exec', ast.PyCF_ONLY_AST)
+                    ast_tree = compile(
+                        caller_src.encode("utf-8"),
+                        call_info['file'],
+                        'exec',
+                        ast.PyCF_ONLY_AST
+                    )
 
                     func_calls = self._find_calls(ast_tree, called_module, called_func)
 
                     # now get the actual calling codeblock
                     regex = "\s*(?:{})\s*\(".format("|".join([str(v) for v in func_calls]))
                     r = re.compile(regex) 
-                    caller_src_lines = caller_src.split("\n")
+                    caller_src_lines = caller_src.splitlines(False)
                     total_lines = len(caller_src_lines)
 
                     # we need to move up one line until we get to the beginning of the call
@@ -697,7 +701,7 @@ class Pout(object):
                     else:
                         call = ''
 
-                except (IOError, SyntaxError):
+                except (IOError, SyntaxError) as e:
                     # we failed to open the file, IPython has this problem
                     if len(frame_tuple[4]) > 0:
                         call = frame_tuple[4][0]
