@@ -506,6 +506,13 @@ class VVTest(unittest.TestCase):
 
 
 class VTest(unittest.TestCase):
+    def test_cursor(self):
+        import sqlite3
+        path = ":memory:"
+        con = sqlite3.connect(path)
+        cur = con.cursor()
+        pout.v(cur)
+
     def test_unicode_in_src_file(self):
         path = testdata.create_file("foobar.py", [
             "# -*- coding: utf-8 -*-",
