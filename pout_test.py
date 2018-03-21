@@ -513,6 +513,36 @@ class VTest(unittest.TestCase):
         cur = con.cursor()
         pout.v(cur)
 
+    def test_encoding_in_src_file(self):
+        path = testdata.create_file("foobar.py", [
+            "# -*- coding: iso-8859-1 -*-",
+            "from __future__ import unicode_literals, division, print_function, absolute_import",
+            "",
+            "# \u0087\u00EB",
+            "# Här",
+            "",
+            "try:",
+            "    pout.v('foo bar')",
+            "except Exception as e:",
+            "    print(e)",
+        ])
+
+        # convert encoding to ISO-8859-1 from UTF-8, this is convoluted because
+        # I usually never have to do this
+        contents = path.contents()
+        path.encoding = "iso-8859-1"
+        path.write(contents)
+
+        environ = {
+            "PYTHONPATH": os.path.abspath(os.path.expanduser("."))
+        }
+        output = subprocess.check_output(
+            ["python", path],
+            env=environ,
+            stderr=subprocess.STDOUT,
+        )
+        self.assertTrue("foo bar" in output.decode("utf-8"))
+
     def test_unicode_in_src_file(self):
         path = testdata.create_file("foobar.py", [
             "# -*- coding: utf-8 -*-",

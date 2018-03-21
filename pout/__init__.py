@@ -45,7 +45,7 @@ import inspect
 
 from .compat import is_py2, is_py3, unicode, basestring, inspect, range
 
-__version__ = '0.7.0'
+__version__ = '0.7.1'
 
 
 logger = logging.getLogger(__name__)
@@ -657,7 +657,8 @@ class Pout(object):
             if called_func and called_func != '__call__':
                 # get the call block
                 try:
-                    with codecs.open(call_info['file'], mode='r', encoding="utf-8") as fp:
+                    open_kwargs = dict(mode='r', errors='replace', encoding="utf-8")
+                    with codecs.open(call_info['file'], **open_kwargs) as fp:
                         caller_src = fp.read()
 
                     ast_tree = compile(
