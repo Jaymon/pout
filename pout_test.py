@@ -19,6 +19,7 @@ import hmac
 import hashlib
 import subprocess
 import os
+import re
 
 import testdata
 
@@ -506,6 +507,10 @@ class VVTest(unittest.TestCase):
 
 
 class VTest(unittest.TestCase):
+    def test_compiled_regex(self):
+        regex = re.compile(r"foo", re.I | re.MULTILINE)
+        pout.v(regex)
+
     def test_cursor(self):
         import sqlite3
         path = ":memory:"

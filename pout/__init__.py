@@ -45,7 +45,7 @@ import inspect
 
 from .compat import is_py2, is_py3, unicode, basestring, inspect, range
 
-__version__ = '0.7.1'
+__version__ = '0.7.2'
 
 
 logger = logging.getLogger(__name__)
@@ -215,6 +215,9 @@ class Inspect(object):
 #             # http://stackoverflow.com/questions/624926/
 #             t = 'FUNCTION'
 
+        elif self.is_regex():
+            t = 'REGEX'
+
         else:
             t = 'DEFAULT'
 
@@ -312,6 +315,9 @@ class Inspect(object):
                 ret = False
                 break
         return ret
+
+    def is_regex(self):
+        return "SRE_Pattern" in repr(self.val)
 
     def has_attr(self, k):
         """return True if this instance has the attribute"""
@@ -1007,7 +1013,7 @@ class Pout(object):
                         pclses = inspect.getmro(cls)
                         if pclses:
                             s_body += "\nAncestry:\n"
-                            for pcls in pclses[1:]:
+                            for pcls in pclses:
                                 psrc_file = self._get_src_file(pcls, default="")
                                 if psrc_file:
                                     psrc_file = self._get_path(psrc_file)
@@ -1162,6 +1168,49 @@ class Pout(object):
 
         elif t == 'TYPE':
             s = '{}'.format(val)
+
+        elif t == 'REGEX':
+            # https://docs.python.org/2/library/re.html#regular-expression-objects
+
+            flags = {}
+            for m, mv in inspect.getmembers(re):
+                if not m.startswith("_") and m.isupper() and isinstance(mv, int):
+                    flags.setdefault(mv, m)
+                    if len(m) > len(flags[mv]):
+                        flags[mv] = m
+
+            s = ["Compiled Regex"]
+            s.append("<")
+
+            s.append(self._add_indent("pattern: {}".format(val.pattern), 1))
+            s.append(self._add_indent("groups: {}".format(val.groups), 1))
+            # TODO -- we could parse out the groups and put them here, that
+            # would be kind of cool
+
+            fv = val.flags
+            #s.append(self._add_indent("flags", 1))
+            s.append(self._add_indent("flags: {}".format(fv), 1))
+            for flag_val, flag_name in flags.items():
+                enabled = 1 if fv & flag_val else 0
+                s.append(self._add_indent("{}: {}".format(flag_name, enabled), 2))
+
+            s.append(">")
+
+            s = "\n".join(s)
+
+
+#             s = "Compiled Regex\n"
+#             s += "<\n"
+
+#             s = "\n".join([
+#                 "Compiled Regex",
+#                 "<",
+#                 self._add_indent("pattern: {}".format(val.pattern), 1),
+#                 self._add_indent("flags: {}".format(val.flags), 1),
+#                 self._add_indent("groups: {}".format(val.groups), 1),
+#                 ">",
+#             ])
+            #s = val.pattern
 
         else:
             s = "{}".format(repr(val))
