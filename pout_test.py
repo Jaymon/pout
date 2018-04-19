@@ -129,6 +129,40 @@ class Bam(object):
 
 class PoutTest(unittest.TestCase):
     """any non-specific function testing should go here"""
+    def test__get_src_file(self):
+        self.skipTest("I was testing something using this test but I don't think it's needed")
+
+        path = testdata.create_module("gsf", [
+            "import unittest",
+            "class Foo(object): pass",
+            "class Bar(Foo): pass",
+            "class Che(Bar): pass",
+            "",
+            "class TestLoader(unittest.TestLoader): pass"
+        ])
+        mod = path.module
+
+        p = pout.pout_class()
+
+        r = p._get_src_file(mod.Foo)
+        pout.v(r)
+        r = p._get_src_file(mod.Foo)
+        pout.v(r)
+        r = p._get_src_file(mod.Foo)
+        pout.v(r)
+
+        r = p._get_src_file(mod.Che)
+        pout.v(r)
+
+        import inspect
+        pclses = inspect.getmro(mod.Che)
+        for pc in pclses:
+            r = p._get_src_file(pc)
+            pout.v(pc, r)
+
+        r = p._get_src_file(mod.TestLoader)
+        pout.v(r)
+
     def test_overriding(self):
         """This verifies that child classes still can find the correct stack traces
 
