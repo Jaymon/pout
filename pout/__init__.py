@@ -70,6 +70,9 @@ class Logging(object):
         with Logging():
             logger.debug("This will print to the screen even if logging is off")
         logger.debug("this will not print if logging is off")
+
+    similar to:
+    https://github.com/python/cpython/blob/d918bbda4bb201c35d1ded3dde686d8b00a91851/Lib/unittest/case.py#L297
     """
     @property
     def loggers(self):
@@ -90,11 +93,11 @@ class Logging(object):
         self.logger_name = logger_name
 
         if isinstance(level, basestring):
-            self.level = getattr(
-                logging,
-                "_nameToLevel", # py3.6
-                getattr(logging, "_checkLevel") # py2.7
-            )(level.upper())
+            if is_py2:
+                self.level = logging._checkLevel(level.upper())
+            else:
+                self.level = logging._nameToLevel[level.upper()]
+
         else:
             self.level = level
 

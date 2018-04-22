@@ -684,6 +684,8 @@ class VTest(unittest.TestCase):
     def test_type(self):
         with testdata.capture() as c:
             pout.v(type(100))
+
+        pout.v(str(c))
         self.assertTrue("type(100) =" in c)
         self.assertTrue("'int'" in c)
 
