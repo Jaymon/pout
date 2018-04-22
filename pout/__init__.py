@@ -45,7 +45,8 @@ import inspect
 
 from .compat import is_py2, is_py3, unicode, basestring, inspect, range
 
-__version__ = '0.7.2'
+
+__version__ = '0.7.3'
 
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,74 @@ if len(logger.handlers) == 0:
     log_handler.setFormatter(log_formatter)
     logger.addHandler(log_handler)
     logger.propagate = False
+
+
+class Logging(object):
+    """Logging context manager used in pout.l()
+
+    This will turn logging to the stderr on for everything inside the with block
+
+    :Example:
+        with Logging():
+            logger.debug("This will print to the screen even if logging is off")
+        logger.debug("this will not print if logging is off")
+    """
+    @property
+    def loggers(self):
+        """Return all the loggers that should be activated"""
+        ret = []
+        if self.logger_name:
+            if isinstance(self.logger_name, logging.Logger):
+                ret.append((self.logger_name.name, self.logger_name))
+            else:
+                ret.append((self.logger_name, logging.getLogger(self.logger_name)))
+
+        else:
+            ret = list(logging.Logger.manager.loggerDict.items())
+            ret.append(("root", logging.getLogger()))
+        return ret
+
+    def __init__(self, logger_name="", level=logging.DEBUG):
+        self.logger_name = logger_name
+
+        if isinstance(level, basestring):
+            self.level = getattr(
+                logging,
+                "_nameToLevel", # py3.6
+                getattr(logging, "_checkLevel") # py2.7
+            )(level.upper())
+        else:
+            self.level = level
+
+    def __enter__(self):
+        old_loggers = collections.defaultdict(dict)
+        for logger_name, logger in self.loggers:
+            try:
+                old_loggers[logger_name]["handlers"] = logger.handlers[:]
+                old_loggers[logger_name]["level"] = logger.level
+                old_loggers[logger_name]["propagate"] = logger.propagate
+
+                handler = logging.StreamHandler(stream=sys.stderr)
+                #handler.setFormatter(formatter)
+                logger.handlers = [handler]
+                logger.setLevel(self.level)
+                logger.propagate = False
+
+            except AttributeError:
+                pass
+
+
+        self.old_loggers = old_loggers
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        for logger_name, logger_dict in self.old_loggers.items():
+            logger = logging.getLogger(logger_name)
+            for name, val in logger_dict.items():
+                if name == "level":
+                    logger.setLevel(val)
+                else:
+                    setattr(logger, name, val)
 
 
 class Profiler(object):
@@ -1772,6 +1841,25 @@ class Pout(object):
 
         self._print(pargs, call_info)
 
+    def l(self, *args, **kwargs):
+        """see Logging class for details, this is just the method wrapper around Logging
+
+        :Example:
+            # turn on logging for all loggers
+            with pout.l():
+                # do stuff that produces logs and see it prints to stderr
+
+            # turn on logging just for a specific logger
+            with pout.l("name"):
+                # "name" logger will print to stderr, all other loggers will act
+                # as configured
+
+        :param logger_name: string|Logger, the logger name you want to print to stderr
+        :param level: string|int, the logging level the logger should be set at,
+            this defaults to logging.DEBUG
+        """
+        return Logging(*args, **kwargs)
+
 
 # this can be changed after import to customize functionality
 pout_class = Pout
@@ -1812,6 +1900,8 @@ def sleep(*args, **kwargs):
     return pout_class.create_instance().sleep(*args, **kwargs)
 def i(*args, **kwargs):
     return pout_class.create_instance().i(*args, **kwargs)
+def l(*args, **kwargs):
+    return pout_class.create_instance().l(*args, **kwargs)
 
 
 def console_json():

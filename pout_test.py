@@ -20,6 +20,7 @@ import hashlib
 import subprocess
 import os
 import re
+import logging
 
 import testdata
 
@@ -1021,6 +1022,34 @@ class InspectTest(TestCase):
             v = bytes("foobar", "utf-8")
         t = Inspect(v)
         self.assertEqual("BINARY", t.typename)
+
+
+class LTest(TestCase):
+    def test_l(self):
+        tl = logging.getLogger("LTest")
+        tl.setLevel(logging.ERROR)
+
+        tl.debug("This should not print 1")
+
+        with pout.l():
+            tl.debug("This should print 1/3")
+
+        tl.debug("This should not print 2")
+
+        with pout.l("LTest"):
+            tl.debug("This should print 2/3")
+
+        tl.debug("This should not print 3")
+
+        with pout.l("LTest", logging.INFO):
+            tl.debug("This should not print 4")
+
+        tl.debug("This should not print 5")
+
+        with pout.l("LTest", "debug"):
+            tl.debug("This should print 3/3")
+
+        tl.debug("This should not print 6")
 
 
 if __name__ == '__main__':

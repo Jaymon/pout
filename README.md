@@ -234,6 +234,23 @@ This could fail if Python isn't compiled with 4 byte unicode support, just somet
   Just like `pout.vv()` but will return the value as a string
 
 
+### pout.l([logger_name, [logger_level]]) -- turn logging on just for this context
+
+Turns logging on for the given level (defaults to `logging.DEBUG`) and prints the logs to __stderr__. Useful when you just want to check the logs of something without modifying your current logging configuration.
+
+example:
+
+```python
+with pout.l():
+    logger.debug("This will print to the screen even if logging is off")
+logger.debug("this will not print if logging is off")
+
+with pout.l("name"):
+    # if "name" logger is used it will print to stderr
+# "name" logger goes back to previous configuration
+```
+
+
 ## Customizing Pout
 
 ### object magic method
