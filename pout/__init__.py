@@ -46,7 +46,7 @@ import inspect
 from .compat import is_py2, is_py3, unicode, basestring, inspect, range
 
 
-__version__ = '0.7.3'
+__version__ = '0.7.4'
 
 
 logger = logging.getLogger(__name__)
@@ -920,12 +920,19 @@ class Pout(object):
         s = ''
         t = self._get_type(val)
 
+        def name_callback(k):
+            if isinstance(k, basestring):
+                ret = "'{}'".format(self._get_unicode(k))
+            else:
+                ret = self._get_unicode(k)
+            return ret
+
         if t == 'DICT_PROXY':
             if len(val) > 0:
 
                 s = self._str_iterator(
                     iterator=val.items(),
-                    name_callback= lambda k: "'{}'".format(k),
+                    name_callback=name_callback,
                     left_paren='dict_proxy({',
                     right_paren='})',
                     prefix='',
@@ -942,7 +949,7 @@ class Pout(object):
 
                 s = self._str_iterator(
                     iterator=val.items(), 
-                    name_callback= lambda k: "'{}'".format(k),
+                    name_callback=name_callback,
                     left_paren='{',
                     right_paren='}',
                     depth=depth,

@@ -508,6 +508,14 @@ class VVTest(unittest.TestCase):
 
 
 class VTest(unittest.TestCase):
+    def test_keys(self):
+        d = {'\xef\xbb\xbffoo': ''} 
+        d = {'\xef\xbb\xbffo_timestamp': ''}
+        pout.v(d)
+
+        d = {0: "foo", 1: "bar"}
+        pout.v(d)
+
     def test_compiled_regex(self):
         regex = re.compile(r"foo", re.I | re.MULTILINE)
         pout.v(regex)
