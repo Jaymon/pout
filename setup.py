@@ -46,8 +46,10 @@ setup(
     #test_suite = "pout_test",
     entry_points = {
         'console_scripts': [
-            '{}.json = {}:console_json'.format(name, name),
-            '{}.char = {}:console_char'.format(name, name)
+#             '{}.json = {}.__main__:main_json'.format(name, name),
+#             '{}.char = {}.__main__:main_char'.format(name, name)
+#             '{}.inject = {}.__main__:main_inject'.format(name, name)
+            '{} = {}.__main__:main'.format(name, name)
         ],
     }
 )

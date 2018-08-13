@@ -301,97 +301,20 @@ Generally, the pypi version and the github version shouldn't be that out of sync
 
 ## Make Pout easier to use
 
-### Add pout to a configuration file for your app
-
-If, like me, you hate having to constantly do `import pout` at the top of every module you
-want to use `pout` in, you can put this snippet of code in your dev environment so you no longer
-have to import pout:
+When debugging, it's really nice not having to put `import pout` at the top of every module you want to use it in, so there's a command for that, if you put:
 
 ```python
-# handy for dev environment, make pout available to all modules without an import
-import __builtin__
-try:
-  import pout
-  __builtin__.pout = pout
-except ImportError:
-  pass
+import pout
+pout.inject()
 ```
 
-[Read more](http://stackoverflow.com/questions/142545/python-how-to-make-a-cross-module-variable) 
-on what the above snippet does.
+Somewhere near the top of your application startup script, then `pout` will be available in all your files whether you imported it or not, it will be just like `str()`, `object`, or the rest of python's standard library.
 
+If you don't even want to bother with doing that, then just run:
 
-### Add pout to usercustomize.py
-
-run this in terminal:
-
-    $ python -c "import site; site._script()"
-
-if at the end you see something like this:
-
-    USER_BASE: '/home/USERNAME/.local' (exists)
-    USER_SITE: '/home/USERNAME/.local/lib/python2.7/site-packages' (exists)
-    ENABLE_USER_SITE: True
-
-that means you can add a usercustomize.py module:
-
-    $ mkdir -p ~/.local/lib/python2.7/site-packages
-    $ touch ~/.local/lib/python2.7/site-packages/usercustomize.py
-
-that will be included every time python is ran and so you can put this code in:
-
-```python
-import __builtin__
-try:
-  import pout
-  __builtin__.pout = pout
-except ImportError:
-  pass
+```
+$ pout inject
 ```
 
-
-### Add pout to sitecustomize.py
-
-run this in terminal:
-
-    $ python -c "import site; print site.getsitepackages()[0]
-
-That should print out a good place to add a `sitecustomize.py` file. Create that file and include the pout import code in it.
-
-
-### Add pout to site.py
-
-If none of the above options work for you, you can also actually edit Python's `site.py` file. If you do this, you should most definitely only ever do it on your dev box in your dev environment, I would **NOT** do something like this on a production server:
-
-#### 1 - Find the site.py file for your python installation
-
-You can find where your python installation lives through the Python shell:
-
-    $ python
-    >>> import sys
-    >>> sys.prefix
-    '/path/to/python/install'
-
-
-#### 2 - Go to that directory's lib/pythonX.Y directory
-
-So, if you were using Python 2.7, you would go to `/path/to/python/install/lib/python2.7`
-
-
-#### 3 - edit the site.py file
-
-add this to somewhere near the end of the `site.py` file
-
-```python
-try:
-  import pout
-  __builtin__.pout = pout
-except ImportError:
-  pass
-```
-
-
-#### 4 - Now any python code will be able to use pout without you having to explicitely import it.
-
-[Read more](http://docs.python.org/2/library/site.html), also [here](http://stackoverflow.com/a/8255752)
+from the command line and it will modify your python environment to make pout available as a builtin module, just like the python standard library. This is super handy for development virtual environments.
 

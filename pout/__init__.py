@@ -46,7 +46,7 @@ import inspect
 from .compat import is_py2, is_py3, unicode, basestring, inspect, range
 
 
-__version__ = '0.7.4'
+__version__ = '0.7.5'
 
 
 logger = logging.getLogger(__name__)
@@ -1914,26 +1914,24 @@ def l(*args, **kwargs):
     return pout_class.create_instance().l(*args, **kwargs)
 
 
-def console_json():
+def inject():
+    """Injects pout into the builtins module so it can be called from anywhere without
+    having to be explicitely imported, this is really just for convenience when
+    debugging
+
+    https://stackoverflow.com/questions/142545/python-how-to-make-a-cross-module-variable
     """
-    mapped to pout.j on command line, use in a pipe
+    try:
+        if is_py2:
+            import __builtin__ as builtins
+        else:
+            import builtins
 
-    since -- 2013-9-10
-    link -- http://stackoverflow.com/questions/8478137/how-redirect-a-shell-command-output-to-a-python-script-input
+        module = sys.modules[__name__]
+        setattr(builtins, __name__, module)
+        #builtins.pout = pout
 
-        $ command-that-outputs-json | pout.json
-    """
-    data = sys.stdin.readlines()
-    j(os.sep.join(data))
+    except ImportError:
+        pass
 
-
-def console_char():
-    """
-    mapped to pout.c on the command line, use in a pipe
-    since -- 2013-9-10
-
-        $ echo "some string I want to see char values for" | pout.char
-    """
-    data = sys.stdin.readlines()
-    c(os.sep.join(data))
 
