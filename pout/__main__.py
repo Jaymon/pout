@@ -6,11 +6,12 @@ import os
 import site
 import argparse
 import logging
+import platform
 
 import pout
 
 
-logging.basicConfig(format="%(message)s", level=logging.DEBUG, stream=sys.stdout)
+logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 
@@ -60,6 +61,96 @@ def main_char(args):
     return 0
 
 
+class SitePackagesDir(str):
+    """Finds the site-packages directory and sets the value of this string to that
+    path"""
+    def __new__(cls):
+        basepath = ""
+        try:
+            paths = site.getsitepackages()
+            basepath = paths[0] 
+            logger.debug(
+                "Found site-packages directory {} using site.getsitepackages".format(
+                    basepath
+                )
+            )
+
+        except AttributeError:
+            # we are probably running this in a virtualenv, so let's try a different
+            # approach
+            # try and brute-force discover it since it's not defined where it
+            # should be defined
+            sitepath = os.path.join(os.path.dirname(site.__file__), "site-packages")
+            if os.path.isdir(sitepath):
+                basepath = sitepath
+                logger.debug(
+                    "Found site-packages directory {} using site.__file__".format(
+                        basepath
+                    )
+                )
+
+            else:
+                for path in sys.path:
+                    if path.endswith("site-packages"):
+                        basepath = path
+                        logger.debug(
+                            "Found site-packages directory {} using sys.path".format(
+                                basepath
+                            )
+                        )
+                        break
+
+        if not basepath:
+            raise IOError("Could not find site-packages directory")
+
+        return super(SitePackagesDir, cls).__new__(cls, basepath)
+
+
+class SiteCustomizeFile(str):
+    """sets the value of the string to the sitecustomize.py file, and adds handy
+    helper functions to manipulate it"""
+    @property
+    def body(self):
+        if not self.exists():
+            return ""
+
+        with open(self, mode="r") as fp:
+            return fp.read()
+
+    def __new__(cls):
+        basepath = SitePackagesDir()
+        filepath = os.path.join(basepath, "sitecustomize.py")
+        instance = super(SiteCustomizeFile, cls).__new__(cls, filepath)
+        instance.directory = basepath
+        return instance
+
+    def inject(self):
+        """inject code into sitecustomize.py that will inject pout into the builtins
+        so it will be available globally"""
+        if self.is_injected():
+            return False
+
+        with open(self, mode="a+") as fp:
+            fp.seek(0)
+            fp.write("\n".join([
+                "try:",
+                "    import pout",
+                "    pout.inject()",
+                "except ImportError: pass",
+                "",
+            ]))
+            logger.debug("Injected pout into {}".format(filepath))
+
+        return True
+
+    def exists(self):
+        return os.path.isfile(self)
+
+    def is_injected(self):
+        body = self.body
+        return "import pout" in body
+
+
 def main_inject(args):
     """
     mapped to pout.inject on the command line, makes it easy to make pout global
@@ -71,65 +162,45 @@ def main_inject(args):
     :returns: int, the return code of the CLI
     """
     ret = 0
-    basepath = ""
-    try:
-        paths = site.getsitepackages()
-        basepath = paths[0] 
-        logger.info(
-            "Found site-packages directory {} using site.getsitepackages".format(
-                basepath
-            )
-        )
 
-    except AttributeError:
-        # we are probably running this in a virtualenv, so let's try a different
-        # approach
-        # try and brute-force discover it since it's not defined where it
-        # should be defined
-        sitepath = os.path.join(os.path.dirname(site.__file__), "site-packages")
-        if os.path.isdir(sitepath):
-            basepath = sitepath
-            logger.info(
-                "Found site-packages directory {} using site.__file__".format(
-                    basepath
-                )
-            )
+    try:
+        filepath = SiteCustomizeFile()
+        if filepath.is_injected():
+            logger.info("Pout has already been injected into {}".format(filepath))
 
         else:
-            for path in sys.path:
-                if path.endswith("site-packages"):
-                    basepath = path
-                    logger.info(
-                        "Found site-packages directory {} using sys.path".format(
-                            basepath
-                        )
-                    )
-                    break
+            filepath.inject()
+            logger.debug("Injected pout into {}".format(filepath))
 
-    if basepath:
-        filepath = os.path.join(basepath, "sitecustomize.py")
-        with open(filepath, mode="a+") as fp:
-            fp.seek(0)
-            body = fp.read()
-            print(body)
-            if "import pout" not in body:
-                #fp.write("\ntry:\n    import pout\npout.inject()\n")
-                fp.write("\n".join([
-                    "try:",
-                    "    import pout",
-                    "    pout.inject()",
-                    "except ImportError: pass",
-                    "",
-                ]))
-                logger.info("Injected pout into {}".format(filepath))
-            else:
-                logger.info("Pout has already been injected into {}".format(filepath))
-
-    else:
-        logger.error("Could not find site-packages directory")
+    except IOError as e:
         ret = 1
+        logger.info(str(e))
 
     return ret
+
+
+def main_info(args):
+    """Just prints out info about the pout installation
+
+    .. since:: 2018-08-20
+
+    :param args: Namespace, the parsed CLI arguments passed into the application
+    :returns: int, the return code of the CLI
+    """
+    if args.site_packages:
+        logger.info(SitePackagesDir())
+
+    else:
+        logger.info("Python executable: {}".format(sys.executable))
+        logger.info("Python version: {}".format(platform.python_version()))
+        logger.info("Python site-packages: {}".format(SitePackagesDir()))
+        # https://stackoverflow.com/questions/4152963/get-the-name-of-current-script-with-python
+        #logger.info("Pout executable: {}".format(subprocess.check_output(["which", "pout"])))
+        logger.info("Pout executable: {}".format(os.path.abspath(os.path.expanduser(str(sys.argv[0])))))
+        logger.info("Pout version: {}".format(pout.__version__))
+
+        filepath = SiteCustomizeFile()
+        logger.info("Pout injected: {}".format(filepath.is_injected()))
 
 
 def main():
@@ -145,7 +216,7 @@ def main():
     subparsers.required = True # https://bugs.python.org/issue9253#msg186387
 
     # $ pout inject
-    desc = "inject pout into python builtins so it doesn't need to be imported"
+    desc = "Inject pout into python builtins so it doesn't need to be imported"
     subparser = subparsers.add_parser(
         "inject",
         help=desc,
@@ -178,6 +249,24 @@ def main():
         conflict_handler="resolve",
     )
     subparser.set_defaults(func=main_json)
+
+    # $ pout info
+    desc = "Print pout and python information"
+    subparser = subparsers.add_parser(
+        "info",
+        #parents=[parent_parser],
+        help=desc,
+        description=desc,
+        #add_help=False
+        conflict_handler="resolve",
+    )
+    subparser.add_argument(
+        "--site-packages", "-s",
+        dest="site_packages",
+        action="store_true",
+        help="just print the site-packages directory and nothing else",
+    )
+    subparser.set_defaults(func=main_info)
 
     args = parser.parse_args()
     code = args.func(args)
