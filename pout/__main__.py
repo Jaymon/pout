@@ -14,7 +14,6 @@ import pout
 level = logging.INFO
 logging.basicConfig(format="%(message)s", level=level, stream=sys.stdout)
 logger = logging.getLogger(__name__)
-logger.setLevel(level)
 
 
 class Input(str):
@@ -237,13 +236,17 @@ def main_info(args):
 
 
 def main():
+    #parser = argparse.ArgumentParser(description='Pout CLI', conflict_handler="resolve")
     parser = argparse.ArgumentParser(description='Pout CLI')
     parser.add_argument("--version", "-V", action='version', version="%(prog)s {}".format(pout.__version__))
+    parser.add_argument("--debug", "-d", action="store_true", help="More verbose logging")
 
-    # some parsers can take an input string, this is the common argument for
-    # them
-    parent_parser = argparse.ArgumentParser()
-    parent_parser.add_argument('input', nargs="?", default=None, help="the input file, value, or pipe")
+    # some parsers can take an input string, this is the common argument for them
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument("--debug", "-d", action="store_true", help="More verbose output")
+
+    input_parser = argparse.ArgumentParser(add_help=False)
+    input_parser.add_argument('input', nargs="?", default=None, help="the input file, value, or pipe")
 
     subparsers = parser.add_subparsers(dest="command", help="a sub command")
     subparsers.required = True # https://bugs.python.org/issue9253#msg186387
@@ -252,6 +255,7 @@ def main():
     desc = "Inject pout into python builtins so it doesn't need to be imported"
     subparser = subparsers.add_parser(
         "inject",
+        parents=[common_parser],
         help=desc,
         description=desc,
         #add_help=False
@@ -263,7 +267,7 @@ def main():
     desc = "Dump all the character information of each character in a string, pout.c() on the command line"
     subparser = subparsers.add_parser(
         "char",
-        parents=[parent_parser],
+        parents=[common_parser, input_parser],
         help=desc,
         description=desc,
         #add_help=False
@@ -275,7 +279,7 @@ def main():
     desc = "Pretty print json, pout.j() on the command line"
     subparser = subparsers.add_parser(
         "json",
-        parents=[parent_parser],
+        parents=[common_parser, input_parser],
         help=desc,
         description=desc,
         #add_help=False
@@ -287,7 +291,7 @@ def main():
     desc = "Print pout and python information"
     subparser = subparsers.add_parser(
         "info",
-        #parents=[parent_parser],
+        parents=[common_parser],
         help=desc,
         description=desc,
         #add_help=False
@@ -302,6 +306,13 @@ def main():
     subparser.set_defaults(func=main_info)
 
     args = parser.parse_args()
+
+    # mess with logging
+    global level
+    if args.debug:
+        level = logging.DEBUG
+    logger.setLevel(level)
+
     code = args.func(args)
     sys.exit(code)
 
