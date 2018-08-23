@@ -139,7 +139,7 @@ class SiteCustomizeFile(str):
                 "except ImportError: pass",
                 "",
             ]))
-            logger.debug("Injected pout into {}".format(filepath))
+            logger.debug("Injected pout into {}".format(self))
 
         return True
 
