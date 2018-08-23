@@ -170,7 +170,6 @@ class SiteCustomizeFile(str):
                 "    pout.inject()",
                 "",
             ]))
-            logger.debug("Injected pout into {}".format(self))
 
         return True
 
@@ -200,8 +199,10 @@ def main_inject(args):
             logger.info("Pout has already been injected into {}".format(filepath))
 
         else:
-            filepath.inject()
-            logger.debug("Injected pout into {}".format(filepath))
+            if filepath.inject():
+                logger.info("Injected pout into {}".format(filepath))
+            else:
+                logger.info("Failed to inject pout into {}".format(filepath))
 
     except IOError as e:
         ret = 1
