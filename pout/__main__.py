@@ -226,6 +226,7 @@ def main_info(args):
         logger.info("Python executable: {}".format(sys.executable))
         logger.info("Python version: {}".format(platform.python_version()))
         logger.info("Python site-packages: {}".format(SitePackagesDir()))
+        logger.info("Python sitecustomize: {}".format(SiteCustomizeFile()))
         # https://stackoverflow.com/questions/4152963/get-the-name-of-current-script-with-python
         #logger.info("Pout executable: {}".format(subprocess.check_output(["which", "pout"])))
         logger.info("Pout executable: {}".format(os.path.abspath(os.path.expanduser(str(sys.argv[0])))))
