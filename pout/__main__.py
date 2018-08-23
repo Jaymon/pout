@@ -11,8 +11,10 @@ import platform
 import pout
 
 
-logging.basicConfig(format="%(message)s", level=logging.INFO, stream=sys.stdout)
+level = logging.INFO
+logging.basicConfig(format="%(message)s", level=level, stream=sys.stdout)
 logger = logging.getLogger(__name__)
+logger.setLevel(level)
 
 
 class Input(str):
@@ -100,6 +102,17 @@ class SitePackagesDir(str):
                         )
                         break
 
+                if not basepath:
+                    for path in sys.path:
+                        if path.endswith("dist-packages"):
+                            basepath = path
+                            logger.debug(
+                                "Found dist-packages directory {} using sys.path".format(
+                                    basepath
+                                )
+                            )
+                            break
+
         if not basepath:
             raise IOError("Could not find site-packages directory")
 
@@ -118,10 +131,26 @@ class SiteCustomizeFile(str):
             return fp.read()
 
     def __new__(cls):
-        basepath = SitePackagesDir()
-        filepath = os.path.join(basepath, "sitecustomize.py")
+        filepath = ""
+        if "sitecustomize" in sys.modules:
+            filepath = sys.modules["sitecustomize"].__file__
+            if filepath.endswith(".pyc"):
+                basepath, ext = os.path.splitext(filepath)
+                filepath = basepath + ".py"
+
+            if filepath and not os.path.isfile(filepath):
+                filepath = ""
+                for path in sys.path:
+                    p = os.path.join(path, "sitecustomize.py")
+                    if os.path.isfile(p):
+                        filepath = p
+                        break
+
+        if not filepath:
+            basepath = SitePackagesDir()
+            filepath = os.path.join(basepath, "sitecustomize.py")
+
         instance = super(SiteCustomizeFile, cls).__new__(cls, filepath)
-        instance.directory = basepath
         return instance
 
     def inject(self):
@@ -133,10 +162,13 @@ class SiteCustomizeFile(str):
         with open(self, mode="a+") as fp:
             fp.seek(0)
             fp.write("\n".join([
+                "",
                 "try:",
                 "    import pout",
+                "except ImportError:",
+                "    pass",
+                "else:",
                 "    pout.inject()",
-                "except ImportError: pass",
                 "",
             ]))
             logger.debug("Injected pout into {}".format(self))
