@@ -7,6 +7,7 @@ import site
 import argparse
 import logging
 import platform
+import inspect
 
 import pout
 
@@ -132,12 +133,9 @@ class SiteCustomizeFile(str):
     def __new__(cls):
         filepath = ""
         if "sitecustomize" in sys.modules:
-            filepath = sys.modules["sitecustomize"].__file__
-            if filepath.endswith(".pyc"):
-                basepath, ext = os.path.splitext(filepath)
-                filepath = basepath + ".py"
-
-            if filepath and not os.path.isfile(filepath):
+            filepath = inspect.getsourcefile(sys.modules["sitecustomize"])
+            # !!! I have doubts this if block is needed
+            if filepath and not filepath.endswith(".py"):
                 filepath = ""
                 for path in sys.path:
                     p = os.path.join(path, "sitecustomize.py")
