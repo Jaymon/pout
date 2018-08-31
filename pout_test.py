@@ -407,6 +407,17 @@ class CTest(unittest.TestCase):
         self.assertTrue("Total Characters:" in c)
 
 class BTest(unittest.TestCase):
+    def test_variable(self):
+        s = "foo"
+        with testdata.capture() as c:
+            pout.b(s)
+        self.assertTrue("foo" in c)
+
+        s = b"foo"
+        with testdata.capture() as c:
+            pout.b(s)
+        self.assertTrue("foo" in c)
+
     def test_b(self):
         with testdata.capture() as c:
             pout.b()

@@ -46,7 +46,7 @@ import inspect
 from .compat import is_py2, is_py3, unicode, basestring, inspect, range
 
 
-__version__ = '0.7.6'
+__version__ = '0.7.7'
 
 
 logger = logging.getLogger(__name__)
@@ -1581,7 +1581,7 @@ class Pout(object):
 
         if len(args) == 1:
             t = self._get_type(args[0])
-            if t == 'STRING':
+            if t in set(['STRING', 'BINARY']):
                 title = args[0]
             else:
                 rows = int(args[0])
