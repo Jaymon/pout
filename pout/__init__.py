@@ -43,10 +43,19 @@ import resource
 import codecs
 import inspect
 
-from .compat import is_py2, is_py3, unicode, basestring, inspect, range
+from .compat import (
+    is_py2,
+    is_py3,
+    unicode,
+    basestring,
+    inspect,
+    range,
+    Callable,
+    Iterable
+)
 
 
-__version__ = '0.7.7'
+__version__ = '0.7.8'
 
 
 logger = logging.getLogger(__name__)
@@ -375,7 +384,7 @@ class Inspect(object):
 
     def is_callable(self):
         # not sure why class methods pulled from __class__ fail the callable check
-        return isinstance(self.val, collections.Callable) or isinstance(self.val, classmethod)
+        return isinstance(self.val, Callable) or isinstance(self.val, classmethod)
 
     def is_dict_proxy(self):
         # NOTE -- in 3.3+ dict proxy is exposed, from types import MappingProxyType
@@ -486,7 +495,7 @@ class Pout(object):
 
         if hasattr(ast_tree, 'body'):
             # further down the rabbit hole we go
-            if isinstance(ast_tree.body, collections.Iterable):
+            if isinstance(ast_tree.body, Iterable):
                 for ast_body in ast_tree.body:
                     s.update(self._find_calls(ast_body, called_module, called_func))
 
@@ -749,7 +758,7 @@ class Pout(object):
                     func_calls = self._find_calls(ast_tree, called_module, called_func)
 
                     # now get the actual calling codeblock
-                    regex = "\s*(?:{})\s*\(".format("|".join([str(v) for v in func_calls]))
+                    regex = r"\s*(?:{})\s*\(".format("|".join([str(v) for v in func_calls]))
                     r = re.compile(regex) 
                     caller_src_lines = caller_src.splitlines(False)
                     total_lines = len(caller_src_lines)
@@ -1184,6 +1193,7 @@ class Pout(object):
             modules = {}
             funcs = {}
             classes = {}
+            properties = {}
 
             for k, v in inspect.getmembers(val):
 
@@ -1197,6 +1207,8 @@ class Pout(object):
                     modules[k] = v
                 elif vt == 'OBJECT':
                     classes[k] = v
+                else:
+                    properties[k] = v
 
                 #pout2.v('%s %s: %s' % (k, vt, repr(v)))
 
@@ -1213,8 +1225,11 @@ class Pout(object):
                 for k, v in funcs.items():
 
                     try:
-                        func_args = inspect.formatargspec(*inspect.getfullargspec(v))
-                    except TypeError:
+                        if is_py2:
+                            func_args = inspect.formatargspec(*inspect.getfullargspec(v))
+                        else:
+                            func_args = "{}".format(inspect.signature(v))
+                    except (TypeError, ValueError):
                         func_args = "(...)"
                     #pout2.v(func_args)
 
@@ -1237,12 +1252,23 @@ class Pout(object):
                         #if _is_magic(m): continue
                         if self._get_type(mv) == 'FUNCTION':
                             try:
-                                func_args = inspect.formatargspec(*inspect.getfullargspec(mv))
+                                if is_py2:
+                                    func_args = inspect.formatargspec(*inspect.getfullargspec(mv))
+                                else:
+                                    func_args = "{}".format(inspect.signature(mv))
                                 s += self._add_indent(".{}{}".format(m, func_args), 2)
                                 s += "\n"
-                            except TypeError:
+                            except (TypeError, ValueError):
                                 pass
 
+                    s += "\n"
+
+            if properties:
+                s += "\nProperties:\n"
+                for k, v in properties.items():
+                    s += self._add_indent("{}".format(k), 1)
+                    #s += self._add_indent("{} = {}".format(k, self._str_val(v, depth=2)), 1)
+                    #s += self._add_indent("{} = {}".format(k, self._get_unicode(v)), 1)
                     s += "\n"
 
         elif t == 'TYPE':
@@ -1388,7 +1414,7 @@ class Pout(object):
 
         return -- string
         '''
-        inspect_regex = re.compile('[\\\\/]python\d(?:\.\d+)?', re.I)
+        inspect_regex = re.compile(r'[\\\\/]python\d(?:\.\d+)?', re.I)
 
         # truncate the filepath if it is super long
         f = call_info['file']
@@ -1462,13 +1488,13 @@ class Pout(object):
 
     def _get_unicode(self, arg):
         '''
-        make sure arg is a unicode byte string
+        make sure arg is a unicode string
 
         arg -- mixed -- arg can be anything
         return -- unicode -- a u'' string will always be returned
         '''
         if isinstance(arg, bytes):
-            arg = arg.decode('utf-8')
+            arg = arg.decode('utf-8', 'pout.replace')
 
         else:
             if not isinstance(arg, unicode):
@@ -1808,18 +1834,18 @@ class Pout(object):
         call_info = self._get_arg_info(args)
         pargs = []
         methods = []
-        params = []
+        properties = []
         for v in call_info["args"]:
             for ni, vi in inspect.getmembers(v['val']):
                 i = Inspect(vi)
                 #print(ni, i.typename, type(vi))
                 #print(ni, type(vi))
                 if i.is_type():
-                    params.append((ni, vi))
+                    properties.append((ni, vi))
                 elif i.is_callable():
                     methods.append((ni, vi))
                 else:
-                    params.append((ni, vi))
+                    properties.append((ni, vi))
 
             full_info = self._str(v['name'], v['val'])
             info = "MEMBERS:\n"
@@ -1828,15 +1854,19 @@ class Pout(object):
             info += "\n"
             for name, vi in methods:
                 try:
-                    argspec = inspect.getfullargspec(vi)
-                    info += self._add_indent("{}{}".format(name, inspect.formatargspec(*argspec)), 2)
-                except TypeError:
+
+                    if is_py2:
+                        argspec = inspect.getfullargspec(vi)
+                        info += self._add_indent("{}{}".format(name, inspect.formatargspec(*argspec)), 2)
+                    else:
+                        info += self._add_indent("{}{}".format(name, inspect.signature(vi), 2))
+                except (TypeError, ValueError):
                     info += self._add_indent(name, 2)
                 info += "\n"
 
-            info += self._add_indent("Params:", 1)
+            info += self._add_indent("Properties:", 1)
             info += "\n"
-            for name, vi in params:
+            for name, vi in properties:
                 info += self._add_indent(name, 2)
                 info += "\n"
 

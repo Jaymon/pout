@@ -1005,7 +1005,7 @@ class ITest(TestCase):
             v = map(str, range(5))
             pout.i(v)
 
-        for s in ["MEMBERS:", "Methods:", "Params:"]:
+        for s in ["MEMBERS:", "Methods:", "Properties:"]:
             self.assertTrue(s in c, s)
 
 

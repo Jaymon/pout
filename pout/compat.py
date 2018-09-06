@@ -12,6 +12,7 @@ if is_py2:
     unicode = unicode
     range = xrange # range is now always an iterator
 
+    from collections import Callable, Iterable
     import Queue as queue
     import thread as _thread
     import __builtin__ as builtins
@@ -31,12 +32,15 @@ if is_py2:
     import inspect
     inspect.getfullargspec = inspect.getargspec
 
+
+
 elif is_py3:
     basestring = (str, bytes)
     unicode = str
 
     range = range
 
+    from collections.abc import Callable, Iterable
     import queue
     import _thread
     from io import StringIO
@@ -54,5 +58,4 @@ elif is_py3:
         finally:
             value = None
             tb = None
-
 
