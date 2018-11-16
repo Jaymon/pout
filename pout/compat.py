@@ -12,7 +12,7 @@ if is_py2:
     unicode = unicode
     range = xrange # range is now always an iterator
 
-    from collections import Callable, Iterable
+    from collections import Callable, Iterable, Set
     import Queue as queue
     import thread as _thread
     import __builtin__ as builtins
@@ -40,7 +40,7 @@ elif is_py3:
 
     range = range
 
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable, Iterable, Set
     import queue
     import _thread
     from io import StringIO

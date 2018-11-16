@@ -51,11 +51,12 @@ from .compat import (
     inspect,
     range,
     Callable,
-    Iterable
+    Iterable,
+    Set
 )
 
 
-__version__ = '0.7.8'
+__version__ = '0.7.9'
 
 
 logger = logging.getLogger(__name__)
@@ -315,7 +316,7 @@ class Inspect(object):
             return isinstance(self.val, (types.GeneratorType, range, map))
 
     def is_set(self):
-        return isinstance(self.val, (set, frozenset))
+        return isinstance(self.val, (set, frozenset, Set))
 
     def is_primitive(self):
         """is the value a built-in type?"""

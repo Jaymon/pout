@@ -542,6 +542,7 @@ class VTest(unittest.TestCase):
         path = testdata.create_file("foobar.py", [
             "# -*- coding: iso-8859-1 -*-",
             "from __future__ import unicode_literals, division, print_function, absolute_import",
+            "import pout",
             "",
             "# \u0087\u00EB",
             "# Här",
@@ -556,13 +557,13 @@ class VTest(unittest.TestCase):
         # I usually never have to do this
         contents = path.contents()
         path.encoding = "iso-8859-1"
-        path.write(contents)
+        path.replace(contents)
 
         environ = {
             "PYTHONPATH": os.path.abspath(os.path.expanduser("."))
         }
         output = subprocess.check_output(
-            ["python", path],
+            [sys.executable, path],
             env=environ,
             stderr=subprocess.STDOUT,
         )
@@ -572,6 +573,7 @@ class VTest(unittest.TestCase):
         path = testdata.create_file("foobar.py", [
             "# -*- coding: utf-8 -*-",
             "from __future__ import unicode_literals, division, print_function, absolute_import",
+            "import pout",
             "",
             "# {}".format(testdata.get_unicode_words()),
             "",
@@ -582,7 +584,7 @@ class VTest(unittest.TestCase):
             "PYTHONPATH": os.path.abspath(os.path.expanduser("."))
         }
         output = subprocess.check_output(
-            ["python", path],
+            [sys.executable, path],
             env=environ,
             stderr=subprocess.STDOUT,
         )
