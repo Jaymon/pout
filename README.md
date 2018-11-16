@@ -294,7 +294,7 @@ Use PIP
 
 Generally, the pypi version and the github version shouldn't be that out of sync, but just in case, you can install from github also:
 
-    pip install git+https://github.com/Jaymon/pout#egg=pout
+    pip install --upgrade "git+https://github.com/Jaymon/pout#egg=pout"
 
 
 -------------------------------------------------------------------------------
