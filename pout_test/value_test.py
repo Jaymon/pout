@@ -162,6 +162,11 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, ModuleValue))
         repr(v)
 
+    def test_dict_keys(self):
+        d = {"foo": 1, "bar": 2}
+        v = Value(d.keys())
+        self.assertEqual("LIST", v.typename)
+
 
 
 

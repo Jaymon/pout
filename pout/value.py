@@ -5,6 +5,7 @@ import inspect
 import sys
 import os
 import traceback
+from collections import KeysView
 
 from .compat import *
 from . import environ
@@ -161,7 +162,7 @@ class Inspect(object):
         return isinstance(self.val, dict)
 
     def is_list(self):
-        return isinstance(self.val, list)
+        return isinstance(self.val, list) or isinstance(self.val, KeysView)
 
     def is_tuple(self):
         return isinstance(self.val, tuple)
