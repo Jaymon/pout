@@ -52,11 +52,15 @@ from .compat import (
     range,
     Callable,
     Iterable,
-    Set
+    Set,
 )
 
+from .value import Inspect, Value
+from .path import Path
+from .utils import String
 
-__version__ = '0.7.9'
+
+__version__ = '0.8.0'
 
 
 logger = logging.getLogger(__name__)
@@ -210,201 +214,6 @@ class Profiler(object):
         return round(abs(stop - start) * float(multiplier), rnd)
 
 
-class Inspect(object):
-
-    @property
-    def cls(self):
-        return self.val.__class__ if self.has_attr('__class__') else None
-
-    @property
-    def typename(self):
-        '''
-        get the type of val
-
-        there are multiple places where we want to know if val is an object, or a string, or whatever,
-        this method allows us to find out that information
-
-        since -- 7-10-12
-
-        val -- mixed -- the value to check
-
-        return -- string -- the type
-        '''
-        t = 'DEFAULT'
-        # http://docs.python.org/2/library/types.html
-#         func_types = (
-#             types.FunctionType,
-#             types.BuiltinFunctionType,
-#             types.MethodType,
-#             types.UnboundMethodType,
-#             types.BuiltinFunctionType,
-#             types.BuiltinMethodType,
-#             classmethod
-#         )
-
-        if self.is_primitive():
-            t = 'DEFAULT'
-
-        elif self.is_dict():
-            t = 'DICT'
-
-        elif self.is_list():
-            t = 'LIST'
-
-        elif self.is_tuple():
-            t = 'TUPLE'
-
-        elif self.is_type():
-            t = 'TYPE'
-
-        elif self.is_binary():
-            t = 'BINARY'
-
-        elif self.is_str():
-            t = 'STRING'
-
-        elif self.is_exception():
-            t = 'EXCEPTION'
-
-        elif self.is_module():
-            # this has to go before the object check since a module will pass the object tests
-            t = 'MODULE'
-
-        elif self.is_callable():
-            t = 'FUNCTION'
-
-            # not doing this one since it can cause the class instance to do unexpected
-            # things just to print it out
-            #elif isinstance(val, property):
-            # uses the @property decorator and the like
-            #t = 'PROPERTY'
-
-        elif self.is_dict_proxy():
-            # maybe we have a dict proxy?
-            t = 'DICT_PROXY'
-
-        elif self.is_generator():
-            t = 'GENERATOR'
-
-        elif self.is_set():
-            t = 'SET'
-
-        elif self.is_object():
-            t = 'OBJECT'
-
-#         elif isinstance(val, func_types) and hasattr(val, '__call__'):
-#             # this has to go after object because lots of times objects can be classified as functions
-#             # http://stackoverflow.com/questions/624926/
-#             t = 'FUNCTION'
-
-        elif self.is_regex():
-            t = 'REGEX'
-
-        else:
-            t = 'DEFAULT'
-
-        return t
-
-    def __init__(self, val):
-        self.val = val
-        self.attrs = set(dir(val))
-
-    def is_generator(self):
-        if is_py2:
-            return isinstance(self.val, (types.GeneratorType, range))
-        else:
-            return isinstance(self.val, (types.GeneratorType, range, map))
-
-    def is_set(self):
-        return isinstance(self.val, (set, frozenset, Set))
-
-    def is_primitive(self):
-        """is the value a built-in type?"""
-        if is_py2:
-            return isinstance(
-                self.val, 
-                (
-                    types.NoneType,
-                    types.BooleanType,
-                    types.IntType,
-                    types.LongType,
-                    types.FloatType
-                )
-            )
-
-        else:
-            return isinstance(
-                self.val,
-                (
-                    type(None),
-                    bool,
-                    int,
-                    float
-                )
-            )
-
-    def is_dict(self):
-        return isinstance(self.val, dict)
-
-    def is_list(self):
-        return isinstance(self.val, list)
-
-    def is_tuple(self):
-        return isinstance(self.val, tuple)
-
-    def is_type(self):
-        return isinstance(self.val, type)
-
-    def is_binary(self):
-        return isinstance(self.val, (bytes, bytearray, memoryview))
-
-    def is_str(self):
-        return isinstance(self.val, basestring)
-
-    def is_exception(self):
-        return isinstance(self.val, BaseException)
-
-    def is_module(self):
-        # this has to go before the object check since a module will pass the object tests
-        return isinstance(self.val, types.ModuleType)
-
-    def is_object(self):
-        ret = False
-        if isinstance(self.val, getattr(types, "InstanceType", object)):
-            # this is an old-school non object inherited class
-            ret = True
-        else:
-            if self.has_attr("__dict__"):
-                ret = True
-                for a in ["func_name", "im_func"]:
-                    if self.has_attr(a):
-                        ret = False
-                        break
-
-        return ret
-
-    def is_callable(self):
-        # not sure why class methods pulled from __class__ fail the callable check
-        return isinstance(self.val, Callable) or isinstance(self.val, classmethod)
-
-    def is_dict_proxy(self):
-        # NOTE -- in 3.3+ dict proxy is exposed, from types import MappingProxyType
-        # https://github.com/eevee/dictproxyhack/blob/master/dictproxyhack.py
-        ret = True
-        attrs = self.attrs
-        for a in ["__getitem__", "keys", "values"]:
-            if not self.has_attr(a):
-                ret = False
-                break
-        return ret
-
-    def is_regex(self):
-        return "SRE_Pattern" in repr(self.val)
-
-    def has_attr(self, k):
-        """return True if this instance has the attribute"""
-        return k in self.attrs
-
 
 class Pout(object):
     """the main printing class, an instance of this class will be used to do
@@ -418,48 +227,6 @@ class Pout(object):
         """every module function will call this, that way a customized class will 
         be picked up automatically"""
         return cls()
-
-    @classmethod
-    def handle_decode_replace(cls, e):
-        """this handles replacing bad characters when printing out
-        http://www.programcreek.com/python/example/3643/codecs.register_error
-        http://bioportal.weizmann.ac.il/course/python/PyMOTW/PyMOTW/docs/codecs/index.html
-        https://pymotw.com/2/codecs/
-        """
-        count = e.end - e.start
-        return "." * count, e.end
-
-    def _add_indent(self, val, indent_count):
-        '''
-        add whitespace to the beginning of each line of val
-
-        link -- http://code.activestate.com/recipes/66055-changing-the-indentation-of-a-multi-line-string/
-
-        val -- string
-        indent -- integer -- how much whitespace we want in front of each line of val
-
-        return -- string -- val with more whitespace
-        '''
-        if indent_count < 1: return val
-
-        # not sure why this doesn't work the same as the manual version and I'm
-        # sick of trying to make it work
-#         import textwrap
-#         indent = "\t" * indent_count
-#         s = textwrap.TextWrapper(
-#             initial_indent=indent,
-#             subsequent_indent=indent,
-#             width=9999,
-#             replace_whitespace=False,
-#             expand_tabs=False,
-#         )
-#         return s.fill(val)
-
-        s = val.split('\n')
-        s = [("\t" * indent_count) + self._get_unicode(line) for line in s]
-        s = "\n".join(s)
-        return s
-
 
     def _find_calls(self, ast_tree, called_module, called_func):
         '''
@@ -594,10 +361,7 @@ class Pout(object):
         return back_i + 1
 
     def _get_path(self, path):
-        cwd = os.getcwd()
-        if path.startswith(cwd):
-            path = path.replace(cwd, "", 1).lstrip(os.sep)
-        return path
+        return Path(path)
 
     def _get_arg_names(self, call_str):
         '''
@@ -926,478 +690,9 @@ class Pout(object):
 
         return -- string
         '''
-
-        s = ''
-        t = self._get_type(val)
-
-        def name_callback(k):
-            if isinstance(k, basestring):
-                ret = "'{}'".format(self._get_unicode(k))
-            else:
-                ret = self._get_unicode(k)
-            return ret
-
-        if t == 'DICT_PROXY':
-            if len(val) > 0:
-
-                s = self._str_iterator(
-                    iterator=val.items(),
-                    name_callback=name_callback,
-                    left_paren='dict_proxy({',
-                    right_paren='})',
-                    prefix='',
-                    depth=depth,
-                )
-
-            else:
-                s = "dict_proxy({})"
-
-
-        elif t == 'DICT':
-
-            if len(val) > 0:
-
-                s = self._str_iterator(
-                    iterator=val.items(), 
-                    name_callback=name_callback,
-                    left_paren='{',
-                    right_paren='}',
-                    depth=depth,
-                )
-
-            else:
-                s = "{}"
-
-
-        elif t == 'LIST':
-
-            if len(val) > 0:
-
-                s = self._str_iterator(
-                    iterator=enumerate(val),
-                    depth=depth,
-                )
-
-            else:
-                s = "[]"
-
-        elif t == 'SET':
-
-            if len(val) > 0:
-
-                s = self._str_iterator(
-                    iterator=enumerate(val), 
-                    name_callback= lambda k: None,
-                    left_paren='{',
-                    right_paren='}',
-                    depth=depth,
-                )
-
-            else:
-                s = "{}"
-
-
-        elif t == 'TUPLE':
-
-            if len(val) > 0:
-
-                s = self._str_iterator(
-                    iterator=enumerate(val),
-                    left_paren='(',
-                    right_paren=')',
-                    depth=depth,
-                )
-
-            else:
-                s = "()"
-
-        elif t == 'BINARY':
-            try:
-                if is_py2:
-                    s = "b'{}'".format(bytes(val).decode("utf-8", 'pout.replace'))
-
-                else:
-                    s = bytes(val)
-
-            except (TypeError, UnicodeError) as e:
-                print(e)
-                s = "<UNICODE ERROR>"
-
-        elif t == 'STRING':
-            try:
-                if isinstance(val, unicode):
-                    s = '"{}"'.format(val)
-
-                else:
-                    # !!! 12-27-2017 - with the new BINARY typename I don't think
-                    # this is reachable anymore
-                    # we need to convert the byte string to unicode
-                    #s = u'"{}"'.format(val.decode('utf-8', 'replace'))
-                    s = 'b"{}"'.format(val.decode('utf-8', 'pout.replace'))
-
-            except (TypeError, UnicodeError) as e:
-                s = "<UNICODE ERROR>"
-
-#         elif t == 'EXCEPTION':
-#             # http://docs.python.org/library/traceback.html
-#             # http://www.doughellmann.com/PyMOTW/traceback/
-#             # http://stackoverflow.com/questions/4564559
-#             # http://stackoverflow.com/questions/6626342
-# 
-#             calls = []
-#             full_name = self._get_name(val)
-#             exc_type, exc_value, exc_tb = sys.exc_info()
-# 
-#             # this just doesn't work right
-#             if exc_tb:
-#                 frames = inspect.getinnerframes(exc_tb)[::-1]
-#                 for i, frame in enumerate(frames, 1):
-#                     calls.append(
-#                         self._get_call_summary(self._get_call_info(frame), index=i, inspect_packages=False)
-#                     )
-# 
-#                     calls.reverse()
-# 
-#             else:
-#                 frame = inspect.currentframe()
-#                 frames = inspect.getouterframes(frame)[2:]
-#                 calls = self._get_backtrace(frames)
-# 
-#             s = "{} - {}\n\n{}".format(full_name, val, "".join(calls))
-#             #s = "{} - {}\n\n{}".format(full_name, val, "".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
-
-        elif t == 'OBJECT' or t == 'EXCEPTION':
-            d = {}
-            vt = Inspect(val)
-            errmsgs = []
-
-            src_file = ""
-            cls = vt.cls
-            if cls:
-                src_file = self._get_src_file(cls, default="")
-
-            full_name = self._get_name(val, src_file=src_file)
-
-            try:
-                instance_dict = vars(val)
-            except TypeError as e:
-                instance_dict = {}
-                errmsgs.append("Failed to get vars because: {}".format(e))
-
-            s = "{} instance".format(full_name)
-
-            if vt.has_attr('__pout__'):
-                s += self._str_val(val.__pout__())
-
-            else:
-                if depth < 4:
-                    s += "\n<"
-                    s_body = ''
-
-                    s_body += "\nid: {}\n".format(id(val))
-                    if src_file:
-                        s_body += "\npath: {}\n".format(self._get_path(src_file))
-
-                    if cls:
-                        pclses = inspect.getmro(cls)
-                        if pclses:
-                            s_body += "\nAncestry:\n"
-                            for pcls in pclses:
-                                psrc_file = self._get_src_file(pcls, default="")
-                                if psrc_file:
-                                    psrc_file = self._get_path(psrc_file)
-                                pname = self._get_name(pcls, src_file=psrc_file)
-                                if psrc_file:
-                                    s_body += self._add_indent(
-                                        "{} ({})".format(pname, psrc_file),
-                                        1
-                                    )
-                                else:
-                                    s_body += self._add_indent(
-                                        "{}".format(pname),
-                                        1
-                                    )
-                                s_body += "\n"
-
-                    if hasattr(val, '__str__'):
-
-                        s_body += "\n__str__:\n"
-                        s_body += self._add_indent(str(val), 1)
-                        s_body += "\n"
-
-                    if cls:
-
-                        # build a full class variables dict with the variables of 
-                        # the full class hierarchy
-                        class_dict = {}
-                        for pcls in reversed(inspect.getmro(cls)):
-                            # we don't want any __blah__ type values
-                            class_dict.update({k: v for k, v in vars(pcls).items() if not self._is_magic(k)})
-
-                        if class_dict:
-
-                            s_body += "\nClass Properties:\n"
-
-                            for k, v in class_dict.items():
-                                if k in instance_dict:
-                                    continue
-
-                                vt = self._get_type(v)
-                                if vt != 'FUNCTION':
-
-                                    s_var = '{} = '.format(k)
-
-                                    if vt == 'OBJECT':
-                                        s_var += repr(v)
-                                    else:
-                                        s_var += self._str_val(v, depth=depth+1)
-
-                                    s_body += self._add_indent(s_var, 1)
-                                    s_body += "\n"
-
-                    if instance_dict:
-                        s_body += "\nInstance Properties:\n"
-
-                        for k, v in instance_dict.items():
-                            vt = self._get_type(v)
-                            s_var = '{} = '.format(k)
-                            if vt == 'OBJECT':
-                                s_var += repr(v)
-                            else:
-                                s_var += self._str_val(v, depth=depth+1)
-
-                            s_body += self._add_indent(s_var, 1)
-                            s_body += "\n"
-
-                    if errmsgs:
-                        s_body += "\nREAD ERRORS: \n"
-                        s_body += self._add_indent("\n".join(errmsgs), 1)
-                        s_body += "\n"
-
-                    if not is_py2 and t == 'EXCEPTION':
-                        s_body += "\n"
-                        s_body += "\n".join(traceback.format_exception(None, val, val.__traceback__))
-
-                    s += self._add_indent(s_body.rstrip(), 1)
-                    s += "\n>\n"
-
-                else:
-                    s = repr(val)
-
-        elif t == 'MODULE':
-
-            file_path = self._get_path(self._get_src_file(val))
-            s = '{} module ({})\n'.format(val.__name__, file_path)
-
-            s += "\nid: {}\n".format(id(val))
-
-            modules = {}
-            funcs = {}
-            classes = {}
-            properties = {}
-
-            for k, v in inspect.getmembers(val):
-
-                # canary, ignore magic values
-                if self._is_magic(k): continue
-
-                vt = self._get_type(v)
-                if vt == 'FUNCTION':
-                    funcs[k] = v
-                elif vt == 'MODULE':
-                    modules[k] = v
-                elif vt == 'OBJECT':
-                    classes[k] = v
-                else:
-                    properties[k] = v
-
-                #pout2.v('%s %s: %s' % (k, vt, repr(v)))
-
-            if modules:
-                s += "\nModules:\n"
-                for k, v in modules.items():
-                    module_path = self._get_path(self._get_src_file(v))
-                    s += self._add_indent("{} ({})".format(k, module_path), 1)
-                    s += "\n"
-
-            if funcs:
-                s += "\nFunctions:\n"
-
-                for k, v in funcs.items():
-
-                    try:
-                        if is_py2:
-                            func_args = inspect.formatargspec(*inspect.getfullargspec(v))
-                        else:
-                            func_args = "{}".format(inspect.signature(v))
-                    except (TypeError, ValueError):
-                        func_args = "(...)"
-                    #pout2.v(func_args)
-
-                    s += self._add_indent("{}{}".format(k, func_args), 1)
-                    s += "\n"
-
-            if classes:
-                s += "\nClasses:\n"
-
-                for k, v in classes.items():
-
-                    #func_args = inspect.formatargspec(*inspect.getfullargspec(v))
-                    #pout2.v(func_args)
-
-                    s += self._add_indent("{}".format(k), 1)
-                    s += "\n"
-
-                    # add methods
-                    for m, mv in inspect.getmembers(v):
-                        #if _is_magic(m): continue
-                        if self._get_type(mv) == 'FUNCTION':
-                            try:
-                                if is_py2:
-                                    func_args = inspect.formatargspec(*inspect.getfullargspec(mv))
-                                else:
-                                    func_args = "{}".format(inspect.signature(mv))
-                                s += self._add_indent(".{}{}".format(m, func_args), 2)
-                                s += "\n"
-                            except (TypeError, ValueError):
-                                pass
-
-                    s += "\n"
-
-            if properties:
-                s += "\nProperties:\n"
-                for k, v in properties.items():
-                    s += self._add_indent("{}".format(k), 1)
-                    #s += self._add_indent("{} = {}".format(k, self._str_val(v, depth=2)), 1)
-                    #s += self._add_indent("{} = {}".format(k, self._get_unicode(v)), 1)
-                    s += "\n"
-
-        elif t == 'TYPE':
-            s = '{}'.format(val)
-
-        elif t == 'REGEX':
-            # https://docs.python.org/2/library/re.html#regular-expression-objects
-
-            flags = {}
-            for m, mv in inspect.getmembers(re):
-                if not m.startswith("_") and m.isupper() and isinstance(mv, int):
-                    flags.setdefault(mv, m)
-                    if len(m) > len(flags[mv]):
-                        flags[mv] = m
-
-            s = ["Compiled Regex"]
-            s.append("<")
-
-            s.append(self._add_indent("pattern: {}".format(val.pattern), 1))
-            s.append(self._add_indent("groups: {}".format(val.groups), 1))
-            # TODO -- we could parse out the groups and put them here, that
-            # would be kind of cool
-
-            fv = val.flags
-            #s.append(self._add_indent("flags", 1))
-            s.append(self._add_indent("flags: {}".format(fv), 1))
-            for flag_val, flag_name in flags.items():
-                enabled = 1 if fv & flag_val else 0
-                s.append(self._add_indent("{}: {}".format(flag_name, enabled), 2))
-
-            s.append(">")
-
-            s = "\n".join(s)
-
-
-#             s = "Compiled Regex\n"
-#             s += "<\n"
-
-#             s = "\n".join([
-#                 "Compiled Regex",
-#                 "<",
-#                 self._add_indent("pattern: {}".format(val.pattern), 1),
-#                 self._add_indent("flags: {}".format(val.flags), 1),
-#                 self._add_indent("groups: {}".format(val.groups), 1),
-#                 ">",
-#             ])
-            #s = val.pattern
-
-        else:
-            s = "{}".format(repr(val))
-
-        s = "{}".format(s)
+        vt = Value(val)
+        s = "{}".format(vt)
         return s
-
-
-    def _str_iterator(self, iterator, name_callback=None, prefix="\n", left_paren='[', right_paren=']', depth=0):
-        '''
-        turn an iteratable value into a string representation
-
-        iterator -- iterator -- the value to be iterated through
-        name_callback -- callback -- if not None, a function that will take the key of each iteration
-        prefix -- string -- what will be prepended to the generated value
-        left_paren -- string -- what will open the generated value
-        right_paren -- string -- what will close the generated value
-        depth -- integer -- how deep into recursion we are
-
-        return -- string
-        '''
-        indent = 1 if depth > 0 else 0
-
-        s = []
-        s.append('{}{}'.format(prefix, self._add_indent(left_paren, indent)))
-
-        s_body = []
-
-        for k, v in iterator:
-            k = k if name_callback is None else name_callback(k)
-            try:
-                if k is None:
-                    s_body.append("{}".format(self._str_val(v, depth=depth+1)))
-                else:
-                    s_body.append("{}: {}".format(k, self._str_val(v, depth=depth+1)))
-
-            except RuntimeError as e:
-                # I've never gotten this to work
-                s_body.append("{}: ... Recursion error ...".format(k))
-
-        s_body = ",\n".join(s_body)
-        s_body = self._add_indent(s_body, indent + 1)
-
-        s.append(s_body)
-        s.append("{}".format(self._add_indent(right_paren, indent)))
-
-        return "\n".join(s)
-
-    def _getattr(self, val, key, default_val):
-        """wrapper around global getattr(...) method that suppresses any exception raised"""
-        try:
-            ret = getattr(val, key, default_val)
-        except Exception:
-            ret = default_val
-        return ret
-
-    def _get_name(self, val, src_file, default='Unknown'):
-        '''
-        get the full namespaced (module + class) name of the val object
-
-        since -- 6-28-12
-
-        val -- mixed -- the value (everything is an object) object
-        default -- string -- the default name if a decent name can't be found programmatically
-
-        return -- string -- the full.module.Name
-        '''
-        module_name = ''
-        if src_file:
-            module_name = '{}.'.format(self._getattr(val, '__module__', default)).lstrip('.')
-
-        class_name = self._getattr(val, '__name__', None)
-        if not class_name:
-            class_name = default
-            cls = self._getattr(val, '__class__', None)
-            if cls:
-                class_name = self._getattr(cls, '__name__', default)
-
-        full_name = "{}{}".format(module_name, class_name)
-
-        return full_name
 
     def _get_call_summary(self, call_info, index=0, inspect_packages=True):
         '''
@@ -1427,7 +722,7 @@ class Pout(object):
             s = "{}:{}\n\n{}\n\n".format(
                 f,
                 call_info['line'],
-                self._add_indent(call_info['call'], 1)
+                String(call_info['call']).indent(1)
             )
 
         else:
@@ -1441,23 +736,6 @@ class Pout(object):
             s = "{:02d} - {}".format(index, s)
 
         return s
-
-    def _get_type(self, val):
-        vt = Inspect(val)
-        return vt.typename
-
-    def _is_magic(self, name):
-        '''
-        return true if the name is __name__
-
-        since -- 7-10-12
-
-        name -- string -- the name to check
-
-        return -- boolean
-        '''
-        #return (name[:2] == u'__' and name[-2:] == u'__')
-        return name.startswith('__') and name.endswith('__')
 
     def _get_src_file(self, val, default='Unknown'):
         '''
@@ -1486,22 +764,6 @@ class Pout(object):
             path = default
 
         return path
-
-    def _get_unicode(self, arg):
-        '''
-        make sure arg is a unicode string
-
-        arg -- mixed -- arg can be anything
-        return -- unicode -- a u'' string will always be returned
-        '''
-        if isinstance(arg, bytes):
-            arg = arg.decode('utf-8', 'pout.replace')
-
-        else:
-            if not isinstance(arg, unicode):
-                arg = unicode(arg)
-
-        return arg
 
     def p(self, name=None):
         '''
@@ -1535,7 +797,7 @@ class Pout(object):
         '''
         d = None
         if name:
-            d = Profiler(self._get_unicode(name), self._get_arg_info())
+            d = Profiler(String(name), self._get_arg_info())
 
         else:
             if len(Profiler.stack) > 0:
@@ -1607,8 +869,7 @@ class Pout(object):
         sep = '*'
 
         if len(args) == 1:
-            t = self._get_type(args[0])
-            if t in set(['STRING', 'BINARY']):
+            if Value(args[0]).typename in set(['STRING', 'BINARY']):
                 title = args[0]
             else:
                 rows = int(args[0])
@@ -1618,7 +879,7 @@ class Pout(object):
         elif len(args) == 3:
             title = args[0]
             rows = args[1]
-            sep = self._get_unicode(args[2])
+            sep = String(args[2])
 
         if not rows: rows = 1
         half_rows = int(math.floor(rows / 2))
@@ -1626,7 +887,7 @@ class Pout(object):
 
         line_len = title_len = 80
         if title:
-            title = ' {} '.format(self._get_unicode(title))
+            title = ' {} '.format(String(title))
             title_len = len(title)
             if title_len > line_len:
                 line_len = title_len
@@ -1659,7 +920,7 @@ class Pout(object):
         lines = []
         call_info = self._get_arg_info()
         for arg in args:
-            arg = self._get_unicode(arg)
+            arg = String(arg)
             lines.append('Total Characters: {}'.format(len(arg)))
             for i, c in enumerate(arg, 1):
 
@@ -1837,47 +1098,8 @@ class Pout(object):
         methods = []
         properties = []
         for v in call_info["args"]:
-            for ni, vi in inspect.getmembers(v['val']):
-                i = Inspect(vi)
-                #print(ni, i.typename, type(vi))
-                #print(ni, type(vi))
-                if i.is_type():
-                    properties.append((ni, vi))
-                elif i.is_callable():
-                    methods.append((ni, vi))
-                else:
-                    properties.append((ni, vi))
-
-            full_info = self._str(v['name'], v['val'])
-            info = "MEMBERS:\n"
-
-            info += self._add_indent("Methods:", 1)
-            info += "\n"
-            for name, vi in methods:
-                try:
-
-                    if is_py2:
-                        argspec = inspect.getfullargspec(vi)
-                        info += self._add_indent("{}{}".format(name, inspect.formatargspec(*argspec)), 2)
-                    else:
-                        info += self._add_indent("{}{}".format(name, inspect.signature(vi), 2))
-                except (TypeError, ValueError):
-                    info += self._add_indent(name, 2)
-                info += "\n"
-
-            info += self._add_indent("Properties:", 1)
-            info += "\n"
-            for name, vi in properties:
-                info += self._add_indent(name, 2)
-                info += "\n"
-
-
-            full_info = full_info.rstrip().rstrip('>')
-            full_info += "\n"
-            full_info += self._add_indent(info.strip(), 1)
-            full_info += "\n>"
-            full_info += "\n\n"
-
+            vt = Value(v['val'])
+            full_info = self._str(v['name'], vt.info())
             pargs.append(full_info)
 
         self._print(pargs, call_info)
@@ -1904,10 +1126,6 @@ class Pout(object):
 
 # this can be changed after import to customize functionality
 pout_class = Pout
-
-
-# register our decode replace method when encoding
-codecs.register_error("pout.replace", pout_class.handle_decode_replace)
 
 
 # these are the mappings to make the instance methods look like module level
@@ -1953,10 +1171,7 @@ def inject():
     https://stackoverflow.com/questions/142545/python-how-to-make-a-cross-module-variable
     """
     try:
-        if is_py2:
-            import __builtin__ as builtins
-        else:
-            import builtins
+        from .compat import builtins
 
         module = sys.modules[__name__]
         setattr(builtins, __name__, module)

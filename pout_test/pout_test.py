@@ -24,25 +24,6 @@ import logging
 
 import testdata
 
-# remove any global pout (this is to overcome me putting pout in sites.py
-if 'pout' in sys.modules:
-    sys.modules['pout2'] = sys.modules['pout']
-    del sys.modules['pout']
-
-    # allow the global pout to be used as pout2 without importing
-    try:
-        if sys.version_info[0] < 3:
-            import __builtin__ as builtins
-        else:
-            import builtins
-
-        if hasattr(builtins, "pout"):
-            del builtins.pout
-        builtins.pout2 = sys.modules['pout2']
-
-    except ImportError as e:
-        pass
-
 # this is the local pout that is going to be tested
 import pout
 from pout.compat import queue, range, is_py2
@@ -341,46 +322,6 @@ class PoutTest(unittest.TestCase):
 
         pout.Pout._get_call_info = mp_orig
 
-    def test_get_type(self):
-
-        p = pout.Pout()
-
-        v = 'foo'
-        self.assertEqual('STRING', p._get_type(v))
-
-        v = 123
-        self.assertEqual('DEFAULT', p._get_type(v))
-
-        v = True
-        self.assertEqual('DEFAULT', p._get_type(v))
-
-        v = Foo()
-        self.assertEqual('OBJECT', p._get_type(v))
-        #import types
-        #print dir(Foo.__init__)
-        #print "{}".format(isinstance(Foo.__init__, (types.FunctionType, types.BuiltinFunctionType, types.MethodType)))
-        self.assertEqual('FUNCTION', p._get_type(Foo.__init__))
-
-        self.assertEqual('FUNCTION', p._get_type(baz))
-
-        v = TypeError()
-        self.assertEqual('EXCEPTION', p._get_type(v))
-
-        v = {}
-        self.assertEqual('DICT', p._get_type(v))
-
-        v = []
-        self.assertEqual('LIST', p._get_type(v))
-
-        v = ()
-        self.assertEqual('TUPLE', p._get_type(v))
-
-        self.assertEqual('MODULE', p._get_type(pout))
-
-        import ast
-        self.assertEqual('MODULE', p._get_type(ast))
-
-        #self.assertEqual('CLASS', pout._get_type(self.__class__))
 
 class CTest(unittest.TestCase):
     def test_c(self):
@@ -654,7 +595,8 @@ class VTest(unittest.TestCase):
             e.foo()
         for s in ['"__init__"', 'args (1) =', 'kwargs (0) = ']:
             self.assertTrue(s in c, s)
-        for s in ['"__get__"', 'instance = pout_test.DescExample instance', 'klass = <']:
+
+        for s in ['"__get__"', 'pout_test.DescExample instance', 'klass = <']:
             self.assertTrue(s in c, s)
 
     def test_class_vars(self):
@@ -685,7 +627,8 @@ class VTest(unittest.TestCase):
         with testdata.capture() as c:
             m = Misclass()
             pout.v(m)
-        self.assertTrue("m = pout_test.1 instance" in c)
+        self.assertTrue("pout_test.1 instance" in c)
+        self.assertTrue("m = " in c)
 
     def test_proxy_dict(self):
         with testdata.capture() as c:
@@ -1010,41 +953,6 @@ class ITest(TestCase):
         for s in ["MEMBERS:", "Methods:", "Properties:"]:
             self.assertTrue(s in c, s)
 
-
-class InspectTest(TestCase):
-    def test_is_set(self):
-        v = set(["foo", "bar", "che"])
-        t = Inspect(v)
-        self.assertTrue(t.is_set())
-        self.assertEqual("SET", t.typename)
-
-    def test_is_generator(self):
-        v = (x for x in range(100))
-        t = Inspect(v)
-        self.assertEqual("GENERATOR", t.typename)
-
-        v = map(str, range(5))
-        t = Inspect(v)
-        if is_py2:
-            self.assertEqual("LIST", t.typename)
-        else:
-            self.assertEqual("GENERATOR", t.typename)
-
-    def test_is_binary(self):
-        v = memoryview(b'abcefg')
-        t = Inspect(v)
-        self.assertEqual("BINARY", t.typename)
-
-        v = bytearray.fromhex('2Ef0 F1f2  ')
-        t = Inspect(v)
-        self.assertEqual("BINARY", t.typename)
-
-        if is_py2:
-            v = bytes("foobar")
-        else:
-            v = bytes("foobar", "utf-8")
-        t = Inspect(v)
-        self.assertEqual("BINARY", t.typename)
 
 
 class LTest(TestCase):

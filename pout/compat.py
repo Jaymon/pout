@@ -33,7 +33,6 @@ if is_py2:
     inspect.getfullargspec = inspect.getargspec
 
 
-
 elif is_py3:
     basestring = (str, bytes)
     unicode = str
@@ -58,4 +57,8 @@ elif is_py3:
         finally:
             value = None
             tb = None
+
+
+String = unicode if is_py2 else str
+Bytes = str if is_py2 else bytes
 
