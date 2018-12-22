@@ -24,6 +24,7 @@ import logging
 
 import testdata
 
+
 # this is the local pout that is going to be tested
 import pout
 from pout.compat import queue, range, is_py2
@@ -175,90 +176,6 @@ class PoutTest(unittest.TestCase):
         for s in ["pout_test.FooGetName", "id:", "path:", "Ancestry:", "__str__:", "fields = "]:
             self.assertTrue(s in c, s)
 
-    def test__get_arg_names(self):
-        """see also VTest.test_multi_args() and VTest.test_multiline_comma()"""
-
-        p = pout.Pout()
-
-        r = p._get_arg_names("\n".join([
-            "        pout.v(",
-            '            "foo",',
-            '            "bar",',
-            '            "che",',
-            '        )'
-        ]))
-        self.assertEqual(3, len(r[0]))
-        for x in range(3):
-            self.assertEqual("", r[0][x])
-        self.assertEqual(True, r[1])
-
-        r = p._get_arg_names("\n".join([
-            "        pout.v(",
-            '"foo",',
-            '"bar",',
-            '"che"'
-        ]))
-        self.assertEqual(3, len(r[0]))
-        for x in range(3):
-            self.assertEqual("", r[0][x])
-        self.assertEqual(False, r[1])
-
-        r = p._get_arg_names("        pout.v(\"this string has 'mixed quotes\\\"\")")
-        self.assertEqual(1, len(r[0]))
-        self.assertEqual("", r[0][0])
-
-        r = p._get_arg_names(" pout.v(name); hasattr(self, name)")
-        self.assertEqual("name", r[0][0])
-        self.assertEqual(1, len(r[0]))
-
-        r = p._get_arg_names("\n".join([
-            "        pout.v(",
-            '"foo",',
-            '"bar",',
-            '"che",'
-        ]))
-        for x in range(3):
-            self.assertEqual("", r[0][x])
-        self.assertEqual(False, r[1])
-
-        r = p._get_arg_names("pout.v(foo, [bar, che])")
-        self.assertEqual("foo", r[0][0])
-        self.assertEqual("[bar, che]", r[0][1])
-
-        r = p._get_arg_names("pout.v(foo, bar)")
-        self.assertEqual("foo", r[0][0])
-        self.assertEqual("bar", r[0][1])
-
-        r = p._get_arg_names("pout.v(foo)")
-        self.assertEqual("foo", r[0][0])
-
-        r = p._get_arg_names("pout.v('foo')")
-        self.assertEqual("", r[0][0])
-
-        r = p._get_arg_names('pout.v("foo")')
-        self.assertEqual("", r[0][0])
-
-        r = p._get_arg_names("pout.v('foo\'bar')")
-        self.assertEqual("", r[0][0])
-
-        r = p._get_arg_names("pout.v('foo, bar, che')")
-        self.assertEqual("", r[0][0])
-
-        r = p._get_arg_names("pout.v((foo, bar, che))")
-        self.assertEqual("(foo, bar, che)", r[0][0])
-
-        r = p._get_arg_names("pout.v((foo, (bar, che)))")
-        self.assertEqual("(foo, (bar, che))", r[0][0])
-
-        r = p._get_arg_names("pout.v([foo, bar, che])")
-        self.assertEqual("[foo, bar, che]", r[0][0])
-
-        r = p._get_arg_names("pout.v([foo, [bar, che]])")
-        self.assertEqual("[foo, [bar, che]]", r[0][0])
-
-        r = p._get_arg_names("pout.v([[foo], [bar, che]])")
-        self.assertEqual("[[foo], [bar, che]]", r[0][0])
-
     def test_find_call_depth(self):
         s = "foo"
         class PoutChild(pout.Pout):
@@ -292,35 +209,6 @@ class PoutTest(unittest.TestCase):
             pout.v(d.digest())
         self.assertTrue("d.digest()" in c)
         self.assertTrue(" b'" in c)
-
-    def test_ipython_fail(self):
-        '''
-        ipython would fail because the source file couldn't be read
-
-        since -- 7-19-12
-        '''
-        mp_orig = pout.Pout._get_call_info
-
-        def _get_call_info_fake(self, frame_tuple, called_module='', called_func=''):
-            call_info = {}
-            call_info['frame'] = frame_tuple
-            call_info['line'] = frame_tuple[2]
-            call_info['file'] = '/fake/file/path'
-            call_info['call'] = ''
-            call_info['arg_names'] = []
-            return call_info
-
-        # monkey patch to do get what would be returned in an iPython shell
-        pout.Pout._get_call_info = _get_call_info_fake
-
-        # this should print out
-        with testdata.capture() as c:
-            pout.v(list(range(5)))
-        self.assertTrue("Unknown 0 (5)" in c)
-        self.assertTrue("0: 0," in c)
-        self.assertTrue("4: 4" in c)
-
-        pout.Pout._get_call_info = mp_orig
 
 
 class CTest(unittest.TestCase):
@@ -460,6 +348,16 @@ class VVTest(unittest.TestCase):
 
 
 class VTest(unittest.TestCase):
+    def test_issue_34(self):
+        """https://github.com/Jaymon/pout/issues/34"""
+        class FooIssue34(object):
+            bar_che = ["one", "two", "three"]
+
+        left = "left"
+        right = "right"
+
+        pout.v(left, " ".join(FooIssue34.bar_che), right)
+
     def test_keys(self):
         d = {'\xef\xbb\xbffoo': ''} 
         d = {'\xef\xbb\xbffo_timestamp': ''}
@@ -765,41 +663,6 @@ class VTest(unittest.TestCase):
         with testdata.capture() as c:
             poom.v(foo)
         self.assertTrue("foo = 1" in c)
-
-    def test_multi_args(self):
-        '''
-        since -- 6-30-12
-
-        this actually tests _get_arg_names
-        '''
-
-        foo = 1
-        bar = 2
-        che = {'foo': 3, 'bar': 4}
-
-        def func(a, b):
-            return a + b
-
-
-        pout.v("this string has 'mixed quotes\"")
-        pout.v('this string has \'mixed quotes"')
-        pout.v('this string has \'single quotes\' and "double quotes"')
-        pout.v(foo, 'this isn\'t a string, just kidding')
-        pout.v('this string is formatted {} {}'.format(foo, bar))
-        pout.v('this string' + " is added together")
-        pout.v(func('this string', " has 'single quotes'"))
-        pout.v('this string has \'single quotes\'')
-        pout.v("this string has \"quotes\"")
-        pout.v(che['foo'], che['bar'])
-        pout.v(foo, "this isn't a string, just kidding")
-        pout.v(foo, "(a) this is a string")
-
-        pout.v(foo, "(a this is a string")
-        pout.v(foo, "a) this is a string")  
-        pout.v(foo, "this is a, string")
-        pout.v(foo, "this is a simple string")
-
-        pout.v(foo, bar, func(1, 2))
 
     def test_module(self):
         pout.v(pout)

@@ -1,34 +1,34 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, division, print_function, absolute_import
 import sys
+import imp
+import logging
 
 from testdata import TestCase
 import testdata
 
-
-# remove any global pout (this is to overcome me putting pout in sites.py
-# NOTE -- this has to go before any pout imports otherwise pout imports
-# TODO -- this doesn't seem to work in the actual tests but does work in the
-# pout module
-if 'pout' in sys.modules:
-    sys.modules['pout2'] = sys.modules['pout']
-    sys.modules['pout2'].__name__ = "pout2"
-    del sys.modules['pout']
-
-    # allow the global pout to be used as pout2 without importing
-    try:
-        if sys.version_info[0] < 3:
-            import __builtin__ as builtins
-        else:
-            import builtins
-
-        if hasattr(builtins, "pout"):
-            del builtins.pout
-        builtins.pout2 = sys.modules['pout2']
-
-    except ImportError as e:
-        pass
-
-
+from pout.path import SitePackagesDir
 from pout.compat import builtins
+from pout import environ
+
+
+s = SitePackagesDir()
+#t = imp.find_module("pout", [s])
+pout2 = imp.load_module("pout2", *imp.find_module("pout", [s]))
+# for k in sys.modules.keys():
+#     if "pout" in k:
+#         print(k)
+
+if hasattr(builtins, "pout"):
+    del builtins.pout
+builtins.pout2 = pout2
+
+
+# set to True to turn on all logging:
+if environ.DEBUG:
+    logger = logging.getLogger("pout")
+    logger.setLevel(logging.DEBUG)
+    log_handler = logging.StreamHandler(stream=sys.stderr)
+    log_handler.setFormatter(logging.Formatter('[%(levelname).1s] %(message)s'))
+    logger.addHandler(log_handler)
 

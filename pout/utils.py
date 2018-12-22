@@ -40,3 +40,4 @@ class String(BaseString):
         s = [("\t" * indent_count) + line for line in self.splitlines(False)]
         s = "\n".join(s)
         return type(self)(s)
+

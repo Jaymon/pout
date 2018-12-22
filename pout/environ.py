@@ -4,6 +4,8 @@ import os
 import codecs
 
 
+DEBUG = bool(int(os.environ.get("POUT_DEBUG", 0)))
+
 ENCODING = os.environ.get("POUT_ENCODING", "UTF-8")
 ENCODING_REPLACE = os.environ.get("POUT_ENCODING_REPLACE", "pout.replace")
 

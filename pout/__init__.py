@@ -43,6 +43,7 @@ import resource
 import codecs
 import inspect
 
+from . import environ
 from .compat import (
     is_py2,
     is_py3,
@@ -58,21 +59,33 @@ from .compat import (
 from .value import Inspect, Value
 from .path import Path
 from .utils import String
+from .reflect import Call, Reflect
 
 
 __version__ = '0.8.0'
 
 
+# This is the standard logger for debugging pout itself, if it hasn't been
+# messed with we will set it to warning so it won't print anything out
 logger = logging.getLogger(__name__)
 # don't try and configure the logger for default if it has been configured elsewhere
 # http://stackoverflow.com/questions/6333916/python-logging-ensure-a-handler-is-added-only-once
 if len(logger.handlers) == 0:
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.WARNING)
+    logger.addHandler(logging.NullHandler())
+
+
+# this is the pout printing logger, if it hasn't been touched it will be
+# configured to print to stderr, this is what is used in pout_class._print()
+# TODO -- make this configurable to dump to a file
+stream = logging.getLogger("{}.stream".format(__name__))
+if len(stream.handlers) == 0:
+    stream.setLevel(logging.DEBUG)
     log_handler = logging.StreamHandler(stream=sys.stderr)
     log_formatter = logging.Formatter('%(message)s')
     log_handler.setFormatter(log_formatter)
-    logger.addHandler(log_handler)
-    logger.propagate = False
+    stream.addHandler(log_handler)
+    stream.propagate = False
 
 
 class Logging(object):
@@ -214,7 +227,6 @@ class Profiler(object):
         return round(abs(stop - start) * float(multiplier), rnd)
 
 
-
 class Pout(object):
     """the main printing class, an instance of this class will be used to do
     pretty much everything.
@@ -222,395 +234,24 @@ class Pout(object):
     you can extend this class and change the `pout_class` global variable in
     order to use your child class
     """
+    call_class = Call
+
+    path_class = Path
+
+    reflect_class = Reflect
+
     @classmethod
     def create_instance(cls):
         """every module function will call this, that way a customized class will 
         be picked up automatically"""
         return cls()
 
-    def _find_calls(self, ast_tree, called_module, called_func):
-        '''
-        scan the abstract source tree looking for possible ways to call the called_module
-        and called_func
-
-        since -- 7-2-12 -- Jay
-
-        example -- 
-            # import the module a couple ways:
-            import pout
-            from pout import v
-            from pout import v as voom
-            import pout as poom
-
-            # this function would return: ['pout.v', 'v', 'voom', 'poom.v']
-
-        ast_tree -- _ast.* instance -- the internal ast object that is being checked, returned from compile()
-            with ast.PyCF_ONLY_AST flag
-        called_module -- string -- we are checking the ast for imports of this module
-        called_func -- string -- we are checking the ast for aliases of this function
-
-        return -- set -- the list of possible calls the ast_tree could make to call the called_func
-        ''' 
-        s = set()
-
-        # always add the default call, the set will make sure there are no dupes...
-        s.add("{}.{}".format(called_module, called_func))
-
-        if hasattr(ast_tree, 'name'):
-            if ast_tree.name == called_func:
-                # the function is defined in this module
-                s.add(called_func)
-
-        if hasattr(ast_tree, 'body'):
-            # further down the rabbit hole we go
-            if isinstance(ast_tree.body, Iterable):
-                for ast_body in ast_tree.body:
-                    s.update(self._find_calls(ast_body, called_module, called_func))
-
-        elif hasattr(ast_tree, 'names'):
-            # base case
-            if hasattr(ast_tree, 'module'):
-                # we are in a from ... import ... statement
-                if ast_tree.module == called_module:
-                    for ast_name in ast_tree.names:
-                        if ast_name.name == called_func:
-                            s.add(unicode(ast_name.asname if ast_name.asname is not None else ast_name.name))
-
-            else:
-                # we are in a import ... statement
-                for ast_name in ast_tree.names:
-                    if hasattr(ast_name, 'name') and (ast_name.name == called_module):
-                        call = "{}.{}".format(
-                            ast_name.asname if ast_name.asname is not None else ast_name.name,
-                            called_func
-                        )
-                        s.add(call)
-
-        return s
-
-    def _get_arg_info(self, arg_vals={}, back_i=0):
-        '''
-        get all the info of a method call
-
-        this will find what arg names you passed into the method and tie them to their passed in values,
-        it will also find file and line number
-
-        note -- 7-3-12 -- I can't help but think this whole function could be moved into other
-        parts of other functions now, since it sets defaults in ret_dict that would probably
-        be better being set in _get_call_info() and combines args that might be better
-        done in a combined _get_arg_names() method
-
-        arg_vals -- list -- the arguments passed to one of the public methods
-        back_i -- integer -- how far back in the stack the method call was, this moves back from 2
-            DEPRECATED -- if _find_entry_frame() proves reliable in the real world
-        already (ie, by default, we add 2 to this value to compensate for the call to this method
-                and the previous method (both of which are usually internal))
-
-        return -- dict -- a bunch of info on the call
-        '''
-        ret_dict = {
-            'args': [],
-            'frame': None,
-            'line': 'Unknown',
-            'file': 'Unknown',
-            'arg_names': []
-        }
-
-        #back_i += 3 # move past the call to the outer frames and the call to this function
-        try:
-            frame = inspect.currentframe()
-            frames = inspect.getouterframes(frame)
-            back_i = self._find_entry_frame(frames)
-
-            if len(frames) > back_i:
-                ret_dict.update(self._get_call_info(frames[back_i], __name__, frames[back_i - 1][3]))
-
-        except IndexError:
-            # There was a very specific bug that would cause inspect.getouterframes(frame)
-            # to fail when pout was called from an object's method that was called from
-            # within a Jinja template, it seemed like it was going to be annoying to
-            # reproduce and so I now catch the IndexError that inspect was throwing
-            pass
-
-        # build the arg list if values have been passed in
-        if len(arg_vals) > 0:
-            args = []
-
-            if len(ret_dict['arg_names']) > 0:
-                # match the found arg names to their respective values
-                for i, arg_name in enumerate(ret_dict['arg_names']):
-                    args.append({'name': arg_name, 'val': arg_vals[i]})
-
-            else:
-                # we can't autodiscover the names, in an interactive shell session?
-                for i, arg_val in enumerate(arg_vals):
-                    args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
-
-            ret_dict['args'] = args
-
-        return ret_dict
-
-    def _find_entry_frame(self, frames):
-        """attempts to auto-discover the correct frame"""
-        back_i = 0
-        pout_path = self._get_src_file(sys.modules[__name__])
-        for frame_i, frame in enumerate(frames):
-            if frame[1] == pout_path:
-                back_i = frame_i
-
-        return back_i + 1
+    def _get_arg_info(self, arg_vals=None):
+        c = self.reflect_class(__name__, arg_vals)
+        return c.info
 
     def _get_path(self, path):
-        return Path(path)
-
-    def _get_arg_names(self, call_str):
-        '''
-        get the arguments that were passed into the call
-
-        example -- 
-            call_str = "func(foo, bar, baz)"
-            arg_names, is_balanced = _get_arg_names(call_str)
-            print arg_names # ['foo', 'bar', 'baz']
-            print is_balanced # True
-
-        since -- 7-3-12 -- Jay
-
-        call_str -- string -- the call string to parse
-
-        return -- tuple -- [], is_balanced where [] is a list of the parsed arg names, and is_balanced is
-            True if the right number of parens where found and False if they weren't, this is necessary
-            because functions can span multiple lines and we might not have the full call_str yet
-        '''
-        if not call_str: return [], True
-
-        def string_part(quote, i, call_len, call_str):
-            """responsible for finding the beginning and end of a string"""
-            arg_name = quote
-            i += 1
-            in_str = True
-            while i < call_len:
-                c = call_str[i]
-                if in_str:
-                    if c == quote and (arg_name[-1] != '\\'):
-                        in_str = False
-
-                else:
-                    if c == quote:
-                        in_str = True
-
-                    elif c == '(':
-                        an, i = delim_part(c, i, call_len, call_str)
-                        arg_name += an
-                        continue
-
-                    elif c == ')' or c == ',':
-                        i -= 1
-                        break
-
-                arg_name += c
-                i += 1
-
-            return arg_name, i
-
-        def delim_part(start_delim, i, call_len, call_str): 
-            """responsible for finding the beginnging and end of something like a paren"""
-            stop_delim = ')' if start_delim == '(' else ']'
-            arg_name = start_delim
-            pc = 1
-            i += 1
-            while i < call_len:
-                c = call_str[i]
-                arg_name += c
-                if c == start_delim:
-                    pc += 1
-                elif c == stop_delim:
-                    pc -= 1
-                    if not pc:
-                        break
-
-                i += 1
-
-            return arg_name, i
-
-        arg_names = []
-        arg_name = ''
-        is_str = False
-        delim_c = set(['(', '['])
-        quote_c = set(['"', "'"])
-        stop_c = set([')', ';', ','])
-
-        is_balanced = False
-
-        call_len = len(call_str)
-        # find the opening paren
-        i = call_str.find('(') + 1
-
-        while i < call_len:
-            c = call_str[i]
-            if c in delim_c:
-                an, i = delim_part(c, i, call_len, call_str)
-                arg_name += an
-
-            elif c in quote_c:
-                an, i = string_part(c, i, call_len, call_str)
-                arg_name += an
-                is_str = True
-
-            elif c in stop_c:
-                arg_name = arg_name.strip()
-                if arg_name:
-                    arg_names.append('' if is_str else arg_name)
-                arg_name = ''
-                is_str = False
-                is_balanced = c == ')'
-                if c != ',':
-                    break
-
-            else:
-                arg_name += c
-                #if not c.isspace():
-                #    arg_name += c
-
-            i += 1
-
-        if arg_name:
-            arg_names.append('' if is_str else arg_name.strip())
-
-        return arg_names, is_balanced
-
-    def _get_call_info(self, frame_tuple, called_module='', called_func=''):
-        '''
-        build a dict of information about the call
-
-        since -- 7-2-12 -- Jay
-
-        frame_tuple -- tuple -- one row of the inspect.getouterframes return list
-        called_module -- string -- the module that was called, the module we're looking for in the frame_tuple
-        called_func -- string -- the function that was called, the function we're looking for in the frame_tuple
-
-        return -- dict -- a bunch of information about the call:
-            line -- what line the call originated on
-            file -- the full filepath the call was made from
-            call -- the full text of the call (currently, this might be missing a closing paren)
-        '''
-        call_info = {}
-        call_info['frame'] = frame_tuple
-        call_info['line'] = frame_tuple[2]
-        call_info['file'] = self._get_path(os.path.abspath(inspect.getfile(frame_tuple[0])))
-        call_info['call'] = ''
-        call_info['arg_names'] = []
-
-        if frame_tuple[4] is not None:
-            stop_lineno = call_info['line']
-            start_lineno = call_info['line'] - 1
-            arg_names = []
-            call = ''
-
-            if called_func and called_func != '__call__':
-                # get the call block
-                try:
-                    open_kwargs = dict(mode='r', errors='replace', encoding="utf-8")
-                    with codecs.open(call_info['file'], **open_kwargs) as fp:
-                        caller_src = fp.read()
-
-                    ast_tree = compile(
-                        caller_src.encode("utf-8"),
-                        call_info['file'],
-                        'exec',
-                        ast.PyCF_ONLY_AST
-                    )
-
-                    func_calls = self._find_calls(ast_tree, called_module, called_func)
-
-                    # now get the actual calling codeblock
-                    regex = r"\s*(?:{})\s*\(".format("|".join([str(v) for v in func_calls]))
-                    r = re.compile(regex) 
-                    caller_src_lines = caller_src.splitlines(False)
-                    total_lines = len(caller_src_lines)
-
-                    # we need to move up one line until we get to the beginning of the call
-                    while start_lineno >= 0:
-
-                        call = "\n".join(caller_src_lines[start_lineno:stop_lineno])
-                        match = r.search(call)
-                        if(match):
-                            call = call[match.start():]
-                            break
-
-                        else:
-                            start_lineno -= 1
-
-                    if start_lineno > -1:
-                        # now we need to make sure we have the end of the call also
-                        while stop_lineno < total_lines:
-                            arg_names, is_balanced = self._get_arg_names(call)
-
-                            if is_balanced:
-                                break
-                            else:
-                                call += "\n{}".format(caller_src_lines[stop_lineno])
-                                stop_lineno += 1
-
-                    else:
-                        call = ''
-
-                except (IOError, SyntaxError) as e:
-                    # we failed to open the file, IPython has this problem
-                    if len(frame_tuple[4]) > 0:
-                        call = frame_tuple[4][0]
-                        arg_names, is_balanced = self._get_arg_names(call)
-                        if not arg_names or not is_balanced:
-                            call = ''
-                            arg_names = []
-
-            if not call:
-                # we couldn't find the call, so let's just use what python gave us, this can
-                # happen when something like: method = func; method() is done and we were looking for func() 
-                call = frame_tuple[4][0]
-                start_lineno = frame_tuple[2]
-
-            call_info['start_line'] = start_lineno
-            call_info['stop_line'] = stop_lineno
-            call_info['call'] = call.strip()
-            call_info['arg_names'] = arg_names
-
-        return call_info
-
-
-    def _get_backtrace(self, frames, inspect_packages=False, depth=0):
-        '''
-        get a nicely formatted backtrace
-
-        since -- 7-6-12
-
-        frames -- list -- the frame_tuple frames to format
-        inpsect_packages -- boolean -- by default, this only prints code of packages that are not 
-            in the pythonN directories, that cuts out a lot of the noise, set this to True if you
-            want a full stacktrace
-        depth -- integer -- how deep you want the stack trace to print (ie, if you only care about
-            the last three calls, pass in depth=3 so you only get the last 3 rows of the stack
-
-        return -- list -- each line will be a nicely formatted entry of the backtrace
-        '''
-        calls = []
-        count = 1
-
-        for i, f in enumerate(frames[1:]):
-            prev_f = frames[i]
-            called_module = inspect.getmodule(prev_f[0]).__name__
-            called_func = prev_f[3]
-
-            d = self._get_call_info(f, called_module, called_func)
-            s = self._get_call_summary(d, inspect_packages=inspect_packages, index=count)
-            calls.append(s)
-            count += 1
-
-            if depth and (count > depth):
-                break
-
-        # reverse the order on return so most recent is on the bottom
-        return calls[::-1]
-
+        return self.path_class(path)
 
     def _print(self, args, call_info=None):
         '''
@@ -623,8 +264,7 @@ class Pout(object):
         call_info -- dict -- returned from _get_arg_info()
         '''
         s = self._printstr(args, call_info)
-        logger.debug(s)
-
+        stream.debug(s)
 
     def _printstr(self, args, call_info=None):
         """this gets all the args ready to be printed, see self._print()"""
@@ -640,7 +280,6 @@ class Pout(object):
 
         return s
         #return s.encode('utf-8', 'pout.replace')
-
 
     def _str(self, name, val):
         '''
@@ -664,14 +303,6 @@ class Pout(object):
             except (TypeError, KeyError, AttributeError):
                 pass
 
-#             if hasattr(val, '__len__'):
-#                 # for some reason, type([]) will pass the hasattr check, but fail when getting length
-#                 try:
-#                     count = len(val)
-#                     s = "{} ({}) = {}".format(name, count, self._str_val(val, depth=0))
-#                 except TypeError:
-#                     pass
-
             if not s:
                 s = "{} = {}".format(name, self._str_val(val))
 
@@ -679,7 +310,6 @@ class Pout(object):
             s = self._str_val(val)
 
         return s
-
 
     def _str_val(self, val, depth=0):
         '''
@@ -693,6 +323,40 @@ class Pout(object):
         vt = Value(val)
         s = "{}".format(vt)
         return s
+
+    def _get_backtrace(self, frames, inspect_packages=False, depth=0):
+        '''
+        get a nicely formatted backtrace
+
+        since -- 7-6-12
+
+        frames -- list -- the frame_tuple frames to format
+        inpsect_packages -- boolean -- by default, this only prints code of packages that are not 
+            in the pythonN directories, that cuts out a lot of the noise, set this to True if you
+            want a full stacktrace
+        depth -- integer -- how deep you want the stack trace to print (ie, if you only care about
+            the last three calls, pass in depth=3 so you only get the last 3 rows of the stack)
+
+        return -- list -- each line will be a nicely formatted entry of the backtrace
+        '''
+        calls = []
+        count = 1
+
+        for i, f in enumerate(frames[1:]):
+            prev_f = frames[i]
+            called_module = inspect.getmodule(prev_f[0]).__name__
+            called_func = prev_f[3]
+
+            d = self.call_class(f, called_module, called_func).info
+            s = self._get_call_summary(d, inspect_packages=inspect_packages, index=count)
+            calls.append(s)
+            count += 1
+
+            if depth and (count > depth):
+                break
+
+        # reverse the order on return so most recent is on the bottom
+        return calls[::-1]
 
     def _get_call_summary(self, call_info, index=0, inspect_packages=True):
         '''
@@ -737,33 +401,23 @@ class Pout(object):
 
         return s
 
-    def _get_src_file(self, val, default='Unknown'):
+    def t(self, inspect_packages=False, depth=0):
         '''
-        return the source file path
+        print a backtrace
 
-        since -- 7-19-12
+        since -- 7-6-12
 
-        val -- mixed -- the value whose path you want
-
-        return -- string -- the path, or something like 'Unknown' if you can't find the path
+        inpsect_packages -- boolean -- by default, this only prints code of packages that are not 
+            in the pythonN directories, that cuts out a lot of the noise, set this to True if you
+            want a full stacktrace
+        depth -- integer -- how deep you want the stack trace to print (ie, if you only care about
+            the last three calls, pass in depth=3 so you only get the last 3 rows of the stack)
         '''
-        path = default
-
-        try:
-            # http://stackoverflow.com/questions/6761337/inspect-getfile-vs-inspect-getsourcefile
-            # first try and get the actual source file
-            source_file = inspect.getsourcefile(val)
-            if not source_file:
-                # get the raw file since val doesn't have a source file (could be a .pyc or .so file)
-                source_file = inspect.getfile(val)
-
-            if source_file:
-                path = os.path.realpath(source_file)
-
-        except TypeError as e:
-            path = default
-
-        return path
+        frame = inspect.currentframe()
+        frames = inspect.getouterframes(frame)
+        call_info = self._get_arg_info()
+        calls = self._get_backtrace(frames=frames, inspect_packages=inspect_packages, depth=depth)
+        self._print(calls, call_info)
 
     def p(self, name=None):
         '''
@@ -963,24 +617,6 @@ class Pout(object):
         call_info = self._get_arg_info()
         self._print(['exit '], call_info)
         sys.exit(exit_code)
-
-    def t(self, inspect_packages=False, depth=0):
-        '''
-        print a backtrace
-
-        since -- 7-6-12
-
-        inpsect_packages -- boolean -- by default, this only prints code of packages that are not 
-            in the pythonN directories, that cuts out a lot of the noise, set this to True if you
-            want a full stacktrace
-        depth -- integer -- how deep you want the stack trace to print (ie, if you only care about
-            the last three calls, pass in depth=3 so you only get the last 3 rows of the stack)
-        '''
-        frame = inspect.currentframe()
-        frames = inspect.getouterframes(frame)
-        call_info = self._get_arg_info()
-        calls = self._get_backtrace(frames=frames, inspect_packages=inspect_packages, depth=depth)
-        self._print(calls, call_info)
 
     def h(self, count=0):
         '''

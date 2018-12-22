@@ -135,7 +135,7 @@ class ValueTest(TestCase):
     def test_binary_2(self):
         d = hmac.new(b"this is the key", b"this is the message", hashlib.md5)
         v = Value(d.digest())
-        print(repr(v))
+        repr(v)
 
     def test_string(self):
         v = Value("")
