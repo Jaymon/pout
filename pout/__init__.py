@@ -246,8 +246,12 @@ class Pout(object):
         be picked up automatically"""
         return cls()
 
-    def _get_arg_info(self, arg_vals=None):
-        c = self.reflect_class(__name__, arg_vals)
+    def _get_arg_info(self, funcname="", arg_vals=None):
+        c = self.reflect_class(
+            modname=__name__,
+            funcname=funcname,
+            arg_vals=arg_vals
+        )
         return c.info
 
     def _get_path(self, path):
@@ -415,7 +419,7 @@ class Pout(object):
         '''
         frame = inspect.currentframe()
         frames = inspect.getouterframes(frame)
-        call_info = self._get_arg_info()
+        call_info = self._get_arg_info("t")
         calls = self._get_backtrace(frames=frames, inspect_packages=inspect_packages, depth=depth)
         self._print(calls, call_info)
 
@@ -451,7 +455,7 @@ class Pout(object):
         '''
         d = None
         if name:
-            d = Profiler(String(name), self._get_arg_info())
+            d = Profiler(String(name), self._get_arg_info("p"))
 
         else:
             if len(Profiler.stack) > 0:
@@ -483,7 +487,7 @@ class Pout(object):
         else:
             rss = float(usage[2]) / (1024.0 * 1024.0)
 
-        call_info = self._get_arg_info()
+        call_info = self._get_arg_info("m")
         summary = ''
         if name:
             summary += "{}: ".format(name)
@@ -502,7 +506,7 @@ class Pout(object):
         """
         assert len(args) > 0, "you didn't pass any arguments to print out"
 
-        call_info = self._get_arg_info(args)
+        call_info = self._get_arg_info("j", args)
         args = ["{}\n\n".format(self._str(v['name'], json.loads(v['val']))) for v in call_info['args']]
         self._print(args, call_info)
 
@@ -559,7 +563,7 @@ class Pout(object):
                 lines.append(sep * line_len)
 
         lines.append('')
-        call_info = self._get_arg_info()
+        call_info = self._get_arg_info("b")
         self._print([os.linesep.join(lines)], call_info)
 
     def c(self, *args):
@@ -572,7 +576,7 @@ class Pout(object):
         *args -- tuple -- one or more strings to dump
         '''
         lines = []
-        call_info = self._get_arg_info()
+        call_info = self._get_arg_info("c")
         for arg in args:
             arg = String(arg)
             lines.append('Total Characters: {}'.format(len(arg)))
@@ -614,7 +618,7 @@ class Pout(object):
 
         exit_code -- int -- if you want it something other than 1
         '''
-        call_info = self._get_arg_info()
+        call_info = self._get_arg_info("x")
         self._print(['exit '], call_info)
         sys.exit(exit_code)
 
@@ -628,7 +632,7 @@ class Pout(object):
 
         count -- integer -- the number you want to put after "here"
         '''
-        call_info = self._get_arg_info()
+        call_info = self._get_arg_info("h")
         args = ["here {} ".format(count if count > 0 else call_info['line'])]
         self._print(args, call_info)
 
@@ -638,7 +642,7 @@ class Pout(object):
         """
         assert len(args) > 0, "you didn't pass any arguments to print out"
 
-        call_info = self._get_arg_info(args)
+        call_info = self._get_arg_info("vv", args)
         args = ["{}\n\n".format(self._str(None, v['val'])) for v in call_info['args']]
         self._print(args)
 
@@ -670,7 +674,7 @@ class Pout(object):
         '''
         assert len(args) > 0, "you didn't pass any arguments to print out"
 
-        call_info = self._get_arg_info(args)
+        call_info = self._get_arg_info("v", args)
         args = ["{}\n\n".format(self._str(v['name'], v['val'])) for v in call_info['args']]
         self._print(args, call_info)
 
@@ -682,7 +686,7 @@ class Pout(object):
         return -- str
         """
         assert len(args) > 0, "you didn't pass any arguments"
-        call_info = self._get_arg_info(args)
+        call_info = self._get_arg_info("ss", args)
         args = ["{}\n\n".format(self._str(None, v['val'])) for v in call_info['args']]
         return self._printstr(args)
 
@@ -694,7 +698,7 @@ class Pout(object):
         return -- str
         """
         assert len(args) > 0, "you didn't pass any arguments"
-        call_info = self._get_arg_info(args)
+        call_info = self._get_arg_info("s", args)
         args = ["{}\n\n".format(self._str(v['name'], v['val'])) for v in call_info['args']]
         return self._printstr(args, call_info)
 
@@ -711,7 +715,7 @@ class Pout(object):
         '''
         if seconds <= 0: return
 
-        call_info = self._get_arg_info()
+        call_info = self._get_arg_info("sleep")
         args = ["Sleeping {} second{} at {}:{}".format(
             seconds,
             "s" if seconds > 1 else "",
@@ -729,7 +733,7 @@ class Pout(object):
         if len(args) <= 0:
             raise ValueError("you didn't pass any arguments to print out")
 
-        call_info = self._get_arg_info(args)
+        call_info = self._get_arg_info("i", args)
         pargs = []
         methods = []
         properties = []

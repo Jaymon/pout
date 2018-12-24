@@ -42,8 +42,10 @@ class CallString(String):
         try:
             [t for t in self.tokens]
             ret = True
+            logger.debug('CallString [{}] is complete'.format(self.strip()))
 
         except tokenize.TokenError:
+            logger.debug('CallString [{}] is NOT complete'.format(self.strip()))
             ret = False
 
         return ret
@@ -157,95 +159,6 @@ class CallString(String):
         return arg_names
 
 
-
-
-    def arg_names2(self):
-        '''get the arguments that were passed into the call
-
-        :Example:
-            call_str = CallString("func(foo, bar, baz)")
-            arg_names = call_str.arg_names()
-            print arg_names # ['foo', 'bar', 'baz']
-
-        since -- 7-3-12 -- Jay, this current implementation (12-20-2018) is dramatically
-            simpler than the previous versions of this function, if you ever want
-            to weep (or laugh) go look at the git history of the _get_arg_names()
-            method
-
-        :returns: tuple, a list of the parsed arg names
-        '''
-        call_str = self.split(";")[0]
-        call_len = len(call_str)
-        # find the opening paren
-        start_i = call_str.find('(') + 1
-        # find the closing paren and account for not being a complete call
-        stop_i = call_str.rfind(")")
-        if stop_i > 0:
-            arg_str = call_str[start_i:stop_i]
-        else:
-            arg_str = call_str[start_i:]
-
-        pout2.v(arg_str)
-
-        #regex = re.compile(r"(?<!\[)[\'\"](?!\]o")
-        regex = re.compile(r"\[[^\]]*\]|\([^\)]*\)")
-
-        arg_names = []
-        def append_name(arg_name):
-            if arg_name and not arg_name.isspace():
-                cleaned = regex.sub("", arg_name)
-
-                if "'" in cleaned or '"' in cleaned:
-                    arg_names.append("")
-                else:
-                    arg_names.append(arg_name.strip())
-
-        arg_name = ""
-        stop_c = [","]
-        skip_c = False
-        for c in arg_str:
-            append_c = True
-            if skip_c:
-                skip_c = False
-
-            else:
-                if c == stop_c[-1]:
-                    if stop_c[-1] != ",":
-                        stop_c.pop()
-                    else:
-                        append_name(arg_name)
-                        append_c = False
-                        arg_name = ""
-
-                else:
-                    if c == "\\":
-                        skip_c = True 
-
-                    else:
-                        if stop_c[-1] not in set(["'", '"']):
-                            if c == "(":
-                                stop_c.append(")")
-
-                            elif c == '"':
-                                stop_c.append('"')
-
-                            elif c == "'":
-                                stop_c.append("'")
-
-                            elif c == "[":
-                                stop_c.append("]")
-
-            if append_c:
-                arg_name += c
-                #pout2.v(arg_name)
-                print(arg_name)
-
-        append_name(arg_name)
-
-        pout2.v(arg_names)
-        return arg_names
-
-
 class Call(object):
 
     def __init__(self, frame_tuple, called_module='', called_func=''):
@@ -264,6 +177,34 @@ class Call(object):
             file -- the full filepath the call was made from
             call -- the full text of the call (currently, this might be missing a closing paren)
         '''
+
+        try:
+            frames = inspect.getouterframes(frame_tuple[0])
+            #prev_frame = frames[1]
+            #print("\t{}:{} {}".format(prev_frame[1], prev_frame[2], prev_frame[4]))
+            #pout2.v(prev_frame[0].f_code.co_name)
+#             for i, frame in enumerate(frames, 0):
+#                 print("\t{}. {}:{} {}".format(i, frame[1], frame[2], frame[4]))
+
+#             m1 = inspect.getmodule(frame_tuple[0]).__name__
+#             f1 = frame_tuple[0].f_code.co_name
+#             m2 = inspect.getmodule(prev_frame[0]).__name__
+#             f2 = prev_frame[0].f_code.co_name
+#             print("\t", m1, f1, m2, f2)
+
+            called_module = inspect.getmodule(frame_tuple[0]).__name__
+            called_func = frame_tuple[0].f_code.co_name
+            prev_frame = frame_tuple
+            frame_tuple = frames[1]
+
+#             pout2.v(prev_frame)
+#             called_module = inspect.getmodule(prev_frame[0]).__name__
+#             called_func = prev_frame[0].f_code.co_name
+
+        except Exception as e:
+            logger.exception(e)
+
+
 #         pout2.v(frame_tuple[0])
 #         pout2.v(frame_tuple[0].f_trace_lines)
 #         pout2.v(frame_tuple[0].f_lasti)
@@ -273,11 +214,22 @@ class Call(object):
 #         pout2.v(frame_tuple[0].f_code.co_freevars)
 #         pout2.v(frame_tuple[0].f_code.co_cellvars)
         call_info = {}
-        call_info['frame'] = frame_tuple
+        #call_info['frame'] = frame_tuple
         call_info['line'] = frame_tuple[2]
         call_info['file'] = self._get_path(os.path.abspath(inspect.getfile(frame_tuple[0])))
         call_info['call'] = ''
         call_info['arg_names'] = []
+
+
+#         if not called_module:
+#             called_module = inspect.getmodule(frame_tuple[0]).__name__
+# 
+#         if not called_func:
+#             called_func = frame_tuple[0].f_code.co_name
+
+#         pout2.v(frame_tuple[0].f_code.co_filename)
+#         pout2.v(called_module)
+#         pout2.v(called_func)
 
         if frame_tuple[4] is not None:
             stop_lineno = call_info['line']
@@ -353,8 +305,20 @@ class Call(object):
             call_info['stop_line'] = stop_lineno
             call_info['call'] = call.strip()
             call_info['arg_names'] = arg_names
+            call_info['call_modname'] = called_module
+            call_info['call_funcname'] = called_func
 
         self.info = call_info
+
+    def is_match(self, modname, funcname):
+#         pout2.b()
+#         pout2.v(self.info["call"])
+#         pout2.v(self.info["call_modname"])
+#         pout2.v(self.info["call_funcname"])
+#         pout2.v(modname)
+#         pout2.v(funcname)
+        info = self.info
+        return modname == info.get("call_modname", "") and funcname == info.get("call_funcname", "")
 
     def _get_path(self, path):
         return Path(path)
@@ -421,8 +385,9 @@ class Call(object):
 
 
 class Reflect(object):
-    def __init__(self, modname, arg_vals=None):
+    def __init__(self, modname, funcname="", arg_vals=None):
         self.modname = modname
+        self.funcname = funcname
         self.arg_vals = arg_vals or []
         self.info = self._get_arg_info()
 
@@ -437,7 +402,7 @@ class Reflect(object):
         '''
         ret_dict = {
             'args': [],
-            'frame': None,
+            #'frame': None,
             'line': 'Unknown',
             'file': 'Unknown',
             'arg_names': []
@@ -447,12 +412,25 @@ class Reflect(object):
 
         #back_i += 3 # move past the call to the outer frames and the call to this function
         try:
-            frame = inspect.currentframe()
-            frames = inspect.getouterframes(frame)
-            back_i = self._find_entry_frame(frames)
+            #frame = inspect.currentframe()
+            #frames = inspect.getouterframes(frame)
 
-            if len(frames) > back_i:
-                ret_dict.update(Call(frames[back_i], modname, frames[back_i - 1][3]).info)
+            frame = None
+            frames = inspect.stack()
+
+            #back_i = self._find_entry_frame(frames)
+            c = self._find_entry_call(frames)
+            if c:
+                #pout2.v(c.info)
+                ret_dict.update(c.info)
+
+#             entry_frame = self._find_entry_frame(frames)
+#             if entry_frame:
+#                 #ret_dict.update(Call(frames[back_i], modname).info)
+#                 ret_dict.update(Call(entry_frame).info)
+
+#             if len(frames) > back_i:
+#                 ret_dict.update(Call(frames[back_i], modname, frames[back_i - 1][3]).info)
 
         except IndexError as e:
             # There was a very specific bug that would cause inspect.getouterframes(frame)
@@ -461,25 +439,32 @@ class Reflect(object):
             # reproduce and so I now catch the IndexError that inspect was throwing
             logger.exception(e)
 
-        # build the arg list if values have been passed in
-        if len(arg_vals) > 0:
-            args = []
+        finally:
+            # build the arg list if values have been passed in
+            if len(arg_vals) > 0:
+                args = []
 
-            if len(ret_dict['arg_names']) > 0:
-                # match the found arg names to their respective values
-                for i, arg_name in enumerate(ret_dict['arg_names']):
-                    args.append({'name': arg_name, 'val': arg_vals[i]})
+                if len(ret_dict['arg_names']) > 0:
+                    # match the found arg names to their respective values
+                    for i, arg_name in enumerate(ret_dict['arg_names']):
+                        args.append({'name': arg_name, 'val': arg_vals[i]})
 
-            else:
-                # we can't autodiscover the names, in an interactive shell session?
-                for i, arg_val in enumerate(arg_vals):
-                    args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
+                else:
+                    # we can't autodiscover the names, in an interactive shell session?
+                    for i, arg_val in enumerate(arg_vals):
+                        args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
 
-            ret_dict['args'] = args
+                ret_dict['args'] = args
 
+            # make sure we avoid a reference cycle
+            # https://docs.python.org/3/library/inspect.html#the-interpreter-stack
+            del frame
+            del frames
+
+        #pout2.v(ret_dict)
         return ret_dict
 
-    def _find_entry_frame(self, frames):
+    def _find_entry_call(self, frames):
         """attempts to auto-discover the correct frame"""
         back_i = 0
         pout_path = self._get_src_file(self.modname)
@@ -487,7 +472,119 @@ class Reflect(object):
             if frame[1] == pout_path:
                 back_i = frame_i
 
-        return back_i + 1
+        return Call(frames[back_i])
+
+
+
+
+
+        c = None
+
+#         for i, frame in enumerate(frames, 0):
+#             print("{}. {}:{} {}".format(i, frame[1], frame[2], frame[4]))
+#             #pout2.v(frame[0].f_code.co_name)
+#             #pout2.v(frame[0].f_trace_lines)
+#             #pout2.v(frame)
+# 
+#             try:
+#                 c = Call(frame)
+#                 print("{}. {}.{}".format(i, c.info["call_modname"], c.info["call_funcname"]))
+#             except Exception as e:
+#                 pout2.v(e)
+#             #pout2.v(c.info["call"])
+#             #pout2.v(c.info["call_modname"])
+#             #pout2.v(c.info["call_funcname"])
+# 
+#         return None
+        # we find the correct frame by trying to find the last time in a chain
+        # pout/__init__.py was called, once it finds the first pout/__init__.py
+        # reference we have entered the chain and when we no longer find those
+        # calls we have exited the chain and that entry in the frame was the
+        # entry we were searching for, see https://github.com/Jaymon/pout/issues/31
+        # for more color
+        back_i = 0
+        found_chain = False
+        pout_path = self._get_src_file(self.modname)
+        logger.debug("Looking for entry frame for {}".format(pout_path))
+        for frame_i, frame in enumerate(frames):
+            logger.debug("{}. {}:{}".format(frame_i, frame[1], frame[2]))
+            if frame[1] == pout_path:
+                back_i = frame_i
+                if not found_chain:
+                    logger.debug("{}. Chain started at {}:{}".format(frame_i, frame[1], frame[2]))
+                found_chain = True
+
+            else:
+                if found_chain:
+                    #back_i = frame_i
+
+                    modname = self.modname
+                    funcname = self.funcname
+                    c = Call(frames[back_i])
+                    if c.is_match(modname, funcname):
+                        logger.debug("{}. Chain broken at {}:{}".format(frame_i, frame[1], frame[2]))
+                        #break
+
+                    else:
+                        c = None
+
+        logger.debug("Returning entry frame {}:{}".format(frames[back_i][1], frames[back_i][2]))
+        #pout2.v(frames[back_i][0].f_code.co_names)
+        #pout2.v(frames[back_i])
+        return c
+
+    def _find_entry_frame(self, frames):
+        """attempts to auto-discover the correct frame"""
+        back_i = 0
+
+#         for i, frame in enumerate(frames, 0):
+#             print("{}. {}:{} {}".format(i, frame[1], frame[2], frame[4]))
+#             #pout2.v(frame[0].f_code.co_name)
+#             #pout2.v(frame[0].f_trace_lines)
+#             #pout2.v(frame)
+# 
+#             try:
+#                 c = Call(frame)
+#                 print("{}. {}.{}".format(i, c.info["call_modname"], c.info["call_funcname"]))
+#             except Exception as e:
+#                 pout2.v(e)
+#             #pout2.v(c.info["call"])
+#             #pout2.v(c.info["call_modname"])
+#             #pout2.v(c.info["call_funcname"])
+# 
+#         return None
+        # we find the correct frame by trying to find the last time in a chain
+        # pout/__init__.py was called, once it finds the first pout/__init__.py
+        # reference we have entered the chain and when we no longer find those
+        # calls we have exited the chain and that entry in the frame was the
+        # entry we were searching for, see https://github.com/Jaymon/pout/issues/31
+        # for more color
+        found_chain = False
+        pout_path = self._get_src_file(self.modname)
+        logger.debug("Looking for entry frame for {}".format(pout_path))
+        for frame_i, frame in enumerate(frames):
+            logger.debug("{}. {}:{}".format(frame_i, frame[1], frame[2]))
+            if frame[1] == pout_path:
+                back_i = frame_i
+                if not found_chain:
+                    logger.debug("{}. Chain started at {}:{}".format(frame_i, frame[1], frame[2]))
+                found_chain = True
+
+            else:
+                if found_chain:
+                    #back_i = frame_i
+
+                    modname = self.modname
+                    funcname = self.funcname
+                    c = Call(frames[back_i])
+                    if c.is_match(modname, funcname):
+                        logger.debug("{}. Chain broken at {}:{}".format(frame_i, frame[1], frame[2]))
+                        break
+
+        logger.debug("Returning entry frame {}:{}".format(frames[back_i][1], frames[back_i][2]))
+        #pout2.v(frames[back_i][0].f_code.co_names)
+        #pout2.v(frames[back_i])
+        return frames[back_i]
 
     def _get_src_file(self, modname, default='Unknown'):
         '''

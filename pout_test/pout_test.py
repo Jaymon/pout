@@ -27,7 +27,7 @@ import testdata
 
 # this is the local pout that is going to be tested
 import pout
-from pout.compat import queue, range, is_py2
+from pout.compat import queue, range, is_py2, String
 from pout import Inspect
 
 
@@ -118,10 +118,11 @@ class PoutTest(unittest.TestCase):
         https://github.com/Jaymon/pout/issues/8
         """
         original_class = pout.pout_class
+
         class Child(pout.Pout):
             def v(self, *args, **kwargs):
                 if args[0] == "foo":
-                    call_info = self._get_arg_info(args)
+                    call_info = self._get_arg_info("v", args)
                     self._print(["foo custom "], call_info)
 
                 else:
@@ -129,17 +130,23 @@ class PoutTest(unittest.TestCase):
 
         pout.pout_class = Child
 
-        with testdata.capture() as c:
-            v = "foo"
-            pout.v(v)
-        self.assertTrue("foo custom" in c)
+        try:
+#             v = "foo"
+#             pout.v(v)
+#             return
 
-        with testdata.capture() as c:
-            v = "bar"
-            pout.v(v)
-        self.assertTrue('"bar"' in c)
+            with testdata.capture() as c:
+                v = "foo"
+                pout.v(v)
+            self.assertTrue("foo custom" in c)
 
-        pout.pout_class = original_class
+            with testdata.capture() as c:
+                v = "bar"
+                pout.v(v)
+            self.assertTrue('"bar"' in c)
+
+        finally:
+            pout.pout_class = original_class
 
     def test_issue16(self):
         """ https://github.com/Jaymon/pout/issues/16 """
@@ -356,7 +363,26 @@ class VTest(unittest.TestCase):
         left = "left"
         right = "right"
 
-        pout.v(left, " ".join(FooIssue34.bar_che), right)
+        with testdata.capture() as c:
+            pout.v(left, " ".join(FooIssue34.bar_che), right)
+        self.assertTrue("right" in c)
+        self.assertTrue("left" in c)
+        self.assertTrue("one two three" in c)
+
+    def test_issue_31(self):
+        """https://github.com/Jaymon/pout/issues/31"""
+        class Issue31String(String):
+            def __str__(self):
+                pout.h()
+                return self
+
+        with testdata.capture() as c:
+            s = Issue31String("foo")
+            pout.v(s)
+
+        lines = re.findall(r"\([^:)]+:\d+\)", str(c))
+        self.assertEqual(2, len(lines))
+        self.assertNotEqual(lines[0], lines[1])
 
     def test_keys(self):
         d = {'\xef\xbb\xbffoo': ''} 
