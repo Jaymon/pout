@@ -6,11 +6,15 @@ import sys
 import os
 import traceback
 from collections import KeysView
+import logging
 
 from .compat import *
 from . import environ
 from .path import Path
 from .utils import String
+
+
+logger = logging.getLogger(__name__)
 
 
 class Inspect(object):
@@ -481,8 +485,11 @@ class ObjectValue(Value):
         """wrapper around global getattr(...) method that suppresses any exception raised"""
         try:
             ret = getattr(val, key, default_val)
-        except Exception:
+
+        except Exception as e:
+            logger.exception(e)
             ret = default_val
+
         return ret
 
     def _get_name(self, val, src_file, default='Unknown'):
@@ -565,7 +572,7 @@ class ObjectValue(Value):
             s += repr(Value(val.__pout__()))
 
         else:
-            if depth < 4:
+            if depth < environ.OBJECT_DEPTH:
                 s += "\n<"
                 s_body = ''
 

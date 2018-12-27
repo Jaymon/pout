@@ -9,6 +9,8 @@ DEBUG = bool(int(os.environ.get("POUT_DEBUG", 0)))
 ENCODING = os.environ.get("POUT_ENCODING", "UTF-8")
 ENCODING_REPLACE = os.environ.get("POUT_ENCODING_REPLACE", "pout.replace")
 
+OBJECT_DEPTH = int(os.environ.get("POUT_OBJECT_DEPTH", 4))
+
 
 def handle_decode_replace(cls, e):
     """this handles replacing bad characters when printing out

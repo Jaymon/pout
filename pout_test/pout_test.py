@@ -171,35 +171,6 @@ class PoutTest(unittest.TestCase):
         del self.issue_module
         del self.issue_fields
 
-    def test__get_name(self):
-        """makes sure if __getattr__ raises other errors than AttributeError then
-        pout will still print correctly"""
-        class FooGetName(object):
-            def __init__(self):
-                self.fields = {}
-            def __getattr__(self, key):
-                # This will raise a KeyError when key doesn't exist
-                return self.fields[key]
-
-        with testdata.capture() as c:
-            fgn = FooGetName()
-            pout.v(fgn)
-        for s in ["pout_test.FooGetName", "id:", "path:", "Ancestry:", "__str__:", "fields = "]:
-            self.assertTrue(s in c, s)
-
-    def test_find_call_depth(self):
-        s = "foo"
-        class PoutChild(pout.Pout):
-            def v(self, *args):
-                self._printstr("PoutChild")
-                super(PoutChild, self).v(*args)
-
-        pout.pout_class = PoutChild
-        with testdata.capture() as c:
-            pout.v(s)
-        self.assertTrue('s (3) = "foo"' in c)
-        pout.pout_class = pout.Pout
-
     def test__get_arg_info(self):
         foo = 1
         with testdata.capture() as c:
@@ -391,6 +362,22 @@ class STest(TestCase):
 
 
 class VTest(unittest.TestCase):
+    def test_get_name(self):
+        """makes sure if __getattr__ raises other errors than AttributeError then
+        pout will still print correctly"""
+        class FooGetName(object):
+            def __init__(self):
+                self.fields = {}
+            def __getattr__(self, key):
+                # This will raise a KeyError when key doesn't exist
+                return self.fields[key]
+
+        with testdata.capture() as c:
+            fgn = FooGetName()
+            pout.v(fgn)
+        for s in ["pout_test.FooGetName", "id:", "path:", "Ancestry:", "__str__:", "fields = "]:
+            self.assertTrue(s in c, s)
+
     def test_vs(self):
         with testdata.capture() as c:
             d = {'foo': 1, 'bar': 2}

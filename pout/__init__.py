@@ -61,7 +61,7 @@ from .interface import (
 )
 
 
-__version__ = '0.8.0'
+__version__ = '0.8.1'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
@@ -71,7 +71,6 @@ logger = logging.getLogger(__name__)
 # http://stackoverflow.com/questions/6333916/python-logging-ensure-a-handler-is-added-only-once
 if len(logger.handlers) == 0:
     logger.setLevel(logging.WARNING)
-    #logger.setLevel(logging.ERROR)
     logger.addHandler(logging.NullHandler())
 
 
@@ -122,13 +121,6 @@ def v(*args, **kwargs):
     '''
     if not args:
         raise ValueError("you didn't pass any arguments to print out")
-
-    #frame = inspect.currentframe()
-#     frames = inspect.stack()
-#     frame = frames[0]
-#     modname = inspect.getmodule(frame[0]).__name__
-#     funcname = frame[0].f_code.co_name
-#     print("{}:{} {} {}.{}".format(frame[1], frame[2], frame[4], modname, funcname))
 
     with Reflect.context(args, **kwargs) as r:
         instance = V_CLASS(r, stream, **kwargs)

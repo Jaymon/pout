@@ -116,8 +116,6 @@ class BaseInterface(object):
 
             except (TypeError, KeyError, AttributeError) as e:
                 logger.warning(e, exc_info=True)
-
-            else:
                 s = "{} = {}".format(name, self._str_val(val))
 
         else:
@@ -149,7 +147,6 @@ class InfoInterface(BaseInterface):
 
 
 class ValueInterface(BaseInterface):
-
     def name_value(self):
         call_info = self.reflect.info
         args = ["{}\n\n".format(self._str(v['name'], v['val'])) for v in call_info['args']]
@@ -160,17 +157,6 @@ class ValueInterface(BaseInterface):
         args = ["{}\n\n".format(self._str(None, v['val'])) for v in call_info['args']]
         return self._printstr(args)
 
-#     def __repr__(self):
-#         call_info = self.reflect.info
-#         #pout2.v(call_info)
-#         args = ["{}\n\n".format(self._str(v['name'], v['val'])) for v in call_info['args']]
-#         return self._printstr(args, call_info)
-
-#     def value(self):
-#         """Returns only the value of the passed in args, no context information"""
-#         call_info = self.reflect.info
-#         args = ["{}\n\n".format(self._str(None, v['val'])) for v in call_info['args']]
-#         return self._printstr(args)
 
 
 class HereInterface(BaseInterface):
