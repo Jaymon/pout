@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, division, print_function, absolute_import
+import sys
+import logging
 
 from .compat import String as BaseString, Bytes
 from . import environ
@@ -40,4 +42,24 @@ class String(BaseString):
         s = [("\t" * indent_count) + line for line in self.splitlines(False)]
         s = "\n".join(s)
         return type(self)(s)
+
+
+class Stream(object):
+    def __init__(self):
+        # this is the pout printing logger, if it hasn't been touched it will be
+        # configured to print to stderr, this is what is used in pout_class._print()
+        # TODO -- make this configurable to dump to a file
+        logger = logging.getLogger("{}.stream".format(__name__.split(".")[0]))
+        if len(logger.handlers) == 0:
+            logger.setLevel(logging.DEBUG)
+            log_handler = logging.StreamHandler(stream=sys.stderr)
+            log_handler.setFormatter(logging.Formatter('%(message)s'))
+            logger.addHandler(log_handler)
+            logger.propagate = False
+
+        self.logger = logger
+
+    def writeline(self, s):
+        self.logger.debug(s)
+
 

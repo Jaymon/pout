@@ -22,13 +22,13 @@ import os
 import re
 import logging
 
-import testdata
-
-
 # this is the local pout that is going to be tested
 import pout
-from pout.compat import queue, range, is_py2, String
+from pout.compat import queue, range, is_py2, String, Bytes
 from pout import Inspect
+from pout import environ
+
+from . import testdata, TestCase
 
 
 class Foo(object):
@@ -112,41 +112,45 @@ class Bam(object):
 
 class PoutTest(unittest.TestCase):
     """any non-specific function testing should go here"""
-    def test_overriding(self):
-        """This verifies that child classes still can find the correct stack traces
-
-        https://github.com/Jaymon/pout/issues/8
-        """
-        original_class = pout.pout_class
-
-        class Child(pout.Pout):
-            def v(self, *args, **kwargs):
-                if args[0] == "foo":
-                    call_info = self._get_arg_info("v", args)
-                    self._print(["foo custom "], call_info)
-
-                else:
-                    return super(Child, self).v(*args, **kwargs)
-
-        pout.pout_class = Child
-
-        try:
-#             v = "foo"
-#             pout.v(v)
-#             return
-
-            with testdata.capture() as c:
-                v = "foo"
-                pout.v(v)
-            self.assertTrue("foo custom" in c)
-
-            with testdata.capture() as c:
-                v = "bar"
-                pout.v(v)
-            self.assertTrue('"bar"' in c)
-
-        finally:
-            pout.pout_class = original_class
+#     def test_overriding(self):
+#         """This verifies that child classes still can find the correct stack traces
+# 
+#         https://github.com/Jaymon/pout/issues/8
+#         """
+#         original_class = pout.pout_class
+# 
+#         v = "foo"
+#         pout.v(v)
+#         return
+# 
+#         class Child(pout.Pout):
+#             def v(self, *args, **kwargs):
+#                 if args[0] == "foo":
+#                     call_info = self._get_arg_info("v", args)
+#                     self._print(["foo custom "], call_info)
+# 
+#                 else:
+#                     return super(Child, self).v(*args, **kwargs)
+# 
+#         pout.pout_class = Child
+# 
+#         try:
+# #             v = "foo"
+# #             pout.v(v)
+# #             return
+# 
+#             with testdata.capture() as c:
+#                 v = "foo"
+#                 pout.v(v)
+#             self.assertTrue("foo custom" in c)
+# 
+#             with testdata.capture() as c:
+#                 v = "bar"
+#                 pout.v(v)
+#             self.assertTrue('"bar"' in c)
+# 
+#         finally:
+#             pout.pout_class = original_class
 
     def test_issue16(self):
         """ https://github.com/Jaymon/pout/issues/16 """
@@ -304,8 +308,38 @@ class PTest(unittest.TestCase):
 
 class XTest(unittest.TestCase):
     def test_x(self):
-        raise unittest.SkipTest("we skip the pout.x tests unless we are working on them")
-        pout.x()
+        path = testdata.create_file("xx1.py", [
+            "# -*- coding: utf-8 -*-",
+            "from __future__ import unicode_literals, division, print_function, absolute_import",
+            "import pout",
+            "",
+            "v = 'xx'",
+            "pout.x(v)"
+        ])
+        #raise unittest.SkipTest("we skip the pout.x tests unless we are working on them")
+        #pout.x()
+        r = path.run(code=1)
+        self.assertTrue('"xx"' in r)
+
+        path = testdata.create_file("xx2.py", [
+            "# -*- coding: utf-8 -*-",
+            "from __future__ import unicode_literals, division, print_function, absolute_import",
+            "import pout",
+            "",
+            "pout.x()"
+        ])
+        r = path.run(code=1)
+        self.assertTrue("exit at line 5" in r)
+
+
+class SleepTest(TestCase):
+    def test_run(self):
+        with testdata.capture() as c:
+            pout.sleep(0.25)
+
+        self.assertTrue("Done Sleeping" in c)
+        self.assertTrue("Sleeping 0.25 seconds" in c)
+
 
 class TTest(unittest.TestCase):
     """test the pout.t() method"""
@@ -344,8 +378,20 @@ class HTest(unittest.TestCase):
         self.assertTrue("here 1" in c)
 
 
-class VVTest(unittest.TestCase):
-    def test_vv(self):
+class STest(TestCase):
+    def test_s_return(self):
+        v = "foo"
+        r = pout.s(v)
+        self.assertTrue('v (3) = "foo"' in r)
+
+    def test_ss_return(self):
+        v = "foo"
+        r = pout.ss(v)
+        self.assertEqual('"foo"', r)
+
+
+class VTest(unittest.TestCase):
+    def test_vs(self):
         with testdata.capture() as c:
             d = {'foo': 1, 'bar': 2}
             pout.vv(d)
@@ -353,8 +399,57 @@ class VVTest(unittest.TestCase):
         self.assertTrue("'foo':" in c)
         self.assertTrue("'bar':" in c)
 
+    def test_overriding(self):
+        """This verifies that child classes still can find the correct stack traces
 
-class VTest(unittest.TestCase):
+        https://github.com/Jaymon/pout/issues/8
+        """
+        original_class = pout.V_CLASS
+
+        class Child(original_class):
+            def __repr__(self):
+                call_info = self.reflect.info
+                if call_info["args"][0]["val"] == "foo":
+                    return self._printstr(["foo custom "], call_info)
+
+                else:
+                    return super(Child, self).__repr__()
+
+        pout.V_CLASS = Child
+
+        try:
+#             v = "foo"
+#             pout.v(v)
+#             return
+
+            with testdata.capture() as c:
+                v = "foo"
+                pout.v(v)
+            self.assertTrue("foo custom" in c)
+
+            with testdata.capture() as c:
+                v = "bar"
+                pout.v(v)
+            self.assertTrue('"bar"' in c)
+
+        finally:
+            pout.V_CLASS = original_class
+
+    def test_issue_31(self):
+        """https://github.com/Jaymon/pout/issues/31"""
+        class Issue31String(String):
+            def __str__(self):
+                pout.h()
+                return ""
+
+        with testdata.capture() as c:
+            s = Issue31String("foo")
+            pout.v(s)
+
+        lines = re.findall(r"\([^:)]+:\d+\)", str(c))
+        self.assertEqual(2, len(lines))
+        self.assertNotEqual(lines[0], lines[1])
+
     def test_issue_34(self):
         """https://github.com/Jaymon/pout/issues/34"""
         class FooIssue34(object):
@@ -368,21 +463,6 @@ class VTest(unittest.TestCase):
         self.assertTrue("right" in c)
         self.assertTrue("left" in c)
         self.assertTrue("one two three" in c)
-
-    def test_issue_31(self):
-        """https://github.com/Jaymon/pout/issues/31"""
-        class Issue31String(String):
-            def __str__(self):
-                pout.h()
-                return self
-
-        with testdata.capture() as c:
-            s = Issue31String("foo")
-            pout.v(s)
-
-        lines = re.findall(r"\([^:)]+:\d+\)", str(c))
-        self.assertEqual(2, len(lines))
-        self.assertNotEqual(lines[0], lines[1])
 
     def test_keys(self):
         d = {'\xef\xbb\xbffoo': ''} 

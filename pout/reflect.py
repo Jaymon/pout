@@ -8,6 +8,7 @@ import re
 import logging
 import tokenize
 from io import BytesIO
+from contextlib import contextmanager
 
 from .compat import *
 from . import environ
@@ -385,11 +386,36 @@ class Call(object):
 
 
 class Reflect(object):
-    def __init__(self, modname, funcname="", arg_vals=None):
-        self.modname = modname
-        self.funcname = funcname
+#     def __init__(self, modname, funcname="", arg_vals=None):
+#         self.modname = modname
+#         self.funcname = funcname
+#         self.arg_vals = arg_vals or []
+#         self.info = self._get_arg_info()
+
+    def __init__(self, call, arg_vals=None):
+        self.call = call or self._find_call()
         self.arg_vals = arg_vals or []
         self.info = self._get_arg_info()
+
+    @classmethod
+    @contextmanager
+    def context(cls, arg_vals=None, **kwargs):
+
+        try:
+            # we want to get the frame of the current pout.* call
+            frames = inspect.stack()
+            frame = frames[2]
+
+            modname = inspect.getmodule(frame[0]).__name__
+            funcname = frame[0].f_code.co_name
+            #print("{}:{} {} {}.{}".format(frame[1], frame[2], frame[4], modname, funcname))
+
+            yield cls(Call(frame), arg_vals)
+
+        finally:
+            del frame
+            del frames
+
 
     def _get_arg_info(self):
         '''
@@ -408,14 +434,85 @@ class Reflect(object):
             'arg_names': []
         }
         arg_vals = self.arg_vals
-        modname = self.modname
+        #modname = self.modname
+
+        c = self.call
+        ret_dict.update(c.info)
+
+        if len(arg_vals) > 0:
+            args = []
+
+            if len(ret_dict['arg_names']) > 0:
+                # match the found arg names to their respective values
+                for i, arg_name in enumerate(ret_dict['arg_names']):
+                    args.append({'name': arg_name, 'val': arg_vals[i]})
+
+            else:
+                # we can't autodiscover the names, in an interactive shell session?
+                for i, arg_val in enumerate(arg_vals):
+                    args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
+
+            ret_dict['args'] = args
+
+
+
 
         #back_i += 3 # move past the call to the outer frames and the call to this function
-        try:
-            #frame = inspect.currentframe()
-            #frames = inspect.getouterframes(frame)
+#         try:
+#             #frame = inspect.currentframe()
+#             #frames = inspect.getouterframes(frame)
+# 
+# #             frame = None
+# #             frames = inspect.stack()
+# # 
+# #             #back_i = self._find_entry_frame(frames)
+# #             c = self._find_entry_call(frames)
+# #             if c:
+# #                 #pout2.v(c.info)
+# #                 ret_dict.update(c.info)
+# # 
+# # #             entry_frame = self._find_entry_frame(frames)
+# # #             if entry_frame:
+# # #                 #ret_dict.update(Call(frames[back_i], modname).info)
+# # #                 ret_dict.update(Call(entry_frame).info)
+# # 
+# # #             if len(frames) > back_i:
+# # #                 ret_dict.update(Call(frames[back_i], modname, frames[back_i - 1][3]).info)
+# # 
+# #         except IndexError as e:
+# #             # There was a very specific bug that would cause inspect.getouterframes(frame)
+# #             # to fail when pout was called from an object's method that was called from
+# #             # within a Jinja template, it seemed like it was going to be annoying to
+# #             # reproduce and so I now catch the IndexError that inspect was throwing
+# #             logger.exception(e)
+# # 
+#         finally:
+#             # build the arg list if values have been passed in
+#             if len(arg_vals) > 0:
+#                 args = []
+# 
+#                 if len(ret_dict['arg_names']) > 0:
+#                     # match the found arg names to their respective values
+#                     for i, arg_name in enumerate(ret_dict['arg_names']):
+#                         args.append({'name': arg_name, 'val': arg_vals[i]})
+# 
+#                 else:
+#                     # we can't autodiscover the names, in an interactive shell session?
+#                     for i, arg_val in enumerate(arg_vals):
+#                         args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
+# 
+#                 ret_dict['args'] = args
+# 
+#             # make sure we avoid a reference cycle
+#             # https://docs.python.org/3/library/inspect.html#the-interpreter-stack
+#             del frame
+#             del frames
 
-            frame = None
+        #pout2.v(ret_dict)
+        return ret_dict
+
+    def _find_call(self):
+        try:
             frames = inspect.stack()
 
             #back_i = self._find_entry_frame(frames)
@@ -423,14 +520,6 @@ class Reflect(object):
             if c:
                 #pout2.v(c.info)
                 ret_dict.update(c.info)
-
-#             entry_frame = self._find_entry_frame(frames)
-#             if entry_frame:
-#                 #ret_dict.update(Call(frames[back_i], modname).info)
-#                 ret_dict.update(Call(entry_frame).info)
-
-#             if len(frames) > back_i:
-#                 ret_dict.update(Call(frames[back_i], modname, frames[back_i - 1][3]).info)
 
         except IndexError as e:
             # There was a very specific bug that would cause inspect.getouterframes(frame)
@@ -440,32 +529,11 @@ class Reflect(object):
             logger.exception(e)
 
         finally:
-            # build the arg list if values have been passed in
-            if len(arg_vals) > 0:
-                args = []
-
-                if len(ret_dict['arg_names']) > 0:
-                    # match the found arg names to their respective values
-                    for i, arg_name in enumerate(ret_dict['arg_names']):
-                        args.append({'name': arg_name, 'val': arg_vals[i]})
-
-                else:
-                    # we can't autodiscover the names, in an interactive shell session?
-                    for i, arg_val in enumerate(arg_vals):
-                        args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
-
-                ret_dict['args'] = args
-
-            # make sure we avoid a reference cycle
-            # https://docs.python.org/3/library/inspect.html#the-interpreter-stack
-            del frame
             del frames
-
-        #pout2.v(ret_dict)
-        return ret_dict
 
     def _find_entry_call(self, frames):
         """attempts to auto-discover the correct frame"""
+
         back_i = 0
         pout_path = self._get_src_file(self.modname)
         for frame_i, frame in enumerate(frames):

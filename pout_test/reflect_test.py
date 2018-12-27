@@ -14,41 +14,6 @@ class ReflectTest(TestCase):
         pout.v(foo, "foo bar che")
 
 
-class CallTest(TestCase):
-    def test_trace(self):
-        pout.t()
-
-    def test_ipython_fail(self):
-        '''
-        ipython would fail because the source file couldn't be read
-
-        since -- 7-19-12
-        '''
-        mp_orig = pout.Pout.call_class.__init__
-
-        def _get_call_info_fake(self, frame_tuple, called_module='', called_func=''):
-            call_info = {}
-            call_info['frame'] = frame_tuple
-            call_info['line'] = frame_tuple[2]
-            call_info['file'] = '/fake/file/path'
-            call_info['call'] = ''
-            call_info['arg_names'] = []
-            self.info = call_info
-            #return call_info
-
-        # monkey patch to do get what would be returned in an iPython shell
-        pout.Pout.call_class.__init__ = _get_call_info_fake
-
-        # this should print out
-        with testdata.capture() as c:
-            pout.v(list(range(5)))
-        self.assertTrue("Unknown 0 (5)" in c)
-        self.assertTrue("0: 0," in c)
-        self.assertTrue("4: 4" in c)
-
-        pout.Pout.call_class.__init__ = mp_orig
-
-
 class CallStringTest(TestCase):
     def test_is_complete_1(self):
         c = CallString("foo(bar")
