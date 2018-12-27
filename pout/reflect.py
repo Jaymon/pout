@@ -19,22 +19,12 @@ from .utils import String
 logger = logging.getLogger(__name__)
 
 
-# class TokenNames(dict):
-#     def __init__(self):
-#         import token
-#         import tokenize
-#         pout2.v(token.tok_name)
-#         pout2.v(tokenize.tok_name)
-# #         members = inspect.getmembers(token)
-# #         for mn, mv in members:
-# #             pout2.b()
-# #             pout2.v(mn)
-# #             pout2.v(mv)
-
-
 class CallString(String):
+    """Contains the actual pout.* call, this is needed to find the argument names
+    and stuff"""
     @property
     def tokens(self):
+        # https://github.com/python/cpython/blob/3.7/Lib/token.py
         return tokenize.tokenize(BytesIO(self.encode(environ.ENCODING)).readline)
 
     def is_complete(self):
@@ -57,9 +47,6 @@ class CallString(String):
         in_root = True
         last_tok_end = -1
         for token in arg_name:
-#             pout2.b()
-#             pout2.v(tokenize.tok_name[token.type])
-#             pout2.v(token.string)
             c = token.string
             if last_tok_end < 0:
                 last_tok_end = token.end[1]
@@ -161,8 +148,13 @@ class CallString(String):
 
 
 class Call(object):
+    """Wraps a generic frame_tuple returned from like inspect.stack() and makes the
+    information containded in that FrameInfo tuple a little easier to digest
 
-    def __init__(self, frame_tuple, called_module='', called_func=''):
+    https://docs.python.org/3/library/inspect.html
+    """
+
+    def __init__(self, frame_tuple):
     #def _get_call_info(self, frame_tuple, called_module='', called_func=''):
         '''
         build a dict of information about the call
@@ -170,8 +162,6 @@ class Call(object):
         since -- 7-2-12 -- Jay
 
         frame_tuple -- tuple -- one row of the inspect.getouterframes return list
-        called_module -- string -- the module that was called, the module we're looking for in the frame_tuple
-        called_func -- string -- the function that was called, the function we're looking for in the frame_tuple
 
         return -- dict -- a bunch of information about the call:
             line -- what line the call originated on
@@ -181,56 +171,22 @@ class Call(object):
 
         try:
             frames = inspect.getouterframes(frame_tuple[0])
-            #prev_frame = frames[1]
-            #print("\t{}:{} {}".format(prev_frame[1], prev_frame[2], prev_frame[4]))
-            #pout2.v(prev_frame[0].f_code.co_name)
-#             for i, frame in enumerate(frames, 0):
-#                 print("\t{}. {}:{} {}".format(i, frame[1], frame[2], frame[4]))
-
-#             m1 = inspect.getmodule(frame_tuple[0]).__name__
-#             f1 = frame_tuple[0].f_code.co_name
-#             m2 = inspect.getmodule(prev_frame[0]).__name__
-#             f2 = prev_frame[0].f_code.co_name
-#             print("\t", m1, f1, m2, f2)
 
             called_module = inspect.getmodule(frame_tuple[0]).__name__
             called_func = frame_tuple[0].f_code.co_name
             prev_frame = frame_tuple
             frame_tuple = frames[1]
 
-#             pout2.v(prev_frame)
-#             called_module = inspect.getmodule(prev_frame[0]).__name__
-#             called_func = prev_frame[0].f_code.co_name
-
         except Exception as e:
             logger.exception(e)
 
 
-#         pout2.v(frame_tuple[0])
-#         pout2.v(frame_tuple[0].f_trace_lines)
-#         pout2.v(frame_tuple[0].f_lasti)
-#         pout2.v(frame_tuple[0].f_code.co_name)
-#         pout2.v(frame_tuple[0].f_code.co_code)
-#         pout2.v(frame_tuple[0].f_code.co_varnames)
-#         pout2.v(frame_tuple[0].f_code.co_freevars)
-#         pout2.v(frame_tuple[0].f_code.co_cellvars)
         call_info = {}
         #call_info['frame'] = frame_tuple
         call_info['line'] = frame_tuple[2]
         call_info['file'] = self._get_path(os.path.abspath(inspect.getfile(frame_tuple[0])))
         call_info['call'] = ''
         call_info['arg_names'] = []
-
-
-#         if not called_module:
-#             called_module = inspect.getmodule(frame_tuple[0]).__name__
-# 
-#         if not called_func:
-#             called_func = frame_tuple[0].f_code.co_name
-
-#         pout2.v(frame_tuple[0].f_code.co_filename)
-#         pout2.v(called_module)
-#         pout2.v(called_func)
 
         if frame_tuple[4] is not None:
             stop_lineno = call_info['line']
@@ -263,6 +219,10 @@ class Call(object):
                     # we need to move up one line until we get to the beginning of the call
                     while start_lineno >= 0:
 
+                        # TODO -- would it be better to use the
+                        # inspect.getframeinfo() context argument to get more
+                        # lines of code? Instead of reading the file directly?
+
                         call = "\n".join(caller_src_lines[start_lineno:stop_lineno])
                         match = r.search(call)
                         if(match):
@@ -288,10 +248,6 @@ class Call(object):
                 except (IOError, SyntaxError) as e:
                     # we failed to open the file, IPython has this problem
                     call = ""
-#                     if len(frame_tuple[4]) > 0:
-#                         call = CallString(frame_tuple[4][0])
-#                         if not call.is_complete():
-#                             call = ''
 
             if call:
                 arg_names = CallString(call).arg_names()
@@ -312,12 +268,6 @@ class Call(object):
         self.info = call_info
 
     def is_match(self, modname, funcname):
-#         pout2.b()
-#         pout2.v(self.info["call"])
-#         pout2.v(self.info["call_modname"])
-#         pout2.v(self.info["call_funcname"])
-#         pout2.v(modname)
-#         pout2.v(funcname)
         info = self.info
         return modname == info.get("call_modname", "") and funcname == info.get("call_funcname", "")
 
@@ -386,12 +336,7 @@ class Call(object):
 
 
 class Reflect(object):
-#     def __init__(self, modname, funcname="", arg_vals=None):
-#         self.modname = modname
-#         self.funcname = funcname
-#         self.arg_vals = arg_vals or []
-#         self.info = self._get_arg_info()
-
+    """This provides the meta information (file, line number) for the actual pout call"""
     def __init__(self, call, arg_vals=None):
         self.call = call or self._find_call()
         self.arg_vals = arg_vals or []
@@ -415,7 +360,6 @@ class Reflect(object):
         finally:
             del frame
             del frames
-
 
     def _get_arg_info(self):
         '''
@@ -454,68 +398,11 @@ class Reflect(object):
 
             ret_dict['args'] = args
 
-
-
-
-        #back_i += 3 # move past the call to the outer frames and the call to this function
-#         try:
-#             #frame = inspect.currentframe()
-#             #frames = inspect.getouterframes(frame)
-# 
-# #             frame = None
-# #             frames = inspect.stack()
-# # 
-# #             #back_i = self._find_entry_frame(frames)
-# #             c = self._find_entry_call(frames)
-# #             if c:
-# #                 #pout2.v(c.info)
-# #                 ret_dict.update(c.info)
-# # 
-# # #             entry_frame = self._find_entry_frame(frames)
-# # #             if entry_frame:
-# # #                 #ret_dict.update(Call(frames[back_i], modname).info)
-# # #                 ret_dict.update(Call(entry_frame).info)
-# # 
-# # #             if len(frames) > back_i:
-# # #                 ret_dict.update(Call(frames[back_i], modname, frames[back_i - 1][3]).info)
-# # 
-# #         except IndexError as e:
-# #             # There was a very specific bug that would cause inspect.getouterframes(frame)
-# #             # to fail when pout was called from an object's method that was called from
-# #             # within a Jinja template, it seemed like it was going to be annoying to
-# #             # reproduce and so I now catch the IndexError that inspect was throwing
-# #             logger.exception(e)
-# # 
-#         finally:
-#             # build the arg list if values have been passed in
-#             if len(arg_vals) > 0:
-#                 args = []
-# 
-#                 if len(ret_dict['arg_names']) > 0:
-#                     # match the found arg names to their respective values
-#                     for i, arg_name in enumerate(ret_dict['arg_names']):
-#                         args.append({'name': arg_name, 'val': arg_vals[i]})
-# 
-#                 else:
-#                     # we can't autodiscover the names, in an interactive shell session?
-#                     for i, arg_val in enumerate(arg_vals):
-#                         args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
-# 
-#                 ret_dict['args'] = args
-# 
-#             # make sure we avoid a reference cycle
-#             # https://docs.python.org/3/library/inspect.html#the-interpreter-stack
-#             del frame
-#             del frames
-
-        #pout2.v(ret_dict)
         return ret_dict
 
     def _find_call(self):
         try:
             frames = inspect.stack()
-
-            #back_i = self._find_entry_frame(frames)
             c = self._find_entry_call(frames)
             if c:
                 #pout2.v(c.info)
@@ -541,118 +428,6 @@ class Reflect(object):
                 back_i = frame_i
 
         return Call(frames[back_i])
-
-
-
-
-
-        c = None
-
-#         for i, frame in enumerate(frames, 0):
-#             print("{}. {}:{} {}".format(i, frame[1], frame[2], frame[4]))
-#             #pout2.v(frame[0].f_code.co_name)
-#             #pout2.v(frame[0].f_trace_lines)
-#             #pout2.v(frame)
-# 
-#             try:
-#                 c = Call(frame)
-#                 print("{}. {}.{}".format(i, c.info["call_modname"], c.info["call_funcname"]))
-#             except Exception as e:
-#                 pout2.v(e)
-#             #pout2.v(c.info["call"])
-#             #pout2.v(c.info["call_modname"])
-#             #pout2.v(c.info["call_funcname"])
-# 
-#         return None
-        # we find the correct frame by trying to find the last time in a chain
-        # pout/__init__.py was called, once it finds the first pout/__init__.py
-        # reference we have entered the chain and when we no longer find those
-        # calls we have exited the chain and that entry in the frame was the
-        # entry we were searching for, see https://github.com/Jaymon/pout/issues/31
-        # for more color
-        back_i = 0
-        found_chain = False
-        pout_path = self._get_src_file(self.modname)
-        logger.debug("Looking for entry frame for {}".format(pout_path))
-        for frame_i, frame in enumerate(frames):
-            logger.debug("{}. {}:{}".format(frame_i, frame[1], frame[2]))
-            if frame[1] == pout_path:
-                back_i = frame_i
-                if not found_chain:
-                    logger.debug("{}. Chain started at {}:{}".format(frame_i, frame[1], frame[2]))
-                found_chain = True
-
-            else:
-                if found_chain:
-                    #back_i = frame_i
-
-                    modname = self.modname
-                    funcname = self.funcname
-                    c = Call(frames[back_i])
-                    if c.is_match(modname, funcname):
-                        logger.debug("{}. Chain broken at {}:{}".format(frame_i, frame[1], frame[2]))
-                        #break
-
-                    else:
-                        c = None
-
-        logger.debug("Returning entry frame {}:{}".format(frames[back_i][1], frames[back_i][2]))
-        #pout2.v(frames[back_i][0].f_code.co_names)
-        #pout2.v(frames[back_i])
-        return c
-
-    def _find_entry_frame(self, frames):
-        """attempts to auto-discover the correct frame"""
-        back_i = 0
-
-#         for i, frame in enumerate(frames, 0):
-#             print("{}. {}:{} {}".format(i, frame[1], frame[2], frame[4]))
-#             #pout2.v(frame[0].f_code.co_name)
-#             #pout2.v(frame[0].f_trace_lines)
-#             #pout2.v(frame)
-# 
-#             try:
-#                 c = Call(frame)
-#                 print("{}. {}.{}".format(i, c.info["call_modname"], c.info["call_funcname"]))
-#             except Exception as e:
-#                 pout2.v(e)
-#             #pout2.v(c.info["call"])
-#             #pout2.v(c.info["call_modname"])
-#             #pout2.v(c.info["call_funcname"])
-# 
-#         return None
-        # we find the correct frame by trying to find the last time in a chain
-        # pout/__init__.py was called, once it finds the first pout/__init__.py
-        # reference we have entered the chain and when we no longer find those
-        # calls we have exited the chain and that entry in the frame was the
-        # entry we were searching for, see https://github.com/Jaymon/pout/issues/31
-        # for more color
-        found_chain = False
-        pout_path = self._get_src_file(self.modname)
-        logger.debug("Looking for entry frame for {}".format(pout_path))
-        for frame_i, frame in enumerate(frames):
-            logger.debug("{}. {}:{}".format(frame_i, frame[1], frame[2]))
-            if frame[1] == pout_path:
-                back_i = frame_i
-                if not found_chain:
-                    logger.debug("{}. Chain started at {}:{}".format(frame_i, frame[1], frame[2]))
-                found_chain = True
-
-            else:
-                if found_chain:
-                    #back_i = frame_i
-
-                    modname = self.modname
-                    funcname = self.funcname
-                    c = Call(frames[back_i])
-                    if c.is_match(modname, funcname):
-                        logger.debug("{}. Chain broken at {}:{}".format(frame_i, frame[1], frame[2]))
-                        break
-
-        logger.debug("Returning entry frame {}:{}".format(frames[back_i][1], frames[back_i][2]))
-        #pout2.v(frames[back_i][0].f_code.co_names)
-        #pout2.v(frames[back_i])
-        return frames[back_i]
 
     def _get_src_file(self, modname, default='Unknown'):
         '''

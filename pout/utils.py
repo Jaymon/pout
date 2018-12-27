@@ -45,11 +45,33 @@ class String(BaseString):
 
 
 class Stream(object):
+    """A Stream object that pout needs to be able to write to something, an instance 
+    of some stream instance needs to be set in pout.stream.
+
+    The only interface this object needs is the writeline() function, I thought about
+    using an io ABC but that seemed more complicated than it was worth
+
+    https://docs.python.org/3/library/io.html#class-hierarchy
+    """
+    def writeline(self, s):
+        """write out a line and add a newline at the end
+
+        the requirement for the newline is because the children use the logging module
+        and it prints a newline at the end by default in 2.7 (you can override it
+        in >3.2)
+
+        :param s: string, this will be written to the stream and a newline will be
+            added to the end
+        """
+        raise NotImplementedError()
+
+
+class StderrStream(Stream):
+    """A stream object that writes out to stderr"""
     def __init__(self):
         # this is the pout printing logger, if it hasn't been touched it will be
         # configured to print to stderr, this is what is used in pout_class._print()
-        # TODO -- make this configurable to dump to a file
-        logger = logging.getLogger("{}.stream".format(__name__.split(".")[0]))
+        logger = logging.getLogger("{}.stderrstream".format(__name__.split(".")[0]))
         if len(logger.handlers) == 0:
             logger.setLevel(logging.DEBUG)
             log_handler = logging.StreamHandler(stream=sys.stderr)
@@ -62,4 +84,17 @@ class Stream(object):
     def writeline(self, s):
         self.logger.debug(s)
 
+
+class FileStream(StderrStream):
+    """A stream object that writes to a file path passed into it"""
+    def __init__(self, path):
+        logger = logging.getLogger("{}.filestream".format(__name__.split(".")[0]))
+        if len(logger.handlers) == 0:
+            logger.setLevel(logging.DEBUG)
+            log_handler = logging.FileHandler(path)
+            log_handler.setFormatter(logging.Formatter('%(message)s'))
+            logger.addHandler(log_handler)
+            logger.propagate = False
+
+        self.logger = logger
 

@@ -22,13 +22,13 @@ link -- http://docs.python.org/library/modulefinder.html
 link -- http://stackoverflow.com/questions/2572582/return-a-list-of-imported-python-modules-used-in-a-script
 
 since -- 6-26-12
-author -- Jay Marcyes
-license -- MIT -- http://www.opensource.org/licenses/mit-license.php
 """
 from __future__ import unicode_literals, division, print_function, absolute_import
+import os
 import sys
 import time
 import logging
+from contextlib import contextmanager
 
 from . import environ
 from .compat import (
@@ -45,7 +45,7 @@ from .compat import (
 
 from .value import Inspect, Value
 from .path import Path
-from .utils import String, Stream
+from .utils import String, StderrStream, FileStream
 from .reflect import Call, Reflect
 from .interface import (
     ValueInterface,
@@ -76,8 +76,7 @@ if len(logger.handlers) == 0:
 
 # this is the pout printing logger, if it hasn't been touched it will be
 # configured to print to stderr, this is what is used in pout_class._print()
-# TODO -- make this configurable to dump to a file
-stream = Stream()
+stream = StderrStream()
 
 
 # these can be changed after import to customize functionality
@@ -91,6 +90,31 @@ P_CLASS = ProfileInterface
 L_CLASS = LoggingInterface
 I_CLASS = InfoInterface
 T_CLASS = TraceInterface
+
+
+@contextmanager
+def tofile(path=""):
+    """Instead of printing to a screen print to a file
+
+    :Example:
+        with pout.tofile("/path/to/file.txt"):
+            # all pout calls in this with block will print to file.txt
+            pout.v("a string")
+            pout.b()
+            pout.h()
+
+    :param path: str, a path to the file you want to write to
+    """
+    if not path:
+        path = os.path.join(os.getcwd(), "{}.txt".format(__name__))
+
+    global stream
+    orig_stream = stream
+
+    stream = FileStream(path)
+    yield stream
+
+    stream = orig_stream
 
 
 def v(*args, **kwargs):

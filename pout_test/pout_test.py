@@ -112,45 +112,17 @@ class Bam(object):
 
 class PoutTest(unittest.TestCase):
     """any non-specific function testing should go here"""
-#     def test_overriding(self):
-#         """This verifies that child classes still can find the correct stack traces
-# 
-#         https://github.com/Jaymon/pout/issues/8
-#         """
-#         original_class = pout.pout_class
-# 
-#         v = "foo"
-#         pout.v(v)
-#         return
-# 
-#         class Child(pout.Pout):
-#             def v(self, *args, **kwargs):
-#                 if args[0] == "foo":
-#                     call_info = self._get_arg_info("v", args)
-#                     self._print(["foo custom "], call_info)
-# 
-#                 else:
-#                     return super(Child, self).v(*args, **kwargs)
-# 
-#         pout.pout_class = Child
-# 
-#         try:
-# #             v = "foo"
-# #             pout.v(v)
-# #             return
-# 
-#             with testdata.capture() as c:
-#                 v = "foo"
-#                 pout.v(v)
-#             self.assertTrue("foo custom" in c)
-# 
-#             with testdata.capture() as c:
-#                 v = "bar"
-#                 pout.v(v)
-#             self.assertTrue('"bar"' in c)
-# 
-#         finally:
-#             pout.pout_class = original_class
+    def test_tofile(self):
+        path = testdata.get_file("pout.txt")
+        with pout.tofile(path):
+            s = "foobar"
+            pout.b()
+            pout.v(s)
+            pout.h()
+
+        r = path.contents()
+        self.assertTrue("foobar" in r)
+        self.assertTrue("here" in r)
 
     def test_issue16(self):
         """ https://github.com/Jaymon/pout/issues/16 """
@@ -539,8 +511,6 @@ class VTest(unittest.TestCase):
             s = b"foo"
             pout.v(bytes(s))
         self.assertTrue("b'foo'" in c)
-
-
 
     def test_binary(self):
         with testdata.capture() as c:

@@ -4,7 +4,7 @@ A collection of handy functions for printing out variables and debugging code.
 
 `print()` was too hard to read, `pprint` wasn't much better. I was also getting sick of typing: `print "var = ", var`.
 
-This tries to print out variables with their name, and for good measure, it also prints where the pout function was called from, so you can easily find it and delete it when you're done.  
+This tries to print out variables with their name, and for good measure, it also prints where the `pout` function was called from so you can easily find it and delete it when you're done debugging.  
 
 
 ## Methods
@@ -148,7 +148,7 @@ should print something like:
       stop: 1368137723.7(/file/path:n)
 
 
-### pout.x([exit_code]) -- like sys.exit(exit_code)
+### pout.x(arg1, [arg2, ...]) -- like pout.v but then will run sys.exit(1)
 
 This just prints out where it was called from, so you can remember where you exited the code while debugging
 
@@ -250,6 +250,22 @@ with pout.l("name"):
 # "name" logger goes back to previous configuration
 ```
 
+### pout.tofile([path])
+
+Routes pout's output to a file (defaults to `./pout.txt`)
+
+example:
+
+```python
+with pout.tofile():
+	# everything in this with block will print to a file in current directory
+	pout.b()
+	s = "foo"
+	pout.v(s)
+	
+pout.s() # this will print to stderr
+```
+
 
 ## Customizing Pout
 
@@ -257,16 +273,20 @@ with pout.l("name"):
 
 Any class object can define a `__pout__` magic method, similar to Python's built in `__str__` magic method that can return a customized string of the object if you want to. This method can return anything, it will be run through Pout's internal stringify methods to convert it to a string and print it out.
 
-### pout.pout_class
 
-You can create your own class and set this module variable and any pout method will then use your custom class:
+### Customizing functionality
+
+You can create your own interface classes:
 
 ```python
-class PoutChild(pout.Pout):
-    pass
+from pout.interface import ValueInterface
+class VChild(ValueInterface):
+	def value(self):
+		# we can change how pout.v() prints here
+		return "some new string"
 
-# any pout.* calls will now use your child class, customize as you like
-pout.pout_class = PoutChild
+# any pout.v calls will now use your child class, customize as you like
+pout.V_CLASS = VChild
 ```
 
 

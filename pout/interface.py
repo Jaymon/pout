@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class BaseInterface(object):
+    """Most of pout's output will go through a child of this class"""
 
     path_class = Path
 
@@ -64,21 +65,6 @@ class BaseInterface(object):
 
     def _get_path(self, path):
         return self.path_class(path)
-
-#     def _print(self, args, call_info=None):
-#         '''
-#         handle printing args to the screen
-# 
-#         this uses the global logger, so you can configure where output goes by configuring the "pout"
-#         pythong logger
-# 
-#         args -- list -- the list of unicode args to print
-#         call_info -- dict -- returned from _get_arg_info()
-#         '''
-#         s = self._printstr(args, call_info)
-#         # TODO -- this needs to switch to write() method so we can pass in other types of
-#         # streams not just a logger
-#         self.stream.debug(s)
 
     def _printstr(self, args, call_info=None):
         """this gets all the args ready to be printed, see self._print()"""
