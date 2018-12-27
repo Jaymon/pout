@@ -533,6 +533,15 @@ class VTest(unittest.TestCase):
         v = map(str, range(5))
         pout.v(v)
 
+    def test_bytes(self):
+        """https://github.com/Jaymon/pout/issues/30"""
+        with testdata.capture() as c:
+            s = b"foo"
+            pout.v(bytes(s))
+        self.assertTrue("b'foo'" in c)
+
+
+
     def test_binary(self):
         with testdata.capture() as c:
             v = memoryview(b'abcefg')
