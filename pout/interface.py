@@ -8,6 +8,9 @@ import time
 import logging
 import collections
 import re
+import atexit
+from collections import defaultdict
+
 
 from .compat import *
 from . import environ
@@ -143,6 +146,54 @@ class ValueInterface(BaseInterface):
         args = ["{}\n\n".format(self._str(None, v['val'])) for v in call_info['args']]
         return self._printstr(args)
 
+
+class RowInterface(ValueInterface):
+
+    calls = defaultdict(lambda: {"count": 0, "info": {}})
+
+    def __call__(self):
+        super(RowInterface, self).__call__()
+        self.register()
+        self.bump()
+
+    @classmethod
+    def goodbye(cls, instance):
+        for s, d in cls.calls.items():
+            info = d.get("info", {})
+            default_c = "{}.{}()".format(
+                info.get("call_modname", "Unknown"),
+                info.get("call_funcname", "Unknown"),
+            )
+            c = info.get("call", default_c)
+            instance.writeline("{} called {} times at {}".format(c, d["count"], s))
+
+    def full_value(self):
+        return self.value().strip()
+
+#     def name_value(self):
+#         self.bump(1)
+#         return self.value().strip()
+
+    def bump(self, count=1):
+        s = self.path_value()
+        r_class = type(self)
+        r_class.calls[s]["count"] += count
+
+        #self.called_count += count
+        #type(self).called_count += count
+
+    def register(self):
+        s = self.path_value()
+        r_class = type(self)
+        if not r_class.calls:
+            # https://docs.python.org/3/library/atexit.html
+            atexit.register(r_class.goodbye, instance=self)
+
+        r_class.calls[s]["info"] = self.reflect.info
+
+#     def goodbye(instance):
+#         s = instance.path_value()
+#         instance.writeline("pout.r() called {} times at {}".format(instance.called_count, s))
 
 
 class HereInterface(BaseInterface):

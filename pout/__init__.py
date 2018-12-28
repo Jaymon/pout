@@ -58,6 +58,7 @@ from .interface import (
     LoggingInterface,
     InfoInterface,
     TraceInterface,
+    RowInterface,
 )
 
 
@@ -90,6 +91,7 @@ P_CLASS = ProfileInterface
 L_CLASS = LoggingInterface
 I_CLASS = InfoInterface
 T_CLASS = TraceInterface
+R_CLASS = RowInterface
 
 
 @contextmanager
@@ -111,10 +113,12 @@ def tofile(path=""):
     global stream
     orig_stream = stream
 
-    stream = FileStream(path)
-    yield stream
+    try:
+        stream = FileStream(path)
+        yield stream
 
-    stream = orig_stream
+    finally:
+        stream = orig_stream
 
 
 def v(*args, **kwargs):
@@ -203,6 +207,26 @@ def i(*args, **kwargs):
     with Reflect.context(args, **kwargs) as r:
         instance = I_CLASS(r, stream, **kwargs)
         instance()
+
+
+def r(*args, **kwargs):
+    if len(args) <= 0:
+        raise ValueError("you didn't pass any arguments to print out")
+
+    with Reflect.context(args, **kwargs) as r:
+        instance = R_CLASS(r, stream, **kwargs)
+        #v = instance.value().strip()
+        instance()
+        #instance.writeline(v)
+        #instance.bump(1)
+        #pout2.v(v)
+
+#     def goodbye(instance):
+#         s = instance.path_value()
+#         instance.writeline("pout.r() called {} times at {}".format(instance.called_count, s))
+# 
+#     import atexit
+#     atexit.register(goodbye, instance=instance)
 
 
 def x(*args, **kwargs):

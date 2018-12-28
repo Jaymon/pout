@@ -124,6 +124,10 @@ class PoutTest(unittest.TestCase):
         self.assertTrue("foobar" in r)
         self.assertTrue("here" in r)
 
+        with testdata.capture() as c:
+            pout.v("after tofile")
+        self.assertTrue("after tofile" in c)
+
     def test_issue16(self):
         """ https://github.com/Jaymon/pout/issues/16 """
         class Module(object): pass
@@ -331,6 +335,24 @@ class STest(TestCase):
         v = "foo"
         r = pout.ss(v)
         self.assertEqual('"foo"', r)
+
+
+class RTest(TestCase):
+    def test_run(self):
+        path = testdata.create_file("rtest_run.py", [
+            "# -*- coding: utf-8 -*-",
+            "from __future__ import unicode_literals, division, print_function, absolute_import",
+            "import pout",
+            "",
+            "for x in range(10):",
+            "    pout.r(x)",
+            "",
+            "for y in range(5):",
+            "    pout.r(y)",
+        ])
+        c = path.run()
+        self.assertTrue("pout.r(x) called 10 times" in c)
+        self.assertTrue("pout.r(y) called 5 times" in c)
 
 
 class VTest(unittest.TestCase):
