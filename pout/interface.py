@@ -170,17 +170,10 @@ class RowInterface(ValueInterface):
     def full_value(self):
         return self.value().strip()
 
-#     def name_value(self):
-#         self.bump(1)
-#         return self.value().strip()
-
     def bump(self, count=1):
         s = self.path_value()
         r_class = type(self)
         r_class.calls[s]["count"] += count
-
-        #self.called_count += count
-        #type(self).called_count += count
 
     def register(self):
         s = self.path_value()
@@ -190,10 +183,6 @@ class RowInterface(ValueInterface):
             atexit.register(r_class.goodbye, instance=self)
 
         r_class.calls[s]["info"] = self.reflect.info
-
-#     def goodbye(instance):
-#         s = instance.path_value()
-#         instance.writeline("pout.r() called {} times at {}".format(instance.called_count, s))
 
 
 class HereInterface(BaseInterface):

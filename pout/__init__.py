@@ -210,23 +210,23 @@ def i(*args, **kwargs):
 
 
 def r(*args, **kwargs):
+    """Similar to pout.v() but gets rid of name and file information so it can be used
+    in loops and stuff, it will print out where the calls came from at the end of
+    execution
+
+    this just makes it nicer when you're printing a bunch of stuff each iteration
+
+    :Example:
+        for x in range(x):
+            pout.r(x)
+    """
+
     if len(args) <= 0:
         raise ValueError("you didn't pass any arguments to print out")
 
     with Reflect.context(args, **kwargs) as r:
         instance = R_CLASS(r, stream, **kwargs)
-        #v = instance.value().strip()
         instance()
-        #instance.writeline(v)
-        #instance.bump(1)
-        #pout2.v(v)
-
-#     def goodbye(instance):
-#         s = instance.path_value()
-#         instance.writeline("pout.r() called {} times at {}".format(instance.called_count, s))
-# 
-#     import atexit
-#     atexit.register(goodbye, instance=instance)
 
 
 def x(*args, **kwargs):

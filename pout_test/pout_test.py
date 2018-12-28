@@ -111,7 +111,6 @@ class Bam(object):
 
 
 class PoutTest(unittest.TestCase):
-    """any non-specific function testing should go here"""
     def test_tofile(self):
         path = testdata.get_file("pout.txt")
         with pout.tofile(path):
