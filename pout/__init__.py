@@ -119,6 +119,7 @@ def tofile(path=""):
 
     finally:
         stream = orig_stream
+f = tofile
 
 
 def v(*args, **kwargs):
