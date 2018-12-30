@@ -168,5 +168,3 @@ class ValueTest(TestCase):
         self.assertEqual("LIST", v.typename)
 
 
-
-

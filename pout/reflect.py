@@ -6,7 +6,6 @@ import codecs
 import ast
 import re
 import logging
-import tokenize
 from io import BytesIO
 from contextlib import contextmanager
 

@@ -42,7 +42,6 @@ from .compat import (
     Iterable,
     Set,
 )
-
 from .value import Inspect, Value
 from .path import Path
 from .utils import String, StderrStream, FileStream
@@ -62,7 +61,7 @@ from .interface import (
 )
 
 
-__version__ = '0.8.1'
+__version__ = '0.8.2'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
@@ -73,6 +72,13 @@ logger = logging.getLogger(__name__)
 if len(logger.handlers) == 0:
     logger.setLevel(logging.WARNING)
     logger.addHandler(logging.NullHandler())
+
+    # set to True to turn on all logging:
+    if environ.DEBUG:
+        logger.setLevel(logging.DEBUG)
+        log_handler = logging.StreamHandler(stream=sys.stderr)
+        log_handler.setFormatter(logging.Formatter('[%(levelname).1s] %(message)s'))
+        logger.addHandler(log_handler)
 
 
 # this is the pout printing logger, if it hasn't been touched it will be
@@ -183,7 +189,7 @@ def s(*args, **kwargs):
 
     with Reflect.context(args, **kwargs) as r:
         instance = V_CLASS(r, stream, **kwargs)
-        return repr(instance).strip()
+        return instance.full_value().strip()
 
 
 def ss(*args, **kwargs):

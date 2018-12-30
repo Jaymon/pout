@@ -24,11 +24,3 @@ if hasattr(builtins, "pout"):
 builtins.pout2 = pout2
 
 
-# set to True to turn on all logging:
-if environ.DEBUG:
-    logger = logging.getLogger("pout")
-    logger.setLevel(logging.DEBUG)
-    log_handler = logging.StreamHandler(stream=sys.stderr)
-    log_handler.setFormatter(logging.Formatter('[%(levelname).1s] %(message)s'))
-    logger.addHandler(log_handler)
-

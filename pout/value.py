@@ -7,6 +7,7 @@ import os
 import traceback
 from collections import KeysView
 import logging
+import re
 
 from .compat import *
 from . import environ
@@ -254,8 +255,19 @@ class Value(object):
         self.val = val
         self.depth = 0
 
-    def __repr__(self):
+    def string_value(self):
         raise NotImplementedError()
+
+    def bytes_value(self):
+        s = self.string_value()
+        return s.encode(environ.ENCODING)
+
+    def __repr__(self):
+        if is_py2:
+            s = self.bytes_value()
+        else:
+            s = self.string_value()
+        return s
 
     def info(self):
         methods = []
@@ -349,7 +361,7 @@ class Value(object):
         return -- string -- val with more whitespace
         '''
         if isinstance(val, Value):
-            val = repr(val)
+            val = val.string_value()
 
         return String(val).indent(indent_count)
 
@@ -364,7 +376,7 @@ class Value(object):
 
 
 class DefaultValue(Value):
-    def __repr__(self):
+    def string_value(self):
         return "{}".format(repr(self.val))
 
 
@@ -384,7 +396,7 @@ class DictValue(Value):
         for v in self.val.items():
             yield v
 
-    def __repr__(self):
+    def string_value(self):
         val = self.val
         if len(val) > 0:
 
@@ -432,7 +444,7 @@ class TupleValue(ListValue):
 
 
 class BinaryValue(Value):
-    def __repr__(self):
+    def string_value(self):
         val = self.val
         try:
             if is_py2:
@@ -448,7 +460,7 @@ class BinaryValue(Value):
 
 
 class StringValue(Value):
-    def __repr__(self):
+    def string_value(self):
         val = self.val
         try:
             if isinstance(val, unicode):
@@ -546,7 +558,7 @@ class ObjectValue(Value):
 
         return path
 
-    def __repr__(self):
+    def string_value(self):
         val = self.val
         depth = self.depth
         d = {}
@@ -672,7 +684,7 @@ class ExceptionValue(ObjectValue):
 
 
 class ModuleValue(ObjectValue):
-    def __repr__(self):
+    def string_value(self):
         val = self.val
         file_path = Path(self._get_src_file(val))
         s = '{} module ({})\n'.format(val.__name__, file_path)
@@ -746,12 +758,12 @@ class ModuleValue(ObjectValue):
 
 
 class TypeValue(Value):
-    def __repr__(self):
+    def string_value(self):
         return '{}'.format(self.val)
 
 
 class RegexValue(Value):
-    def __repr__(self):
+    def string_value(self):
         # https://docs.python.org/2/library/re.html#regular-expression-objects
         val = self.val
 
@@ -784,7 +796,7 @@ class RegexValue(Value):
 
 
 class FunctionValue(Value):
-    def __repr__(self):
+    def string_value(self):
         val = self.val
         try:
             if is_py2:

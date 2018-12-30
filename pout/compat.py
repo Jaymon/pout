@@ -32,6 +32,18 @@ if is_py2:
     import inspect
     inspect.getfullargspec = inspect.getargspec
 
+    import tokenize
+    # make the 2.7 and 3.7 tokenize apis similar
+    # https://github.com/python/cpython/blob/3.7/Lib/tokenize.py
+    # https://docs.python.org/3.7/library/tokenize.html
+    # https://github.com/python/cpython/blob/2.7/Lib/tokenize.py
+    # https://docs.python.org/2.7/library/tokenize.html
+    def _tokenize(*args, **kwargs):
+        import collections
+        TokenInfo = collections.namedtuple('TokenInfo', 'type string start end line')
+        return (TokenInfo(*t) for t in tokenize.generate_tokens(*args, **kwargs))
+    tokenize.tokenize = _tokenize
+
 
 elif is_py3:
     basestring = (str, bytes)
@@ -45,6 +57,7 @@ elif is_py3:
     from io import StringIO
     import inspect
     import builtins
+    import tokenize
 
     # ripped from six https://bitbucket.org/gutworth/six
     def reraise(tp, value, tb=None):

@@ -33,11 +33,8 @@ class BaseInterface(object):
         self.stream = stream
         self.kwargs = kwargs
 
-    def __repr__(self):
-        return self.full_value()
-
     def __call__(self):
-        s = repr(self)
+        s = self.full_value()
         self.writeline(s)
 
     def writeline(self, s):
@@ -120,7 +117,7 @@ class BaseInterface(object):
 
         return -- string
         '''
-        return "{}".format(Value(val))
+        return "{}".format(Value(val).string_value())
 
 
 class InfoInterface(BaseInterface):

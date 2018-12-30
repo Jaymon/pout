@@ -82,7 +82,7 @@ class StderrStream(Stream):
         self.logger = logger
 
     def writeline(self, s):
-        self.logger.debug(s)
+        self.logger.debug(String(s))
 
 
 class FileStream(StderrStream):
