@@ -94,30 +94,22 @@ class BaseInterface(object):
         return -- string
         '''
         s = ''
+        v = Value(val)
 
         if name:
+            logger.debug("{} is type {}".format(name, v.typename))
             try:
                 count = len(val)
-                s = "{} ({}) = {}".format(name, count, self._str_val(val))
+                s = "{} ({}) = {}".format(name, count, v.string_value())
 
             except (TypeError, KeyError, AttributeError) as e:
                 logger.info(e, exc_info=True)
-                s = "{} = {}".format(name, self._str_val(val))
+                s = "{} = {}".format(name, v.string_value())
 
         else:
-            s = self._str_val(val)
+            s = v.string_value()
 
         return s
-
-    def _str_val(self, val):
-        '''
-        turn val into a string representation of val
-
-        val -- mixed -- the value that will be turned into a string
-
-        return -- string
-        '''
-        return "{}".format(Value(val).string_value())
 
 
 class InfoInterface(BaseInterface):

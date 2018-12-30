@@ -61,7 +61,7 @@ from .interface import (
 )
 
 
-__version__ = '0.8.2'
+__version__ = '0.8.3'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been

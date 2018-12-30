@@ -189,6 +189,15 @@ class Inspect(object):
         return isinstance(self.val, types.ModuleType)
 
     def is_object(self):
+#         print("{}".format(isinstance(self.val, (types.FunctionType, types.BuiltinFunctionType, types.MethodType))))
+#         pout2.v(inspect.ismethod(self.val))
+#         pout2.v(inspect.isfunction(self.val))
+#         pout2.v(dir(self.val))
+#         pout2.v(self.val.__class__)
+#         pout2.v(inspect.ismethoddescriptor(self.val))
+        if inspect.ismethod(self.val) or inspect.isfunction(self.val) or inspect.ismethoddescriptor(self.val):
+            return False
+
         ret = False
         if isinstance(self.val, getattr(types, "InstanceType", object)):
             # this is an old-school non object inherited class
@@ -205,7 +214,23 @@ class Inspect(object):
 
     def is_callable(self):
         # not sure why class methods pulled from __class__ fail the callable check
-        return isinstance(self.val, Callable) or isinstance(self.val, classmethod)
+
+        # if it has a __call__ and __func__ it's a method
+        # if it has a __call__ and __name__ it's a function
+        # if it just has a __call__ it's most likely an object instance
+        ret = False
+        d = dir(self.val)
+        if "__call__" in d:
+            ret = "__func__" in d or "__name__" in d
+
+#         if hasattr(self.val, "__call__") and hasattr(self.val, "__func__"):
+#             ret = True
+# 
+#         elif hasattr(self.val, "__call__") and hasattr(self.val, "__name__"):
+#             ret = True
+
+        return ret
+        #return isinstance(self.val, Callable) or isinstance(self.val, classmethod)
 
     def is_dict_proxy(self):
         # NOTE -- in 3.3+ dict proxy is exposed, from types import MappingProxyType

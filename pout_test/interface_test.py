@@ -286,6 +286,11 @@ class RTest(TestCase):
 
 
 class VTest(unittest.TestCase):
+#     def test_bs4(self):
+#         from bs4 import BeautifulSoup
+#         soup = BeautifulSoup('<html><body><div id="foo">body</div></body></html>', "html.parser")
+#         pout.v(soup)
+
     def test_get_name(self):
         """makes sure if __getattr__ raises other errors than AttributeError then
         pout will still print correctly"""
@@ -619,8 +624,9 @@ class VTest(unittest.TestCase):
         '''
         with testdata.capture() as c:
             pout.v(sys)
+
         for s in ["sys = sys module", "Functions:", "Classes:"]:
-            self.assertTrue(s in c)
+            self.assertTrue(s in c, "[{}] is not present".format(s))
 
     def test_multiline_call(self):
 

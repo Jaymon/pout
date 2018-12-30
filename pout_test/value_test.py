@@ -61,6 +61,13 @@ class InspectTest(TestCase):
         self.assertEqual("BINARY", t.typename)
 
     def test_typename(self):
+        class FooTypename(object): pass
+        v = FooTypename()
+        self.assertEqual('OBJECT', Inspect(v).typename)
+        #import types
+        #print dir(Foo.__init__)
+        #print "{}".format(isinstance(Foo.__init__, (types.FunctionType, types.BuiltinFunctionType, types.MethodType)))
+        self.assertEqual('FUNCTION', Inspect(FooTypename.__init__).typename)
 
         v = 'foo'
         self.assertEqual('STRING', Inspect(v).typename)
@@ -70,14 +77,6 @@ class InspectTest(TestCase):
 
         v = True
         self.assertEqual('DEFAULT', Inspect(v).typename)
-
-        class FooTypename(object): pass
-        v = FooTypename()
-        self.assertEqual('OBJECT', Inspect(v).typename)
-        #import types
-        #print dir(Foo.__init__)
-        #print "{}".format(isinstance(Foo.__init__, (types.FunctionType, types.BuiltinFunctionType, types.MethodType)))
-        self.assertEqual('FUNCTION', Inspect(FooTypename.__init__).typename)
 
         def baz(): pass
         self.assertEqual('FUNCTION', Inspect(baz).typename)
@@ -100,6 +99,33 @@ class InspectTest(TestCase):
         self.assertEqual('MODULE', Inspect(ast).typename)
 
         #self.assertEqual('CLASS', pout._get_type(self.__class__))
+
+    def test_instance_callable(self):
+        class InsCall(object):
+            def __call__(self): pass
+            @classmethod
+            def cmeth(cls): pass
+
+        instance = InsCall()
+
+        v = Inspect(instance)
+#         import sys
+#         pout2.v(dir(instance))
+#         pout2.v(dir(instance.__call__))
+#         pout2.v(dir(sys.exit))
+        self.assertEqual('OBJECT', v.typename)
+
+        v = Inspect(instance.__call__)
+        self.assertEqual('FUNCTION', v.typename)
+
+        v = Inspect(InsCall.cmeth)
+        self.assertEqual('FUNCTION', v.typename)
+
+#     def test_bs4(self):
+#         from bs4 import BeautifulSoup
+#         soup = BeautifulSoup("<p>blah</p>", "html.parser")
+#         pout2.v(soup)
+#         #pout.v(soup)
 
 class ValueTest(TestCase):
     def test_default(self):
