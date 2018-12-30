@@ -101,7 +101,7 @@ class BaseInterface(object):
                 s = "{} ({}) = {}".format(name, count, self._str_val(val))
 
             except (TypeError, KeyError, AttributeError) as e:
-                logger.warning(e, exc_info=True)
+                logger.info(e, exc_info=True)
                 s = "{} = {}".format(name, self._str_val(val))
 
         else:
