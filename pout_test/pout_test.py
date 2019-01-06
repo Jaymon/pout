@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, division, print_function, absolute_import
 import unittest
-import hmac
-import hashlib
 
 # this is the local pout that is going to be tested
 import pout
@@ -60,13 +58,6 @@ class PoutTest(TestCase):
         with testdata.capture() as c:
             if not hasattr(self, name): pout.v(name); hasattr(self, name)
         self.assertTrue('name (3) = "foo"' in c)
-
-    def test_unicode_error(self):
-        d = hmac.new(b"this is the key", b"this is the message", hashlib.md5)
-        with testdata.capture() as c:
-            pout.v(d.digest())
-        self.assertTrue("d.digest()" in c)
-        self.assertTrue(" b'" in c)
 
 
 if __name__ == '__main__':

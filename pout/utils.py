@@ -18,7 +18,7 @@ class String(BaseString):
         return -- unicode -- a u'' string will always be returned
         '''
         if isinstance(arg, Bytes):
-            arg = arg.decode(environ.ENCODING, environ.ENCODING_REPLACE)
+            arg = arg.decode(environ.ENCODING, errors=environ.ENCODING_REPLACE_METHOD)
 
         else:
             if not isinstance(arg, BaseString):

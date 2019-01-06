@@ -278,7 +278,7 @@ class Value(object):
 
     def __init__(self, val, depth=0):
         self.val = val
-        self.depth = 0
+        self.depth = depth
 
     def string_value(self):
         raise NotImplementedError()
@@ -473,7 +473,8 @@ class BinaryValue(Value):
         val = self.val
         try:
             if is_py2:
-                s = "b'{}'".format(bytes(val).decode(environ.ENCODING, environ.ENCODING_REPLACE))
+                s = "b'{}'".format(String(bytes(val)))
+                #s = "b'{}'".format(bytes(val).decode(environ.ENCODING, errors=environ.ENCODING_REPLACE))
 
             else:
                 s = repr(bytes(val))
@@ -664,11 +665,12 @@ class ObjectValue(Value):
                             if v.typename != 'FUNCTION':
 
                                 s_var = '{} = '.format(k)
+                                s_var += repr(v)
 
-                                if v.typename == 'OBJECT':
-                                    s_var += repr(v.val)
-                                else:
-                                    s_var += repr(v)
+#                                 if v.typename == 'OBJECT':
+#                                     s_var += repr(v.val)
+#                                 else:
+#                                     s_var += repr(v)
 
                                 s_body += self._add_indent(s_var, 1)
                                 s_body += "\n"
@@ -678,10 +680,11 @@ class ObjectValue(Value):
 
                     for k, v in instance_dict.items():
                         s_var = '{} = '.format(k)
-                        if v.typename == 'OBJECT':
-                            s_var += repr(v.val)
-                        else:
-                            s_var += repr(v)
+                        s_var += repr(v)
+#                         if v.typename == 'OBJECT':
+#                             s_var += repr(v.val)
+#                         else:
+#                             s_var += repr(v)
 
                         s_body += self._add_indent(s_var, 1)
                         s_body += "\n"

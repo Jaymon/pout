@@ -469,7 +469,7 @@ class VTest(unittest.TestCase):
             pout.v(bytes(s))
         self.assertTrue("b'foo'" in c)
 
-    def test_binary(self):
+    def test_binary_1(self):
         with testdata.capture() as c:
             v = memoryview(b'abcefg')
             pout.v(v)
@@ -486,11 +486,19 @@ class VTest(unittest.TestCase):
         if is_py2:
             # memoryview just gives a reference in py2
             # bytearray is also different but I don't care enough to fix it
-            for s in ["b'foobar'", "b'....'"]:
+            for s in ["b'foobar'", "b'.\uFFFD\uFFFD\uFFFD'"]:
                 self.assertTrue(s in c, s)
         else:
             for s in ["b'abcefg'", "b'foobar'", "b'.\\xf0\\xf1\\xf2'"]:
                 self.assertTrue(s in c, s)
+
+    def test_binary_unicode_error(self):
+        d = hmac.new(b"this is the key", b"this is the message", hashlib.md5)
+        with testdata.capture() as c:
+            pout.v(d.digest())
+        self.assertTrue("d.digest()" in c)
+        self.assertTrue(" b'" in c)
+        self.assertFalse(" b''" in c)
 
     def test_set(self):
         s = set(["foo", "bar", "che"])

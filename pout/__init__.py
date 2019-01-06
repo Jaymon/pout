@@ -11,15 +11,8 @@ link -- http://docs.python.org/library/pprint.html
 link -- http://docs.python.org/library/inspect.html
 link -- http://www.doughellmann.com/PyMOTW/inspect/
 
-in the future, to list method arguments:
-link -- http://stackoverflow.com/questions/3517892/python-list-function-argument-names
-
-should take a look at this in more detail:
-link -- http://docs.python.org/library/repr.html
-
-module finder might be useful someday
-link -- http://docs.python.org/library/modulefinder.html
-link -- http://stackoverflow.com/questions/2572582/return-a-list-of-imported-python-modules-used-in-a-script
+should take a look at this in more detail (repr in py2, reprlib in py3):
+link -- http://docs.python.org/2.7/library/repr.html
 
 since -- 6-26-12
 """
@@ -61,7 +54,7 @@ from .interface import (
 )
 
 
-__version__ = '0.8.3'
+__version__ = '0.8.4'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been

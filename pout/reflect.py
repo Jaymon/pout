@@ -290,6 +290,10 @@ class Call(object):
 
             # this function would return: ['pout.v', 'v', 'voom', 'poom.v']
 
+        module finder might be useful someday
+        link -- http://docs.python.org/library/modulefinder.html
+        link -- http://stackoverflow.com/questions/2572582/return-a-list-of-imported-python-modules-used-in-a-script
+
         ast_tree -- _ast.* instance -- the internal ast object that is being checked, returned from compile()
             with ast.PyCF_ONLY_AST flag
         called_module -- string -- we are checking the ast for imports of this module

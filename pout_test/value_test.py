@@ -6,6 +6,7 @@ import hashlib
 from . import testdata, TestCase
 
 import pout
+from pout import environ
 from pout.compat import range, is_py2
 from pout.value import Inspect, Value
 from pout.value import (
@@ -167,7 +168,7 @@ class ValueTest(TestCase):
         v = Value("")
         self.assertTrue(isinstance(v, StringValue))
 
-    def test_object(self):
+    def test_object_1(self):
         class FooObject(object):
             bar = 1
             che = "2"
@@ -177,6 +178,32 @@ class ValueTest(TestCase):
 
         v = Value(o)
         repr(v)
+
+    def test_object_2(self):
+        class To26(object):
+            value = 1
+        class To25(object):
+            instances = [To26()]
+        class To24(object):
+            instances = [To25()]
+        class To23(object):
+            instances = [To24()]
+        class To22(object):
+            instances = [To23()]
+        class To21(object):
+            instances = [To22()]
+            instance = To22()
+
+        t = To21()
+        with testdata.capture() as c1:
+            pout.vs(t)
+
+        with testdata.modify(environ, OBJECT_DEPTH=1):
+            with testdata.capture() as c2:
+                pout.vs(t)
+
+        self.assertNotEqual(str(c1), str(c2))
+
 
     def test_exception(self):
         v = Value(ValueError("foo bar"))
