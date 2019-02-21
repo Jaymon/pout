@@ -3,21 +3,40 @@ from __future__ import unicode_literals, division, print_function, absolute_impo
 import sys
 import logging
 
-from .compat import String as BaseString, Bytes
+from .compat import String as BaseString, Bytes as BaseBytes, is_py2
 from . import environ
 
 
-class String(BaseString):
+class StringMixin(object):
+    def __format__(self, format_str):
+        #pout2.v(format_str)
+        return String(self) if isinstance(format_str, BaseString) else Bytes(self)
+
+#     def __str__(self):
+#         return self.__bytes__() if is_py2 else self.__unicode__()
+
+#     def __bytes__(self):
+#         return Bytes(self)
+#         #return self.__unicode__().encode(sys.getdefaultencoding()) #"utf-8")
+# 
+#     def __unicode__(self):
+#         return String(self)
+    #__str__ = __bytes__ if is_py2 else __unicode__
+
+
+class String(StringMixin, BaseString):
     """Small wrapper around string/unicode that guarantees output will be a real
     string ("" in py3 and u"" in py2) and won't fail with a UnicodeException"""
-    def __new__(cls, arg):
-        '''
-        make sure arg is a unicode string
 
-        arg -- mixed -- arg can be anything
-        return -- unicode -- a u'' string will always be returned
-        '''
-        if isinstance(arg, Bytes):
+    types = (BaseString,)
+
+    def __new__(cls, arg):
+        """make sure arg is a unicode string
+
+        :param arg: mixed, arg can be anything
+        :returns: unicode, a u"" string will always be returned
+        """
+        if isinstance(arg, BaseBytes):
             arg = arg.decode(environ.ENCODING, errors=environ.ENCODING_REPLACE_METHOD)
 
         else:
@@ -42,6 +61,33 @@ class String(BaseString):
         s = [("\t" * indent_count) + line for line in self.splitlines(False)]
         s = "\n".join(s)
         return type(self)(s)
+
+#     def __unicode__(self):
+#         return self
+
+
+class Bytes(StringMixin, BaseBytes):
+
+    types = (BaseBytes,)
+
+    def __new__(cls, arg):
+        """make sure arg is a byte string
+
+        :param arg: mixed, arg can be anything
+        :returns: bytes, a b"" string will always be returned
+        """
+        if isinstance(arg, BaseString):
+            arg = arg.encode(environ.ENCODING, errors=environ.ENCODING_REPLACE_METHOD)
+
+        else:
+            if not isinstance(arg, BaseBytes):
+                arg = BaseBytes(arg)
+
+        return super(Bytes, cls).__new__(cls, arg)
+
+#     def __bytes__(self):
+#         return self
+#         #return self.__unicode__().encode(sys.getdefaultencoding()) #"utf-8")
 
 
 class Stream(object):

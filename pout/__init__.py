@@ -54,7 +54,7 @@ from .interface import (
 )
 
 
-__version__ = '0.8.4'
+__version__ = '0.8.5'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
@@ -312,7 +312,7 @@ def j(*args, **kwargs):
     if not args:
         raise ValueError("you didn't pass any arguments to print out")
 
-    with Reflect.context(**kwargs) as r:
+    with Reflect.context(args, **kwargs) as r:
         instance = J_CLASS(r, stream, **kwargs)
         instance()
 

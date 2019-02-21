@@ -129,6 +129,16 @@ class InspectTest(TestCase):
 #         #pout.v(soup)
 
 class ValueTest(TestCase):
+    def test___format__(self):
+        """Make sure Value instances handle string format correctly"""
+        #s = "C'est <b>full</b> poche, ça !"
+        s = "poche, \u00E7a !"
+        v = Value(s)
+        # if there are no exceptions the test passes
+        "{}".format(v)
+        if is_py2:
+            b"{}".format(v)
+
     def test_default(self):
         v = Value(5)
         self.assertTrue(isinstance(v, DefaultValue))
@@ -136,6 +146,14 @@ class ValueTest(TestCase):
     def test_dict(self):
         v = Value({})
         self.assertTrue(isinstance(v, DictValue))
+
+    def test_dict_unicode_keys(self):
+        """Make sure unicode keys don't mess up dictionaries"""
+        d = {"\u00E7": "foo", b'\xc3\xa7 b': "bar"}
+        v = Value(d)
+        # if no exceptions then test passes
+        s = v.string_value()
+        sb = v.bytes_value()
 
     def test_dictproxy(self):
         class FooDictProxy(object): pass
