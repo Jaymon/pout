@@ -10,13 +10,14 @@ import collections
 import re
 import atexit
 from collections import defaultdict
+import json
 
 
 from .compat import *
 from . import environ
 from .value import Inspect, Value
 from .path import Path
-from .utils import String
+from .utils import String, Bytes
 from .reflect import Call
 
 
@@ -45,15 +46,36 @@ class BaseInterface(object):
             self.writeline(s)
 
     def full_value(self):
+        """Returns the full value with the path also (ie, name = value (path))
+
+        :returns: String
+        """
         s = self.name_value()
         s += self.path_value()
         s += "\n\n"
         return s
 
     def name_value(self):
+        """Returns the value with the name also (ie, name = value)
+
+        this usually is just a wrapper around value() and value() will also return
+        name = value but sometimes you might want to separate out those values and
+        this allows you to do that, so you can have value() return just the value
+        and this will return name = value
+
+        :returns: String
+        """
         return self.value()
 
     def value(self):
+        """Returns that actual value and nothing else in a format that can be
+        printed
+
+        all the other value methods rely on the return value of this method, and
+        all child classes will need to implement this method
+
+        :returns: String
+        """
         raise NotImplementedError()
 
     def path_value(self):
@@ -275,6 +297,12 @@ class CharInterface(BaseInterface):
 class JsonInterface(BaseInterface):
     def value(self):
         call_info = self.reflect.info
+        #print(call_info)
+#         for v in call_info["args"]:
+#             s = json.loads(v["val"])
+#             #print(s)
+#             pout.v(s)
+#         return ""
         args = ["{}\n\n".format(self._str(v['name'], json.loads(v['val']))) for v in call_info['args']]
         return self._printstr(args)
 

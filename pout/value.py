@@ -12,7 +12,7 @@ import re
 from .compat import *
 from . import environ
 from .path import Path
-from .utils import String
+from .utils import String, Bytes
 
 
 logger = logging.getLogger(__name__)
@@ -282,10 +282,12 @@ class Value(object):
 
     def string_value(self):
         raise NotImplementedError()
+    string_val = string_value
 
     def bytes_value(self):
         s = self.string_value()
-        return s.encode(environ.ENCODING)
+        return Bytes(s)
+    bytes_val = bytes_value
 
     def __repr__(self):
         if is_py2:
@@ -293,6 +295,9 @@ class Value(object):
         else:
             s = self.string_value()
         return s
+
+    def __format__(self, format_str):
+        return self.string_value() if isinstance(format_str, String.types) else self.bytes_value()
 
     def info(self):
         methods = []
@@ -365,6 +370,10 @@ class Value(object):
             except RuntimeError as e:
                 # I've never gotten this to work
                 s_body.append("{}: ... Recursion error ...".format(k))
+
+            except UnicodeError as e:
+                print(v.val)
+                print(type(v.val))
 
         s_body = ",\n".join(s_body)
         s_body = self._add_indent(s_body, indent + 1)

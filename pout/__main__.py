@@ -11,6 +11,7 @@ import inspect
 
 import pout
 from pout.path import SitePackagesDir, SiteCustomizeFile
+from pout.utils import String
 
 
 level = logging.INFO
@@ -18,7 +19,7 @@ logging.basicConfig(format="%(message)s", level=level, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 
-class Input(str):
+class Input(String):
     """On the command line you can pass in a file or you can pipe stdin, this
     class normalizes whichever to just the proper thing we want"""
     def __new__(cls, val):
