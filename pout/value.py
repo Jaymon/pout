@@ -8,6 +8,7 @@ import traceback
 from collections import KeysView
 import logging
 import re
+import array
 
 from .compat import *
 from . import environ
@@ -70,6 +71,9 @@ class Inspect(object):
 
         elif self.is_list():
             t = 'LIST'
+
+        elif self.is_array():
+            t = 'ARRAY'
 
         elif self.is_tuple():
             t = 'TUPLE'
@@ -167,7 +171,10 @@ class Inspect(object):
         return isinstance(self.val, dict)
 
     def is_list(self):
-        return isinstance(self.val, list) or isinstance(self.val, KeysView)
+        return isinstance(self.val, (list, KeysView))
+
+    def is_array(self):
+        return isinstance(self.val, array.array)
 
     def is_tuple(self):
         return isinstance(self.val, tuple)
@@ -462,6 +469,17 @@ class ListValue(DictValue):
     def __iter__(self):
         for v in enumerate(self.val):
             yield v
+
+
+class ArrayValue(ListValue):
+    """Handles array.array instances"""
+    @property
+    def left_paren(self):
+        return "{}.{}('{}', [".format(
+            self.val.__class__.__module__,
+            self.val.__class__.__name__,
+            self.val.typecode
+        )
 
 
 class SetValue(ListValue):

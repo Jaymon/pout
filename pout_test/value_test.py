@@ -2,6 +2,7 @@
 from __future__ import unicode_literals, division, print_function, absolute_import
 import hmac
 import hashlib
+import array
 
 from . import testdata, TestCase
 
@@ -159,6 +160,12 @@ class ValueTest(TestCase):
         class FooDictProxy(object): pass
         v = Value(FooDictProxy.__dict__)
         self.assertTrue(isinstance(v, DictProxyValue))
+
+    def test_array(self):
+        a = array.array("i", range(0, 100))
+        v = Value(a)
+        s = v.string_value()
+        self.assertTrue("array.array('i'" in s)
 
     def test_list(self):
         v = Value([])
