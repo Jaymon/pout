@@ -21,14 +21,6 @@ if is_py2:
     except ImportError:
         from StringIO import StringIO
 
-    # ripped from six https://bitbucket.org/gutworth/six
-    exec("""def reraise(tp, value, tb=None):
-        try:
-            raise tp, value, tb
-        finally:
-            tb = None
-    """)
-
     import inspect
     inspect.getfullargspec = inspect.getargspec
 
@@ -38,11 +30,18 @@ if is_py2:
     # https://docs.python.org/3.7/library/tokenize.html
     # https://github.com/python/cpython/blob/2.7/Lib/tokenize.py
     # https://docs.python.org/2.7/library/tokenize.html
-    def _tokenize(*args, **kwargs):
+    def tokenizer(*args, **kwargs):
         import collections
         TokenInfo = collections.namedtuple('TokenInfo', 'type string start end line')
         return (TokenInfo(*t) for t in tokenize.generate_tokens(*args, **kwargs))
-    tokenize.tokenize = _tokenize
+
+    # ripped from six https://bitbucket.org/gutworth/six
+    exec("""def reraise(tp, value, tb=None):
+        try:
+            raise tp, value, tb
+        finally:
+            tb = None
+    """)
 
 
 elif is_py3:
@@ -57,7 +56,9 @@ elif is_py3:
     from io import StringIO
     import inspect
     import builtins
+
     import tokenize
+    from tokenize import tokenize as tokenizer
 
     # ripped from six https://bitbucket.org/gutworth/six
     def reraise(tp, value, tb=None):

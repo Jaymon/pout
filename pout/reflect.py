@@ -25,7 +25,7 @@ class CallString(String):
     def tokens(self):
         # https://github.com/python/cpython/blob/3.7/Lib/token.py
         logger.debug('Callstring [{}] being tokenized'.format(self))
-        return tokenize.tokenize(BytesIO(self.encode(environ.ENCODING)).readline)
+        return tokenizer(BytesIO(self.encode(environ.ENCODING)).readline)
 
     def is_complete(self):
         """Return True if this call string is complete, meaning it has a function
