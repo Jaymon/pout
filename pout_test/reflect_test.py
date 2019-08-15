@@ -13,6 +13,14 @@ class ReflectTest(TestCase):
         foo = 1
         pout.v(foo, "foo bar che")
 
+    def test_exec(self):
+        def foo():
+            r = Reflect(None)
+            with context() as c:
+                pass
+
+        exec("foo()", globals(), locals())
+
 
 class CallStringTest(TestCase):
     def test_is_complete_1(self):

@@ -357,11 +357,14 @@ class Reflect(object):
             frames = inspect.stack()
             frame = frames[2]
 
-            modname = inspect.getmodule(frame[0]).__name__
-            funcname = frame[0].f_code.co_name
+            #modname = inspect.getmodule(frame[0]).__name__
+            #funcname = frame[0].f_code.co_name
             #print("{}:{} {} {}.{}".format(frame[1], frame[2], frame[4], modname, funcname))
 
             yield cls(Call(frame), arg_vals)
+
+        except Exception as e:
+            logger.exception(e)
 
         finally:
             del frame
@@ -407,6 +410,7 @@ class Reflect(object):
         return ret_dict
 
     def _find_call(self):
+        frames = None
         try:
             frames = inspect.stack()
             c = self._find_entry_call(frames)
