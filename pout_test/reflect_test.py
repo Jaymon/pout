@@ -17,6 +17,9 @@ class ReflectTest(TestCase):
 class CallStringTest(TestCase):
     def test_string_in_parse(self):
         """https://github.com/Jaymon/pout/issues/45"""
+        c = CallString('pout.v(":" in "foo:bar")')
+        self.assertEqual('":" in "foo:bar"', c.arg_names()[0])
+
         c = CallString('pout.v(":" in val)')
         self.assertEqual('":" in val', c.arg_names()[0])
 

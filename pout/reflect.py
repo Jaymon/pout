@@ -43,7 +43,7 @@ class CallString(String):
 
     def _append_name(self, arg_names, arg_name):
         n = ""
-        is_string = False
+        is_string = []
         in_root = True
         last_tok_end = -1
         for token in arg_name:
@@ -57,11 +57,11 @@ class CallString(String):
                 last_tok_end = token.end[1]
 
             if token.type == tokenize.STRING and in_root:
-                is_string = True
+                is_string.append(True)
 
             elif token.type == tokenize.NAME:
                 if c == "in":
-                    is_string = False
+                    is_string.append(False)
 
             else:
                 if c in set(["[", "("]):
@@ -71,7 +71,7 @@ class CallString(String):
 
             n += c
 
-        if is_string:
+        if is_string and all(is_string):
             arg_names.append("")
             logger.debug('Appending "{}" as a string'.format(n))
         else:
