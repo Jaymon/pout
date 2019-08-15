@@ -350,6 +350,8 @@ class Reflect(object):
     @contextmanager
     def context(cls, arg_vals=None, **kwargs):
 
+        frame = frames = None
+
         try:
             # we want to get the frame of the current pout.* call
             frames = inspect.stack()
