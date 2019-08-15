@@ -13,16 +13,19 @@ class ReflectTest(TestCase):
         foo = 1
         pout.v(foo, "foo bar che")
 
-    def test_exec(self):
-        def foo():
-            r = Reflect(None)
-            with context() as c:
-                pass
-
-        exec("foo()", globals(), locals())
-
 
 class CallStringTest(TestCase):
+    def test_string_in_parse(self):
+        """https://github.com/Jaymon/pout/issues/45"""
+        c = CallString('pout.v(":" in val)')
+        self.assertEqual('":" in val', c.arg_names()[0])
+
+        c = CallString("pout.v(':' in val)")
+        self.assertEqual("':' in val", c.arg_names()[0])
+
+        #val = set([":"])
+        #pout.v(":" in val)
+
     def test_is_complete_1(self):
         c = CallString("foo(bar")
         self.assertFalse(c.is_complete())

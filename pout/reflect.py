@@ -47,6 +47,8 @@ class CallString(String):
         in_root = True
         last_tok_end = -1
         for token in arg_name:
+            # https://github.com/python/cpython/blob/3.7/Lib/token.py
+            # https://github.com/python/cpython/blob/3.7/Lib/tokenize.py
             c = token.string
             if last_tok_end < 0:
                 last_tok_end = token.end[1]
@@ -56,7 +58,10 @@ class CallString(String):
 
             if token.type == tokenize.STRING and in_root:
                 is_string = True
-                break
+
+            elif token.type == tokenize.NAME:
+                if c == "in":
+                    is_string = False
 
             else:
                 if c in set(["[", "("]):
@@ -64,7 +69,7 @@ class CallString(String):
                 elif c in set(["]", ")"]):
                     in_root = True
 
-                n += c
+            n += c
 
         if is_string:
             arg_names.append("")
@@ -342,7 +347,8 @@ class Call(object):
 class Reflect(object):
     """This provides the meta information (file, line number) for the actual pout call"""
     def __init__(self, call, arg_vals=None):
-        self.call = call or self._find_call()
+        #self.call = call or self._find_call()
+        self.call = call
         self.arg_vals = arg_vals or []
         self.info = self._get_arg_info()
 
@@ -363,8 +369,13 @@ class Reflect(object):
 
             yield cls(Call(frame), arg_vals)
 
-        except Exception as e:
-            logger.exception(e)
+        except IndexError as e:
+            # There was a very specific bug that would cause inspect.getouterframes(frame)
+            # to fail when pout was called from an object's method that was called from
+            # within a Jinja template, it seemed like it was going to be annoying to
+            # reproduce and so I now catch the IndexError that inspect was throwing
+            #logger.exception(e)
+            yield cls(None, arg_vals)
 
         finally:
             del frame
@@ -377,7 +388,7 @@ class Reflect(object):
         this will find what arg names you passed into the method and tie them to their passed in values,
         it will also find file and line number
 
-        return -- dict -- a bunch of info on the call
+        :returns: dict, a bunch of info on the call
         '''
         ret_dict = {
             'args': [],
@@ -386,12 +397,13 @@ class Reflect(object):
             'file': 'Unknown',
             'arg_names': []
         }
-        arg_vals = self.arg_vals
         #modname = self.modname
 
         c = self.call
-        ret_dict.update(c.info)
+        if c:
+            ret_dict.update(c.info)
 
+        arg_vals = self.arg_vals
         if len(arg_vals) > 0:
             args = []
 
@@ -409,46 +421,46 @@ class Reflect(object):
 
         return ret_dict
 
-    def _find_call(self):
-        frames = None
-        try:
-            frames = inspect.stack()
-            c = self._find_entry_call(frames)
-            if c:
-                #pout2.v(c.info)
-                ret_dict.update(c.info)
-
-        except IndexError as e:
-            # There was a very specific bug that would cause inspect.getouterframes(frame)
-            # to fail when pout was called from an object's method that was called from
-            # within a Jinja template, it seemed like it was going to be annoying to
-            # reproduce and so I now catch the IndexError that inspect was throwing
-            logger.exception(e)
-
-        finally:
-            del frames
-
-    def _find_entry_call(self, frames):
-        """attempts to auto-discover the correct frame"""
-
-        back_i = 0
-        pout_path = self._get_src_file(self.modname)
-        for frame_i, frame in enumerate(frames):
-            if frame[1] == pout_path:
-                back_i = frame_i
-
-        return Call(frames[back_i])
-
-    def _get_src_file(self, modname, default='Unknown'):
-        '''
-        return the source file path
-
-        since -- 7-19-12
-
-        val -- string -- the module's name you're looking for
-
-        return -- string -- the path, or something like 'Unknown' if you can't find the path
-        '''
-        return ModuleFile(modname) or default
-
+#     def _find_call(self):
+#         frames = None
+#         try:
+#             frames = inspect.stack()
+#             c = self._find_entry_call(frames)
+#             if c:
+#                 #pout2.v(c.info)
+#                 ret_dict.update(c.info)
+# 
+#         except IndexError as e:
+#             # There was a very specific bug that would cause inspect.getouterframes(frame)
+#             # to fail when pout was called from an object's method that was called from
+#             # within a Jinja template, it seemed like it was going to be annoying to
+#             # reproduce and so I now catch the IndexError that inspect was throwing
+#             logger.exception(e)
+# 
+#         finally:
+#             del frames
+# 
+#     def _find_entry_call(self, frames):
+#         """attempts to auto-discover the correct frame"""
+# 
+#         back_i = 0
+#         pout_path = self._get_src_file(self.modname)
+#         for frame_i, frame in enumerate(frames):
+#             if frame[1] == pout_path:
+#                 back_i = frame_i
+# 
+#         return Call(frames[back_i])
+# 
+#     def _get_src_file(self, modname, default='Unknown'):
+#         '''
+#         return the source file path
+# 
+#         since -- 7-19-12
+# 
+#         val -- string -- the module's name you're looking for
+# 
+#         return -- string -- the path, or something like 'Unknown' if you can't find the path
+#         '''
+#         return ModuleFile(modname) or default
+# 
 
