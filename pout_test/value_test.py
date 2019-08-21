@@ -167,10 +167,19 @@ class ValueTest(TestCase):
         s = v.string_value()
         self.assertTrue("array.array('i'" in s)
 
-    def test_list(self):
+    def test_list_1(self):
         v = Value([])
         self.assertTrue(isinstance(v, ListValue))
         self.assertEqual("[]", repr(v))
+
+    def test_list_2(self):
+        v = Value([
+            testdata.get_unicode(),
+            testdata.get_unicode(),
+        ])
+
+        # if no UnicodeError is raised then this was a success
+        repr(v)
 
     def test_set(self):
         v = Value(set())
@@ -229,6 +238,21 @@ class ValueTest(TestCase):
 
         self.assertNotEqual(str(c1), str(c2))
 
+    def test_object_3(self):
+        """in python2 there was an issue with printing lists with unicode, this was
+        traced to using Value.__repr__ which was returning a byte string in python2
+        which was then being cast to unicode and failing the conversion to ascii"""
+        class To3(object):
+            pass
+
+        t = To3()
+        t.foo = [
+            testdata.get_unicode(),
+            testdata.get_unicode(),
+        ]
+
+        # no UnicodeError raised is success
+        pout.v(t)
 
     def test_exception(self):
         v = Value(ValueError("foo bar"))

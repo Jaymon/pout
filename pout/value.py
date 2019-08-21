@@ -669,7 +669,7 @@ class ObjectValue(Value):
                 if hasattr(val, '__str__'):
 
                     s_body += "\n__str__:\n"
-                    s_body += self._add_indent(str(val), 1)
+                    s_body += self._add_indent(String(val), 1)
                     s_body += "\n"
 
                 if cls:
@@ -692,7 +692,7 @@ class ObjectValue(Value):
                             if v.typename != 'FUNCTION':
 
                                 s_var = '{} = '.format(k)
-                                s_var += repr(v)
+                                s_var += v.string_value()
 
 #                                 if v.typename == 'OBJECT':
 #                                     s_var += repr(v.val)
@@ -707,7 +707,7 @@ class ObjectValue(Value):
 
                     for k, v in instance_dict.items():
                         s_var = '{} = '.format(k)
-                        s_var += repr(v)
+                        s_var += v.string_value()
 #                         if v.typename == 'OBJECT':
 #                             s_var += repr(v.val)
 #                         else:
@@ -729,7 +729,7 @@ class ObjectValue(Value):
                 s += "\n>\n"
 
             else:
-                s = repr(val)
+                s = String(repr(val))
 
         return s
 
