@@ -3,6 +3,7 @@ from __future__ import unicode_literals, division, print_function, absolute_impo
 import hmac
 import hashlib
 import array
+import re
 
 from . import testdata, TestCase
 
@@ -253,6 +254,14 @@ class ValueTest(TestCase):
 
         # no UnicodeError raised is success
         pout.v(t)
+
+    def test_object_regex_match(self):
+        m = re.match(r"(\d)(\d)(\d+)", "0213434")
+
+        with self.assertLogs(logger=pout.stream.logger, level="DEBUG") as c:
+            pout.v(m)
+        logs = "\n".join(c[1])
+        self.assertFalse("READ ERRORS" in logs)
 
     def test_exception(self):
         v = Value(ValueError("foo bar"))

@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+The Value classes in this file manage taking any python object and converting it
+into a string that can be printed out
+
+The Inspect class identifies what the object actually is
+"""
 from __future__ import unicode_literals, division, print_function, absolute_import
 import types
 import inspect
@@ -20,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class Inspect(object):
+    """Identify what a python object is (eg, FUNCTION, STRING, etc)"""
 
     @property
     def classname(self):
@@ -627,9 +634,22 @@ class ObjectValue(Value):
 
         try:
             instance_dict = {k: Value(v, depth+1) for k, v in vars(val).items()}
+
         except TypeError as e:
+            # using vars(val) will give the instance's __dict__, which doesn't
+            # include methods because those are set on the instance's __class__.
+            # Since vars() failed we are going to try and make inspect.getmembers
+            # act like vars()
             instance_dict = {}
-            errmsgs.append("Failed to get vars because: {}".format(e))
+            for k, v in inspect.getmembers(val):
+                if not self._is_magic(k):
+                    v = Value(v, depth+1)
+                    if v.typename != 'FUNCTION':
+                        instance_dict[k] = v
+
+            #instance_dict = {}
+            #instance_dict = {k: Value(v, depth+1) for k, v in inspect.getmembers(val)}
+            #errmsgs.append("Failed to get vars because: {}".format(e))
 
         s = "{} instance".format(full_name)
 
@@ -678,16 +698,20 @@ class ObjectValue(Value):
                     # the full class hierarchy
                     class_dict = {}
                     for pcls in reversed(inspect.getmro(cls)):
-                        # we don't want any __blah__ type values
-                        class_dict.update({k: Value(v, depth+1) for k, v in vars(pcls).items() if not self._is_magic(k)})
+                        for k, v in vars(pcls).items():
+                            # filter out anything that's in the instance dict also
+                            # since that takes precedence.
+                            # We also don't want any __blah__ type values
+                            if k not in instance_dict and not self._is_magic(k):
+                                class_dict[k] = Value(v, depth+1)
 
                     if class_dict:
 
                         s_body += "\nClass Properties:\n"
 
                         for k, v in class_dict.items():
-                            if k in instance_dict:
-                                continue
+                            #if k in instance_dict:
+                            #    continue
 
                             if v.typename != 'FUNCTION':
 

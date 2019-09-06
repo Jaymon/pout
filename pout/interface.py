@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""
+The pout functions like pout.v() use the interfaces that are defined in this module
+to print an object out
+"""
 from __future__ import unicode_literals, division, print_function, absolute_import
 import math
 import unicodedata

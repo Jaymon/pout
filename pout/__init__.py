@@ -54,7 +54,7 @@ from .interface import (
 )
 
 
-__version__ = '0.8.10'
+__version__ = '0.8.11'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
@@ -74,8 +74,8 @@ if len(logger.handlers) == 0:
         logger.addHandler(log_handler)
 
 
-# this is the pout printing logger, if it hasn't been touched it will be
-# configured to print to stderr, this is what is used in pout_class._print()
+# this is the pout printing logger, you can modify the logger this instance uses
+# or completely replace it to customize functionality
 stream = StderrStream()
 
 
