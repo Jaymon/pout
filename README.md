@@ -1,10 +1,12 @@
 # Pout
 
-A collection of handy functions for printing out variables and debugging code.
+A collection of handy functions for printing out variables and debugging Python code.
 
-`print()` was too hard to read, `pprint` wasn't much better. I was also getting sick of typing: `print "var = ", var`.
+[print](https://docs.python.org/3/library/functions.html#print) didn't give enough information while debugging, [pprint](https://docs.python.org/3/library/pprint.html) wasn't much better. I was also getting sick of typing things like: `print("var = ", var)`.
 
-This tries to print out variables with their name, and for good measure, it also prints where the `pout` function was called from so you can easily find it and delete it when you're done debugging.  
+Pout tries to print out variables with their name, and for good measure, it also prints where the `pout` function was called so you can easily find it and delete it when you're done debugging.
+
+I use pout extensively in basically every python project I work on.
 
 
 ## Methods
@@ -73,7 +75,7 @@ Should print something like:
 
     here 2 (/file.py:line)
 
-    here (/file.py:line)
+    here N (/file.py:N)
 
 
 ### pout.t() -- print a backtrace
@@ -292,14 +294,14 @@ pout.V_CLASS = VChild
 
 ## Console commands
 
-### pout.json
+### pout json
 
 running a command on the command line that outputs a whole a bunch of json? Pout can help:
 
     $ some-command-that-outputs-json | pout json
 
 
-### pout.char
+### pout char
 
 Runs `pout.c` but on the output from a command line script:
 
