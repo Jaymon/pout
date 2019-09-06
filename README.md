@@ -296,14 +296,14 @@ pout.V_CLASS = VChild
 
 running a command on the command line that outputs a whole a bunch of json? Pout can help:
 
-    $ some-command-that-outputs-json | pout.json
+    $ some-command-that-outputs-json | pout json
 
 
 ### pout.char
 
 Runs `pout.c` but on the output from a command line script:
 
-    $ echo "some string with chars to analyze" | pout.char
+    $ echo "some string with chars to analyze" | pout char
 
 
 ## Install
