@@ -370,24 +370,28 @@ class Value(object):
 
         s_body = []
 
-        for k, v in iterator:
-            k = k if name_callback is None else name_callback(k)
-            v = Value(v, depth+1)
-            try:
-                # TODO -- right here we should check some flag or something to
-                # see if lists should render objects
-                if k is None:
-                    s_body.append("{}".format(v))
-                else:
-                    s_body.append("{}: {}".format(k, v))
+        try:
+            for k, v in iterator:
+                k = k if name_callback is None else name_callback(k)
+                v = Value(v, depth+1)
+                try:
+                    # TODO -- right here we should check some flag or something to
+                    # see if lists should render objects
+                    if k is None:
+                        s_body.append("{}".format(v))
+                    else:
+                        s_body.append("{}: {}".format(k, v))
 
-            except RuntimeError as e:
-                # I've never gotten this to work
-                s_body.append("{}: ... Recursion error ...".format(k))
+                except RuntimeError as e:
+                    # I've never gotten this to work
+                    s_body.append("{}: ... Recursion error ...".format(k))
 
-            except UnicodeError as e:
-                print(v.val)
-                print(type(v.val))
+                except UnicodeError as e:
+                    print(v.val)
+                    print(type(v.val))
+
+        except Exception as e:
+            s_body.append("... {} Error {} ...".format(e, e.__class__.__name__))
 
         s_body = ",\n".join(s_body)
         s_body = self._add_indent(s_body, indent + 1)
