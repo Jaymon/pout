@@ -32,6 +32,7 @@ class BaseInterface(object):
     """Most of pout's output will go through a child of this class"""
 
     path_class = Path
+    value_class = Value
 
     def __init__(self, reflect, stream, **kwargs):
         self.reflect = reflect
@@ -120,7 +121,7 @@ class BaseInterface(object):
         return -- string
         '''
         s = ''
-        v = Value(val)
+        v = self.__class__.value_class(val)
 
         if name:
             logger.debug("{} is type {}".format(name, v.typename))
@@ -143,7 +144,7 @@ class InfoInterface(BaseInterface):
         call_info = self.reflect.info
         pargs = []
         for v in call_info["args"]:
-            vt = Value(v['val'])
+            vt = self.__class__.value_class(v['val'])
             full_info = self._str(v['name'], vt.info())
             pargs.append(full_info)
 
@@ -222,7 +223,7 @@ class BreakInterface(BaseInterface):
         sep = '*'
 
         if len(args) == 1:
-            if Value(args[0]).typename in set(['STRING', 'BINARY']):
+            if self.__class__.value_class(args[0]).typename in set(['STRING', 'BINARY']):
                 title = args[0]
             else:
                 rows = int(args[0])

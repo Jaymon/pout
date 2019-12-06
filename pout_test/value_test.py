@@ -11,21 +11,6 @@ import pout
 from pout import environ
 from pout.compat import range, is_py2
 from pout.value import Inspect, Value
-from pout.value import (
-    DefaultValue,
-    DictValue,
-    DictProxyValue,
-    ListValue,
-    SetValue,
-    TupleValue,
-    BinaryValue,
-    StringValue,
-    ObjectValue,
-    ExceptionValue,
-    ModuleValue,
-    TypeValue,
-    RegexValue
-)
 
 
 class InspectTest(TestCase):
@@ -143,11 +128,11 @@ class ValueTest(TestCase):
 
     def test_default(self):
         v = Value(5)
-        self.assertTrue(isinstance(v, DefaultValue))
+        self.assertTrue(isinstance(v, Value.value_specific["DefaultValue"]))
 
     def test_dict(self):
         v = Value({})
-        self.assertTrue(isinstance(v, DictValue))
+        self.assertTrue(isinstance(v, Value.value_specific["DictValue"]))
 
     def test_dict_unicode_keys(self):
         """Make sure unicode keys don't mess up dictionaries"""
@@ -160,7 +145,7 @@ class ValueTest(TestCase):
     def test_dictproxy(self):
         class FooDictProxy(object): pass
         v = Value(FooDictProxy.__dict__)
-        self.assertTrue(isinstance(v, DictProxyValue))
+        self.assertTrue(isinstance(v, Value.value_specific["DictProxyValue"]))
 
     def test_array(self):
         a = array.array("i", range(0, 100))
@@ -170,7 +155,7 @@ class ValueTest(TestCase):
 
     def test_list_1(self):
         v = Value([])
-        self.assertTrue(isinstance(v, ListValue))
+        self.assertTrue(isinstance(v, Value.value_specific["ListValue"]))
         self.assertEqual("[]", repr(v))
 
     def test_list_2(self):
@@ -184,15 +169,15 @@ class ValueTest(TestCase):
 
     def test_set(self):
         v = Value(set())
-        self.assertTrue(isinstance(v, SetValue))
+        self.assertTrue(isinstance(v, Value.value_specific["SetValue"]))
 
     def test_tuple(self):
         v = Value(tuple())
-        self.assertTrue(isinstance(v, TupleValue))
+        self.assertTrue(isinstance(v, Value.value_specific["TupleValue"]))
 
     def test_binary(self):
         v = Value(b"")
-        self.assertTrue(isinstance(v, BinaryValue))
+        self.assertTrue(isinstance(v, Value.value_specific["BinaryValue"]))
 
     def test_binary_2(self):
         d = hmac.new(b"this is the key", b"this is the message", hashlib.md5)
@@ -201,7 +186,7 @@ class ValueTest(TestCase):
 
     def test_string(self):
         v = Value("")
-        self.assertTrue(isinstance(v, StringValue))
+        self.assertTrue(isinstance(v, Value.value_specific["StringValue"]))
 
     def test_object_1(self):
         class FooObject(object):
@@ -265,12 +250,12 @@ class ValueTest(TestCase):
 
     def test_exception(self):
         v = Value(ValueError("foo bar"))
-        self.assertTrue(isinstance(v, ExceptionValue))
+        self.assertTrue(isinstance(v, Value.value_specific["ExceptionValue"]))
         repr(v)
 
     def test_module(self):
         v = Value(testdata)
-        self.assertTrue(isinstance(v, ModuleValue))
+        self.assertTrue(isinstance(v, Value.value_specific["ModuleValue"]))
         repr(v)
 
     def test_dict_keys(self):
