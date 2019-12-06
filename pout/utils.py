@@ -144,3 +144,9 @@ class FileStream(StderrStream):
 
         self.logger = logger
 
+
+class ClassDictMeta(type):
+    def __new__(cls, class_name: str, parents, attrs, *args, **kwargs):
+        new_attrs = type(attrs)(attrs)
+        return {k: v for k, v in new_attrs.items() if k[0] != "_"}
+

@@ -19,7 +19,7 @@ import array
 from .compat import *
 from . import environ
 from .path import Path
-from .utils import String, Bytes
+from .utils import String, Bytes, ClassDictMeta
 
 
 logger = logging.getLogger(__name__)
@@ -33,12 +33,6 @@ class Inspect(object):
         name = self.typename
         class_name = "{}Value".format(name.title().replace("_", ""))
         return class_name
-
-    @property
-    def classtype(self):
-        classname = self.classname
-        module = sys.modules[__name__]
-        return getattr(module, classname)
 
     @property
     def cls(self):
@@ -265,41 +259,25 @@ class Inspect(object):
         return k in self.attrs
 
 
-class Value(object):
-
-    inspect_class = Inspect
-
+class _Value(object):
+    default_value_specific = None
+    
     @property
     def raw(self):
         return self.val
     value = raw
 
-    def __new__(cls, val, depth=0):
-        """through magic, instantiating an instance will actually create
-        subclasses of the different *Value classes, once again, through magic"""
-        t = cls.inspect_class(val)
-        typename = t.typename
-        try:
-            value_cls = t.classtype
-        except AttributeError:
-            value_cls = DefaultValue
-
-        # we don't pass in (val, depth) because this just returns the instance
-        # and then __init__ is called with those values also
-        instance = super(Value, cls).__new__(value_cls)
-        instance.typename = typename
-        return instance
-
-    def __init__(self, val, depth=0):
+    def __init__(self, val, depth=0, value_specific=None):
         self.val = val
         self.depth = depth
+        self.value_specific = value_specific
 
-    def string_value(self):
+    def string_value(self, value_specific):
         raise NotImplementedError()
     string_val = string_value
 
-    def bytes_value(self):
-        s = self.string_value()
+    def bytes_value(self, value_specific):
+        s = self.string_value(value_specific)
         return Bytes(s)
     bytes_val = bytes_value
 
@@ -317,7 +295,7 @@ class Value(object):
         methods = []
         properties = []
         for ni, vi in inspect.getmembers(self.val):
-            i = self.inspect_class(vi)
+            i = Inspect(vi)
             #print(ni, i.typename, type(vi))
             #print(ni, type(vi))
             if i.is_type():
@@ -333,7 +311,7 @@ class Value(object):
         info += self._add_indent("Methods:", 1)
         info += "\n"
         for name, vi in methods:
-            info += self._add_indent(Value(vi), 2)
+            info += self._add_indent(self.value_specific["Value"](vi, value_specific=self.value_specific), 2)
             info += "\n"
 
         info += self._add_indent("Properties:", 1)
@@ -373,7 +351,7 @@ class Value(object):
         try:
             for k, v in iterator:
                 k = k if name_callback is None else name_callback(k)
-                v = Value(v, depth+1)
+                v = self.value_specific["Value"](v, depth+1, value_specific=self.value_specific)
                 try:
                     # TODO -- right here we should check some flag or something to
                     # see if lists should render objects
@@ -391,6 +369,7 @@ class Value(object):
                     print(type(v.val))
 
         except Exception as e:
+            raise
             s_body.append("... {} Error {} ...".format(e, e.__class__.__name__))
 
         s_body = ",\n".join(s_body)
@@ -426,469 +405,496 @@ class Value(object):
         '''
         return String(arg)
 
-
-class DefaultValue(Value):
-    def string_value(self):
-        return "{}".format(repr(self.val))
-
-
-class DictValue(Value):
-    left_paren = "{"
-    right_paren = "}"
-    prefix = "\n"
-
-    def name_callback(self, k):
-        if isinstance(k, basestring):
-            ret = "'{}'".format(self._get_unicode(k))
+class Value(_Value):
+    def __new__(cls, val, depth=0, value_specific=None):
+        """through magic, instantiating an instance will actually create
+        subclasses of the different *Value classes, once again, through magic"""
+        t = Inspect(val)
+        typename = t.typename
+        clsnm = t.classname
+        
+        if value_specific is None:
+            vs = cls.default_value_specific
         else:
-            ret = self._get_unicode(k)
-        return ret
+            vs = value_specific
+        
+        if clsnm in vs:
+            value_cls = vs[clsnm]
+        else:
+            value_cls = vs["DefaultValue"]
 
-    def __iter__(self):
-        for v in self.val.items():
-            yield v
+        # we don't pass in (val, depth) because this just returns the instance
+        # and then __init__ is called with those values also
+        instance = super().__new__(value_cls)
+        instance.__init__(val, depth=0, value_specific=vs)
+        instance.typename = typename
+        return instance
 
-    def string_value(self):
-        val = self.val
-        if len(val) > 0:
 
-            s = self._str_iterator(
-                iterator=self, 
-                name_callback=self.name_callback,
-                left_paren=self.left_paren,
-                right_paren=self.right_paren,
-                prefix=self.prefix,
-                depth=self.depth,
+class value_specific1(metaclass=ClassDictMeta):
+    Value = Value
+    class DefaultValue(Value):
+        def string_value(self):
+            return "{}".format(repr(self.val))
+
+
+    class DictValue(Value):
+        left_paren = "{"
+        right_paren = "}"
+        prefix = "\n"
+
+        def name_callback(self, k):
+            if isinstance(k, basestring):
+                ret = "'{}'".format(self._get_unicode(k))
+            else:
+                ret = self._get_unicode(k)
+            return ret
+
+        def __iter__(self):
+            for v in self.val.items():
+                yield v
+
+        def string_value(self):
+            val = self.val
+            if len(val) > 0:
+
+                s = self._str_iterator(
+                    iterator=self, 
+                    name_callback=self.name_callback,
+                    left_paren=self.left_paren,
+                    right_paren=self.right_paren,
+                    prefix=self.prefix,
+                    depth=self.depth,
+                )
+
+            else:
+                s = "{}{}".format(self.left_paren, self.right_paren)
+
+            return s
+
+    class DictProxyValue(DictValue):
+        left_paren = 'dict_proxy({'
+        right_paren = '})'
+        prefix = ""
+
+
+    class ListValue(DictValue):
+        left_paren = '['
+        right_paren = ']'
+        name_callback = None
+
+        def __iter__(self):
+            for v in enumerate(self.val):
+                yield v
+
+
+    class ArrayValue(ListValue):
+        """Handles array.array instances"""
+        @property
+        def left_paren(self):
+            return "{}.{}('{}', [".format(
+                self.val.__class__.__module__,
+                self.val.__class__.__name__,
+                self.val.typecode
             )
 
-        else:
-            s = "{}{}".format(self.left_paren, self.right_paren)
 
-        return s
+    class SetValue(ListValue):
+        left_paren = '{'
+        right_paren = '}'
 
-class DictProxyValue(DictValue):
-    left_paren = 'dict_proxy({'
-    right_paren = '})'
-    prefix = ""
+        def name_callback(self, k):
+            return None
 
 
-class ListValue(DictValue):
-    left_paren = '['
-    right_paren = ']'
-    name_callback = None
-
-    def __iter__(self):
-        for v in enumerate(self.val):
-            yield v
+    class TupleValue(ListValue):
+        left_paren = '('
+        right_paren = ')'
 
 
-class ArrayValue(ListValue):
-    """Handles array.array instances"""
-    @property
-    def left_paren(self):
-        return "{}.{}('{}', [".format(
-            self.val.__class__.__module__,
-            self.val.__class__.__name__,
-            self.val.typecode
-        )
+    class BinaryValue(Value):
+        def string_value(self):
+            val = self.val
+            try:
+                if is_py2:
+                    s = "b'{}'".format(String(bytes(val)))
+                    #s = "b'{}'".format(bytes(val).decode(environ.ENCODING, errors=environ.ENCODING_REPLACE))
+
+                else:
+                    s = repr(bytes(val))
+
+            except (TypeError, UnicodeError) as e:
+                s = "<UNICODE ERROR>"
+
+            return s
 
 
-class SetValue(ListValue):
-    left_paren = '{'
-    right_paren = '}'
+    class StringValue(Value):
+        def string_value(self):
+            val = self.val
+            try:
+                if isinstance(val, unicode):
+                    s = '"{}"'.format(val)
 
-    def name_callback(self, k):
-        return None
+                else:
+                    # !!! 12-27-2017 - with the new BINARY typename I don't think
+                    # this is reachable anymore
+                    # we need to convert the byte string to unicode
+                    #s = u'"{}"'.format(val.decode('utf-8', 'replace'))
+                    s = 'b"{}"'.format(val.decode(environ.ENCODING, environ.ENCODING_REPLACE))
 
+            except (TypeError, UnicodeError) as e:
+                s = "<UNICODE ERROR>"
 
-class TupleValue(ListValue):
-    left_paren = '('
-    right_paren = ')'
-
-
-class BinaryValue(Value):
-    def string_value(self):
-        val = self.val
-        try:
-            if is_py2:
-                s = "b'{}'".format(String(bytes(val)))
-                #s = "b'{}'".format(bytes(val).decode(environ.ENCODING, errors=environ.ENCODING_REPLACE))
-
-            else:
-                s = repr(bytes(val))
-
-        except (TypeError, UnicodeError) as e:
-            s = "<UNICODE ERROR>"
-
-        return s
+            return s
 
 
-class StringValue(Value):
-    def string_value(self):
-        val = self.val
-        try:
-            if isinstance(val, unicode):
-                s = '"{}"'.format(val)
+    class ObjectValue(Value):
+        def _is_magic(self, name):
+            '''
+            return true if the name is __name__
 
-            else:
-                # !!! 12-27-2017 - with the new BINARY typename I don't think
-                # this is reachable anymore
-                # we need to convert the byte string to unicode
-                #s = u'"{}"'.format(val.decode('utf-8', 'replace'))
-                s = 'b"{}"'.format(val.decode(environ.ENCODING, environ.ENCODING_REPLACE))
+            since -- 7-10-12
 
-        except (TypeError, UnicodeError) as e:
-            s = "<UNICODE ERROR>"
+            name -- string -- the name to check
 
-        return s
+            return -- boolean
+            '''
+            #return (name[:2] == u'__' and name[-2:] == u'__')
+            return name.startswith('__') and name.endswith('__')
 
+        def _getattr(self, val, key, default_val):
+            """wrapper around global getattr(...) method that suppresses any exception raised"""
+            try:
+                ret = getattr(val, key, default_val)
 
-class ObjectValue(Value):
-    def _is_magic(self, name):
-        '''
-        return true if the name is __name__
+            except Exception as e:
+                logger.exception(e)
+                ret = default_val
 
-        since -- 7-10-12
+            return ret
 
-        name -- string -- the name to check
+        def _get_name(self, val, src_file, default='Unknown'):
+            '''
+            get the full namespaced (module + class) name of the val object
 
-        return -- boolean
-        '''
-        #return (name[:2] == u'__' and name[-2:] == u'__')
-        return name.startswith('__') and name.endswith('__')
+            since -- 6-28-12
 
-    def _getattr(self, val, key, default_val):
-        """wrapper around global getattr(...) method that suppresses any exception raised"""
-        try:
-            ret = getattr(val, key, default_val)
+            val -- mixed -- the value (everything is an object) object
+            default -- string -- the default name if a decent name can't be found programmatically
 
-        except Exception as e:
-            logger.exception(e)
-            ret = default_val
+            return -- string -- the full.module.Name
+            '''
+            module_name = ''
+            if src_file:
+                module_name = '{}.'.format(self._getattr(val, '__module__', default)).lstrip('.')
 
-        return ret
+            class_name = self._getattr(val, '__name__', None)
+            if not class_name:
+                class_name = default
+                cls = self._getattr(val, '__class__', None)
+                if cls:
+                    class_name = self._getattr(cls, '__name__', default)
 
-    def _get_name(self, val, src_file, default='Unknown'):
-        '''
-        get the full namespaced (module + class) name of the val object
+            full_name = "{}{}".format(module_name, class_name)
 
-        since -- 6-28-12
+            return full_name
 
-        val -- mixed -- the value (everything is an object) object
-        default -- string -- the default name if a decent name can't be found programmatically
+        def _get_src_file(self, val, default='Unknown'):
+            '''
+            return the source file path
 
-        return -- string -- the full.module.Name
-        '''
-        module_name = ''
-        if src_file:
-            module_name = '{}.'.format(self._getattr(val, '__module__', default)).lstrip('.')
+            since -- 7-19-12
 
-        class_name = self._getattr(val, '__name__', None)
-        if not class_name:
-            class_name = default
-            cls = self._getattr(val, '__class__', None)
-            if cls:
-                class_name = self._getattr(cls, '__name__', default)
+            val -- mixed -- the value whose path you want
 
-        full_name = "{}{}".format(module_name, class_name)
-
-        return full_name
-
-    def _get_src_file(self, val, default='Unknown'):
-        '''
-        return the source file path
-
-        since -- 7-19-12
-
-        val -- mixed -- the value whose path you want
-
-        return -- string -- the path, or something like 'Unknown' if you can't find the path
-        '''
-        path = default
-
-        try:
-            # http://stackoverflow.com/questions/6761337/inspect-getfile-vs-inspect-getsourcefile
-            # first try and get the actual source file
-            source_file = inspect.getsourcefile(val)
-            if not source_file:
-                # get the raw file since val doesn't have a source file (could be a .pyc or .so file)
-                source_file = inspect.getfile(val)
-
-            if source_file:
-                path = os.path.realpath(source_file)
-
-        except TypeError as e:
+            return -- string -- the path, or something like 'Unknown' if you can't find the path
+            '''
             path = default
 
-        return path
+            try:
+                # http://stackoverflow.com/questions/6761337/inspect-getfile-vs-inspect-getsourcefile
+                # first try and get the actual source file
+                source_file = inspect.getsourcefile(val)
+                if not source_file:
+                    # get the raw file since val doesn't have a source file (could be a .pyc or .so file)
+                    source_file = inspect.getfile(val)
 
-    def string_value(self):
-        val = self.val
-        depth = self.depth
-        d = {}
-        vt = Inspect(val)
-        errmsgs = []
+                if source_file:
+                    path = os.path.realpath(source_file)
 
-        src_file = ""
-        cls = vt.cls
-        if cls:
-            src_file = self._get_src_file(cls, default="")
+            except TypeError as e:
+                path = default
 
-        full_name = self._get_name(val, src_file=src_file)
+            return path
 
-        try:
-            instance_dict = {k: Value(v, depth+1) for k, v in vars(val).items()}
+        def string_value(self):
+            val = self.val
+            depth = self.depth
+            d = {}
+            vt = Inspect(val)
+            errmsgs = []
 
-        except TypeError as e:
-            # using vars(val) will give the instance's __dict__, which doesn't
-            # include methods because those are set on the instance's __class__.
-            # Since vars() failed we are going to try and make inspect.getmembers
-            # act like vars()
-            instance_dict = {}
-            for k, v in inspect.getmembers(val):
-                if not self._is_magic(k):
-                    v = Value(v, depth+1)
-                    if v.typename != 'FUNCTION':
-                        instance_dict[k] = v
+            src_file = ""
+            cls = vt.cls
+            if cls:
+                src_file = self._get_src_file(cls, default="")
 
-            #instance_dict = {}
-            #instance_dict = {k: Value(v, depth+1) for k, v in inspect.getmembers(val)}
-            #errmsgs.append("Failed to get vars because: {}".format(e))
+            full_name = self._get_name(val, src_file=src_file)
 
-        s = "{} instance".format(full_name)
+            try:
+                instance_dict = {k: self.value_specific["Value"](v, depth+1, value_specific=self.value_specific) for k, v in vars(val).items()}
 
-        if vt.has_attr('__pout__'):
-            s += repr(Value(val.__pout__()))
+            except TypeError as e:
+                # using vars(val) will give the instance's __dict__, which doesn't
+                # include methods because those are set on the instance's __class__.
+                # Since vars() failed we are going to try and make inspect.getmembers
+                # act like vars()
+                instance_dict = {}
+                for k, v in inspect.getmembers(val):
+                    if not self._is_magic(k):
+                        v = Value(v, depth+1)
+                        if v.typename != 'FUNCTION':
+                            instance_dict[k] = v
 
-        else:
-            if depth < environ.OBJECT_DEPTH:
-                s += "\n<"
-                s_body = ''
+                #instance_dict = {}
+                #instance_dict = {k: self.value_specific["Value"](v, depth+1, value_specific=self.value_specific) for k, v in inspect.getmembers(val)}
+                #errmsgs.append("Failed to get vars because: {}".format(e))
 
-                s_body += "\nid: {}\n".format(id(val))
-                if src_file:
-                    s_body += "\npath: {}\n".format(Path(src_file))
+            s = "{} instance".format(full_name)
 
-                if cls:
-                    pclses = inspect.getmro(cls)
-                    if pclses:
-                        s_body += "\nAncestry:\n"
-                        for pcls in pclses:
-                            psrc_file = self._get_src_file(pcls, default="")
-                            if psrc_file:
-                                psrc_file = Path(psrc_file)
-                            pname = self._get_name(pcls, src_file=psrc_file)
-                            if psrc_file:
-                                s_body += self._add_indent(
-                                    "{} ({})".format(pname, psrc_file),
-                                    1
-                                )
-                            else:
-                                s_body += self._add_indent(
-                                    "{}".format(pname),
-                                    1
-                                )
-                            s_body += "\n"
+            if vt.has_attr('__pout__'):
+                s += repr(Value(val.__pout__()))
 
-                if hasattr(val, '__str__'):
+            else:
+                if depth < environ.OBJECT_DEPTH:
+                    s += "\n<"
+                    s_body = ''
 
-                    s_body += "\n__str__:\n"
-                    s_body += self._add_indent(String(val), 1)
-                    s_body += "\n"
+                    s_body += "\nid: {}\n".format(id(val))
+                    if src_file:
+                        s_body += "\npath: {}\n".format(Path(src_file))
 
-                if cls:
-
-                    # build a full class variables dict with the variables of 
-                    # the full class hierarchy
-                    class_dict = {}
-                    for pcls in reversed(inspect.getmro(cls)):
-                        for k, v in vars(pcls).items():
-                            # filter out anything that's in the instance dict also
-                            # since that takes precedence.
-                            # We also don't want any __blah__ type values
-                            if k not in instance_dict and not self._is_magic(k):
-                                class_dict[k] = Value(v, depth+1)
-
-                    if class_dict:
-
-                        s_body += "\nClass Properties:\n"
-
-                        for k, v in class_dict.items():
-                            #if k in instance_dict:
-                            #    continue
-
-                            if v.typename != 'FUNCTION':
-
-                                s_var = '{} = '.format(k)
-                                s_var += v.string_value()
-
-#                                 if v.typename == 'OBJECT':
-#                                     s_var += repr(v.val)
-#                                 else:
-#                                     s_var += repr(v)
-
-                                s_body += self._add_indent(s_var, 1)
+                    if cls:
+                        pclses = inspect.getmro(cls)
+                        if pclses:
+                            s_body += "\nAncestry:\n"
+                            for pcls in pclses:
+                                psrc_file = self._get_src_file(pcls, default="")
+                                if psrc_file:
+                                    psrc_file = Path(psrc_file)
+                                pname = self._get_name(pcls, src_file=psrc_file)
+                                if psrc_file:
+                                    s_body += self._add_indent(
+                                        "{} ({})".format(pname, psrc_file),
+                                        1
+                                    )
+                                else:
+                                    s_body += self._add_indent(
+                                        "{}".format(pname),
+                                        1
+                                    )
                                 s_body += "\n"
 
-                if instance_dict:
-                    s_body += "\nInstance Properties:\n"
+                    if hasattr(val, '__str__'):
 
-                    for k, v in instance_dict.items():
-                        s_var = '{} = '.format(k)
-                        s_var += v.string_value()
-#                         if v.typename == 'OBJECT':
-#                             s_var += repr(v.val)
-#                         else:
-#                             s_var += repr(v)
-
-                        s_body += self._add_indent(s_var, 1)
+                        s_body += "\n__str__:\n"
+                        s_body += self._add_indent(String(val), 1)
                         s_body += "\n"
 
-                if errmsgs:
-                    s_body += "\nREAD ERRORS: \n"
-                    s_body += self._add_indent("\n".join(errmsgs), 1)
-                    s_body += "\n"
+                    if cls:
 
-                if not is_py2 and self.typename == 'EXCEPTION':
-                    s_body += "\n"
-                    s_body += "\n".join(traceback.format_exception(None, val, val.__traceback__))
+                        # build a full class variables dict with the variables of 
+                        # the full class hierarchy
+                        class_dict = {}
+                        for pcls in reversed(inspect.getmro(cls)):
+                            for k, v in vars(pcls).items():
+                                # filter out anything that's in the instance dict also
+                                # since that takes precedence.
+                                # We also don't want any __blah__ type values
+                                if k not in instance_dict and not self._is_magic(k):
+                                    class_dict[k] = self.value_specific["Value"](v, depth+1, value_specific=self.value_specific)
 
-                s += self._add_indent(s_body.rstrip(), 1)
-                s += "\n>\n"
+                        if class_dict:
 
-            else:
-                s = String(repr(val))
+                            s_body += "\nClass Properties:\n"
 
-        return s
+                            for k, v in class_dict.items():
+                                #if k in instance_dict:
+                                #    continue
 
+                                if v.typename != 'FUNCTION':
 
-class ExceptionValue(ObjectValue):
-    pass
+                                    s_var = '{} = '.format(k)
+                                    s_var += v.string_value()
 
+    #                                 if v.typename == 'OBJECT':
+    #                                     s_var += repr(v.val)
+    #                                 else:
+    #                                     s_var += repr(v)
 
-class ModuleValue(ObjectValue):
-    def string_value(self):
-        val = self.val
-        file_path = Path(self._get_src_file(val))
-        s = '{} module ({})\n'.format(val.__name__, file_path)
+                                    s_body += self._add_indent(s_var, 1)
+                                    s_body += "\n"
 
-        s += "\nid: {}\n".format(id(val))
+                    if instance_dict:
+                        s_body += "\nInstance Properties:\n"
 
-        modules = {}
-        funcs = {}
-        classes = {}
-        properties = {}
+                        for k, v in instance_dict.items():
+                            s_var = '{} = '.format(k)
+                            s_var += v.string_value()
+    #                         if v.typename == 'OBJECT':
+    #                             s_var += repr(v.val)
+    #                         else:
+    #                             s_var += repr(v)
 
-        for k, v in inspect.getmembers(val):
+                            s_body += self._add_indent(s_var, 1)
+                            s_body += "\n"
 
-            # canary, ignore magic values
-            if self._is_magic(k): continue
+                    if errmsgs:
+                        s_body += "\nREAD ERRORS: \n"
+                        s_body += self._add_indent("\n".join(errmsgs), 1)
+                        s_body += "\n"
 
-            v = Value(v)
-            if v.typename == 'FUNCTION':
-                funcs[k] = v
-            elif v.typename == 'MODULE':
-                modules[k] = v
-            elif v.typename == 'OBJECT':
-                classes[k] = v
-            else:
-                properties[k] = v
+                    if not is_py2 and self.typename == 'EXCEPTION':
+                        s_body += "\n"
+                        s_body += "\n".join(traceback.format_exception(None, val, val.__traceback__))
 
-            #pout2.v('%s %s: %s' % (k, vt, repr(v)))
+                    s += self._add_indent(s_body.rstrip(), 1)
+                    s += "\n>\n"
 
-        if modules:
-            s += "\nModules:\n"
-            for k, v in modules.items():
-                module_path = Path(self._get_src_file(v.val))
-                s += self._add_indent("{} ({})".format(k, module_path), 1)
-                s += "\n"
+                else:
+                    s = String(repr(val))
 
-        if funcs:
-            s += "\nFunctions:\n"
-
-            for k, v in funcs.items():
-                s += self._add_indent(v, 1)
-                s += "\n"
-
-        if classes:
-            s += "\nClasses:\n"
-
-            for k, v in classes.items():
-
-                #func_args = inspect.formatargspec(*inspect.getfullargspec(v))
-                #pout2.v(func_args)
-
-                s += self._add_indent("{}".format(k), 1)
-                s += "\n"
-
-                # add methods
-                for m, mv in inspect.getmembers(v):
-                    mv = Value(mv)
-                    if mv.typename == 'FUNCTION':
-                        s += self._add_indent(".{}".format(mv), 2)
-                        s += "\n"
-                s += "\n"
-
-        if properties:
-            s += "\nProperties:\n"
-            for k, v in properties.items():
-                s += self._add_indent("{}".format(k), 1)
-                #s += self._add_indent("{} = {}".format(k, self._str_val(v, depth=2)), 1)
-                #s += self._add_indent("{} = {}".format(k, self._get_unicode(v)), 1)
-                s += "\n"
-
-        return s
+            return s
 
 
-class TypeValue(Value):
-    def string_value(self):
-        return '{}'.format(self.val)
+    class ExceptionValue(ObjectValue):
+        pass
 
 
-class RegexValue(Value):
-    def string_value(self):
-        # https://docs.python.org/2/library/re.html#regular-expression-objects
-        val = self.val
+    class ModuleValue(ObjectValue):
+        def string_value(self):
+            val = self.val
+            file_path = Path(self._get_src_file(val))
+            s = '{} module ({})\n'.format(val.__name__, file_path)
 
-        flags = {}
-        for m, mv in inspect.getmembers(re):
-            if not m.startswith("_") and m.isupper() and isinstance(mv, int):
-                flags.setdefault(mv, m)
-                if len(m) > len(flags[mv]):
-                    flags[mv] = m
+            s += "\nid: {}\n".format(id(val))
 
-        s = ["Compiled Regex"]
-        s.append("<")
+            modules = {}
+            funcs = {}
+            classes = {}
+            properties = {}
 
-        s.append(self._add_indent("pattern: {}".format(val.pattern), 1))
-        s.append(self._add_indent("groups: {}".format(val.groups), 1))
-        # TODO -- we could parse out the groups and put them here, that
-        # would be kind of cool
+            for k, v in inspect.getmembers(val):
 
-        fv = val.flags
-        #s.append(self._add_indent("flags", 1))
-        s.append(self._add_indent("flags: {}".format(fv), 1))
-        for flag_val, flag_name in flags.items():
-            enabled = 1 if fv & flag_val else 0
-            s.append(self._add_indent("{}: {}".format(flag_name, enabled), 2))
+                # canary, ignore magic values
+                if self._is_magic(k): continue
 
-        s.append(">")
+                v = self.value_specific["Value"](v, value_specific=self.value_specific)
+                if v.typename == 'FUNCTION':
+                    funcs[k] = v
+                elif v.typename == 'MODULE':
+                    modules[k] = v
+                elif v.typename == 'OBJECT':
+                    classes[k] = v
+                else:
+                    properties[k] = v
 
-        s = "\n".join(s)
-        return s
+                #pout2.v('%s %s: %s' % (k, vt, repr(v)))
+
+            if modules:
+                s += "\nModules:\n"
+                for k, v in modules.items():
+                    module_path = Path(self._get_src_file(v.val))
+                    s += self._add_indent("{} ({})".format(k, module_path), 1)
+                    s += "\n"
+
+            if funcs:
+                s += "\nFunctions:\n"
+
+                for k, v in funcs.items():
+                    s += self._add_indent(v, 1)
+                    s += "\n"
+
+            if classes:
+                s += "\nClasses:\n"
+
+                for k, v in classes.items():
+
+                    #func_args = inspect.formatargspec(*inspect.getfullargspec(v))
+                    #pout2.v(func_args)
+
+                    s += self._add_indent("{}".format(k), 1)
+                    s += "\n"
+
+                    # add methods
+                    for m, mv in inspect.getmembers(v):
+                        mv = self.value_specific["Value"](mv, value_specific=self.value_specific)
+                        if mv.typename == 'FUNCTION':
+                            s += self._add_indent(".{}".format(mv), 2)
+                            s += "\n"
+                    s += "\n"
+
+            if properties:
+                s += "\nProperties:\n"
+                for k, v in properties.items():
+                    s += self._add_indent("{}".format(k), 1)
+                    #s += self._add_indent("{} = {}".format(k, self._str_val(v, depth=2)), 1)
+                    #s += self._add_indent("{} = {}".format(k, self._get_unicode(v)), 1)
+                    s += "\n"
+
+            return s
 
 
-class FunctionValue(Value):
-    def string_value(self):
-        val = self.val
-        try:
-            if is_py2:
-                func_args = inspect.formatargspec(*inspect.getfullargspec(val))
-            else:
-                func_args = "{}".format(inspect.signature(val))
-        except (TypeError, ValueError):
-            func_args = "(...)"
-
-        return "{}{}".format(val.__name__, func_args)
+    class TypeValue(Value):
+        def string_value(self):
+            return '{}'.format(self.val)
 
 
+    class RegexValue(Value):
+        def string_value(self):
+            # https://docs.python.org/2/library/re.html#regular-expression-objects
+            val = self.val
+
+            flags = {}
+            for m, mv in inspect.getmembers(re):
+                if not m.startswith("_") and m.isupper() and isinstance(mv, int):
+                    flags.setdefault(mv, m)
+                    if len(m) > len(flags[mv]):
+                        flags[mv] = m
+
+            s = ["Compiled Regex"]
+            s.append("<")
+
+            s.append(self._add_indent("pattern: {}".format(val.pattern), 1))
+            s.append(self._add_indent("groups: {}".format(val.groups), 1))
+            # TODO -- we could parse out the groups and put them here, that
+            # would be kind of cool
+
+            fv = val.flags
+            #s.append(self._add_indent("flags", 1))
+            s.append(self._add_indent("flags: {}".format(fv), 1))
+            for flag_val, flag_name in flags.items():
+                enabled = 1 if fv & flag_val else 0
+                s.append(self._add_indent("{}: {}".format(flag_name, enabled), 2))
+
+            s.append(">")
+
+            s = "\n".join(s)
+            return s
+
+
+    class FunctionValue(Value):
+        def string_value(self):
+            val = self.val
+            try:
+                if is_py2:
+                    func_args = inspect.formatargspec(*inspect.getfullargspec(val))
+                else:
+                    func_args = "{}".format(inspect.signature(val))
+            except (TypeError, ValueError):
+                func_args = "(...)"
+
+            return "{}{}".format(val.__name__, func_args)
+
+Value.default_value_specific = value_specific1
