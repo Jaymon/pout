@@ -9,7 +9,7 @@ from . import testdata, TestCase
 
 import pout
 from pout import environ
-from pout.compat import range, is_py2
+from pout.compat import range, is_py2, String
 from pout.value import Inspect, Value
 from pout.value import (
     DefaultValue,
@@ -278,4 +278,15 @@ class ValueTest(TestCase):
         v = Value(d.keys())
         self.assertEqual("LIST", v.typename)
 
+    def test_object___pout___unicode(self):
+        s = testdata.get_unicode_words()
+        class OPU(object):
+            def __pout__(self):
+                return {"foo": s}
+
+        o = OPU()
+        with testdata.capture() as c:
+            pout.v(o)
+
+        self.assertTrue(String(s) in String(c))
 

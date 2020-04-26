@@ -657,7 +657,9 @@ class ObjectValue(Value):
         s = "{} instance".format(full_name)
 
         if vt.has_attr('__pout__'):
-            s += repr(Value(val.__pout__()))
+            v = Value(val.__pout__())
+            s += v.string_value()
+            #s += repr(Value(val.__pout__()))
 
         else:
             if depth < environ.OBJECT_DEPTH:
