@@ -51,10 +51,11 @@ from .interface import (
     InfoInterface,
     TraceInterface,
     RowInterface,
+    ErrorInterface,
 )
 
 
-__version__ = '0.8.14'
+__version__ = '0.8.15'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
@@ -91,6 +92,7 @@ L_CLASS = LoggingInterface
 I_CLASS = InfoInterface
 T_CLASS = TraceInterface
 R_CLASS = RowInterface
+E_CLASS = ErrorInterface
 
 
 @contextmanager
@@ -230,14 +232,12 @@ def r(*args, **kwargs):
 
 
 def x(*args, **kwargs):
-    '''
-    same as sys.exit(1) but prints out where it was called from before exiting
+    '''same as v() but calls sys.exit() after printing values
 
     I just find this really handy for debugging sometimes
 
     since -- 2013-5-9
-
-    exit_code -- int -- if you want it something other than 1
+    https://github.com/Jaymon/pout/issues/50
     '''
     with Reflect.context(args, **kwargs) as r:
         instance = V_CLASS(r, stream, **kwargs)
@@ -329,6 +329,19 @@ def m(name='', **kwargs):
         kwargs["name"] = name
         instance = M_CLASS(r, stream, **kwargs)
         instance()
+
+
+def e():
+    """easy error printing
+
+    :Example:
+        with pout.e():
+            raise ValueError("foo")
+    :returns: context manager
+    """
+    with Reflect.context() as r:
+        instance = E_CLASS(r, stream)
+    return instance
 
 
 def p(name="", **kwargs):

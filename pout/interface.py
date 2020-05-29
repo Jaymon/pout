@@ -15,7 +15,7 @@ import re
 import atexit
 from collections import defaultdict
 import json
-
+import traceback
 
 from .compat import *
 from . import environ
@@ -337,6 +337,34 @@ class MemoryInterface(BaseInterface):
         summary += "{0} mb{1}{1}".format(round(rss, 2), "\n")
         calls = [summary]
         return self._printstr(calls)
+
+
+class ErrorInterface(BaseInterface):
+    """Easy exception printing
+
+    see e()
+    since 5-27-2020
+
+    https://github.com/Jaymon/pout/issues/59
+    """
+    def value(self):
+        lines = traceback.format_exception(
+            self.exc_type,
+            self.exc_value,
+            self.traceback
+        )
+        return self._printstr(lines)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type:
+            self.exc_type = exc_type
+            self.exc_value = exc_value
+            self.traceback = traceback
+            self()
+            reraise(exc_type, exc_value, traceback)
 
 
 class ProfileInterface(BaseInterface):

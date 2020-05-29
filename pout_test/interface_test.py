@@ -883,3 +883,10 @@ class LTest(TestCase):
         tl.debug("This should not print 6")
 
 
+
+class ETest(TestCase):
+    def test_e(self):
+        with self.assertRaises(ValueError):
+            with pout.e():
+                raise ValueError("foo")
+

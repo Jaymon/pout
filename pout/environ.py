@@ -13,20 +13,24 @@ this is handy when trying to figure out what pout is doing and why it is failing
 handy for writing tests and adding functionality, normally pout's logger is the NullHandler
 """
 
+
 ENCODING = os.environ.get("POUT_ENCODING", "UTF-8")
 """The encoding pout will use internally"""
 
+
 ENCODING_REPLACE_METHOD = os.environ.get(
     "POUT_ENCODING_REPLACE_METHOD",
-    "pout.replace.{}".format(uuid.uuid4().hex)
+    "pout.replace.{}".format(uuid.uuid4().hex) # unique value so we can perform lookup
 )
 """The method to replace bad unicode characters, normally you shouldn't have to mess
 with this"""
+
 
 # https://en.wikipedia.org/wiki/Specials_(Unicode_block)#Replacement_character
 ENCODING_REPLACE_CHAR = String(os.environ.get("POUT_ENCODING_REPLACE_CHAR", String("\uFFFD")))
 """The character used to replace bad unicode characters, I previously used the period but 
 figured I should use the actual replacement character"""
+
 
 OBJECT_DEPTH = int(os.environ.get("POUT_OBJECT_DEPTH", 3))
 """Change this to set how far down in depth pout will print instances with full
@@ -35,6 +39,9 @@ ObjectValue output while it is compiling the value for the passed in instance.
 some objects have many layers of nested objects which makes their pout.v() output
 annoying, but setting this to like 1 would cause all those nested instances to just
 have repr(instance) be printed instead"""
+
+
+INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\t")
 
 
 def handle_decode_replace(e):
