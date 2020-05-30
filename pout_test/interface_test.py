@@ -2,8 +2,6 @@
 from __future__ import unicode_literals, division, print_function, absolute_import
 import sys
 import time
-import unittest
-from unittest import TestCase
 import hmac
 import hashlib
 import subprocess
@@ -99,7 +97,7 @@ class Bam(object):
         return "get_bar instance method"
 
 
-class CTest(unittest.TestCase):
+class CTest(TestCase):
     def test_c(self):
         with testdata.capture() as c:
             pout.c('this is the input')
@@ -123,7 +121,7 @@ class CTest(unittest.TestCase):
             pout.c('\U00020731')
         self.assertTrue("Total Characters:" in c)
 
-class BTest(unittest.TestCase):
+class BTest(TestCase):
     def test_variable(self):
         s = "foo"
         with testdata.capture() as c:
@@ -157,7 +155,7 @@ class BTest(unittest.TestCase):
         self.assertTrue("= this is the title 3 =" in c)
 
 
-class PTest(unittest.TestCase):
+class PTest(TestCase):
     def test_p_one_level(self):
         with testdata.capture() as c:
             pout.p('foo')
@@ -183,7 +181,7 @@ class PTest(unittest.TestCase):
         self.assertTrue("with foo -" in c)
 
 
-class XTest(unittest.TestCase):
+class XTest(TestCase):
     def test_x(self):
         path = testdata.create_file("xx1.py", [
             "# -*- coding: utf-8 -*-",
@@ -218,7 +216,7 @@ class SleepTest(TestCase):
         self.assertTrue("Sleeping 0.25 seconds" in c)
 
 
-class TTest(unittest.TestCase):
+class TTest(TestCase):
     """test the pout.t() method"""
     def get_trace(self):
         pout.t()
@@ -243,7 +241,7 @@ class TTest(unittest.TestCase):
         self.assertTrue("pout.t()" in c)
 
 
-class HTest(unittest.TestCase):
+class HTest(TestCase):
     """
     test the pout.h() method
     """
@@ -285,11 +283,26 @@ class RTest(TestCase):
         self.assertTrue("pout.r(y) called 5 times" in c)
 
 
-class VTest(unittest.TestCase):
+class VTest(TestCase):
 #     def test_bs4(self):
 #         from bs4 import BeautifulSoup
 #         soup = BeautifulSoup('<html><body><div id="foo">body</div></body></html>', "html.parser")
 #         pout.v(soup)
+
+    def test_function(self):
+        b = Bam()
+
+        with testdata.capture() as c:
+            pout.v(b.get_bar)
+            self.assertTrue("method" in c)
+
+        with testdata.capture() as c:
+            pout.v(b.get_foo)
+            self.assertTrue("method" in c)
+
+        with testdata.capture() as c:
+            pout.v(baz)
+            self.assertTrue("function" in c)
 
     def test_get_name(self):
         """makes sure if __getattr__ raises other errors than AttributeError then
@@ -304,7 +317,7 @@ class VTest(unittest.TestCase):
         with testdata.capture() as c:
             fgn = FooGetName()
             pout.v(fgn)
-        for s in ["interface_test.FooGetName", "id:", "path:", "Ancestry:", "__str__:", "fields = "]:
+        for s in ["interface_test.FooGetName", "at 0x", "__str__:", "fields = "]:
             self.assertTrue(s in c, s)
 
     def test_vs(self):
@@ -531,7 +544,7 @@ class VTest(unittest.TestCase):
         for s in ['"__init__"', 'args (1) =', 'kwargs (0) = ']:
             self.assertTrue(s in c, s)
 
-        for s in ['"__get__"', 'interface_test.DescExample instance', 'klass = <']:
+        for s in ['"__get__"', 'DescExample instance', 'klass = <']:
             self.assertTrue(s in c, s)
 
     def test_class_vars(self):
@@ -562,7 +575,7 @@ class VTest(unittest.TestCase):
         with testdata.capture() as c:
             m = Misclass()
             pout.v(m)
-        self.assertTrue("interface_test.1 instance" in c)
+        self.assertTrue("1 instance" in c)
         self.assertTrue("m = " in c)
 
     def test_proxy_dict(self):
@@ -578,7 +591,8 @@ class VTest(unittest.TestCase):
                 "bar",
                 "che",
             )
-        self.assertTrue('"foo"\n\n"bar"\n\n"che"' in c)
+        self.assertRegex(String(c), re.compile(r'"foo"\s+"bar"\s+"che"', re.M))
+        #self.assertTrue('"foo"\n\n"bar"\n\n"che"' in c)
 
     def test_type(self):
         with testdata.capture() as c:
@@ -647,7 +661,8 @@ class VTest(unittest.TestCase):
             voom(
                 foo,bar
             )
-        self.assertTrue("foo = 1\n\nbar = 2" in c)
+        #self.assertTrue("foo = 1\n\nbar = 2" in c)
+        self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2", re.M))
 
         with testdata.capture() as c:
             pout.v(
@@ -655,7 +670,8 @@ class VTest(unittest.TestCase):
                 bar,
                 "this is a string"
             )
-        self.assertTrue("foo = 1\n\nbar = 2\n\n\"this is a string\"" in c)
+        #self.assertTrue("foo = 1\n\nbar = 2\n\n\"this is a string\"" in c)
+        self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2\s+\"this is a string\"", re.M))
 
         from pout import v
 
@@ -663,12 +679,14 @@ class VTest(unittest.TestCase):
             v(
                 foo,
                 bar)
-        self.assertTrue("foo = 1\n\nbar = 2" in c)
+        #self.assertTrue("foo = 1\n\nbar = 2" in c)
+        self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2", re.M))
 
         with testdata.capture() as c:
             v(
                 foo, bar)
-        self.assertTrue("foo = 1\n\nbar = 2" in c)
+        #self.assertTrue("foo = 1\n\nbar = 2" in c)
+        self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2", re.M))
 
         with testdata.capture() as c:
             v(
@@ -677,7 +695,8 @@ class VTest(unittest.TestCase):
                 bar
 
             )
-        self.assertTrue("foo = 1\n\nbar = 2" in c)
+        #self.assertTrue("foo = 1\n\nbar = 2" in c)
+        self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2", re.M))
 
         def func(a, b):
             return a + b
@@ -706,7 +725,7 @@ class VTest(unittest.TestCase):
         pout.v(pout)
         pout.v(sys.modules[__name__])
 
-    def test_object(self):
+    def test_object_1(self):
         f = Foo()
         pout.v(f)
 
@@ -721,8 +740,7 @@ class VTest(unittest.TestCase):
         f = Foo3()
         pout.v(f)
 
-
-    def test_object_pout_method(self):
+    def test_object___pout___method(self):
         class PoutFoo(object):
             bar = "bar"
             def __pout__(self):
@@ -731,7 +749,9 @@ class VTest(unittest.TestCase):
                 }
 
         instance = PoutFoo()
-        pout.v(instance)
+        with testdata.capture() as c:
+            pout.v(instance)
+            self.assertTrue("pout bar" in c)
 
     def test_exception(self):
         try:
@@ -741,8 +761,7 @@ class VTest(unittest.TestCase):
         except Exception as e:
             pout.v(e)
 
-    def test_instance_str_method(self):
-
+    def test_object_instance_str_method(self):
         b = Bar()
         pout.v(b)
 
@@ -827,7 +846,7 @@ class VTest(unittest.TestCase):
         self.assertTrue("sentinal not in val" in c)
 
     def test_really_long_list(self):
-        raise unittest.SkipTest("This takes about 14 seconds to run")
+        raise self.skip_test("This takes about 14 seconds to run")
 
         v = [testdata.get_words(1) for x in range(260818)]
         pout.v(v)

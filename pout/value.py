@@ -633,7 +633,8 @@ class ObjectValue(Value):
         if cls:
             src_file = self._get_src_file(cls, default="")
 
-        full_name = self._get_name(val, src_file=src_file)
+        #full_name = self._get_name(val, src_file=src_file) # full classpath
+        full_name = self._get_name(val, src_file="") # just the classname
 
         try:
             instance_dict = {k: Value(v, depth+1) for k, v in vars(val).items()}
@@ -654,46 +655,34 @@ class ObjectValue(Value):
             #instance_dict = {k: Value(v, depth+1) for k, v in inspect.getmembers(val)}
             #errmsgs.append("Failed to get vars because: {}".format(e))
 
-        s = "{} instance".format(full_name)
+
+        s = "{} instance at 0x{:02x}".format(full_name, id(val))
+        s += "\n<"
 
         if vt.has_attr('__pout__'):
-            s = "{} {} instance".format(full_name, id(val))
             v = Value(val.__pout__())
-            s += v.string_value()
-            #s += repr(Value(val.__pout__()))
+            s += self._add_indent(v.string_value(), 1)
 
         else:
             if depth < environ.OBJECT_DEPTH:
-                s += "\n<"
                 s_body = ''
-
-                s_body += "\nid: {}\n".format(id(val))
-                if src_file:
-                    s_body += "\npath: {}\n".format(Path(src_file))
 
                 if cls:
                     pclses = inspect.getmro(cls)
                     if pclses:
-                        s_body += "\nAncestry:\n"
+                        s_body += "\n"
                         for pcls in pclses:
                             psrc_file = self._get_src_file(pcls, default="")
                             if psrc_file:
                                 psrc_file = Path(psrc_file)
                             pname = self._get_name(pcls, src_file=psrc_file)
                             if psrc_file:
-                                s_body += self._add_indent(
-                                    "{} ({})".format(pname, psrc_file),
-                                    1
-                                )
+                                s_body += "{} ({})".format(pname, psrc_file)
                             else:
-                                s_body += self._add_indent(
-                                    "{}".format(pname),
-                                    1
-                                )
+                                s_body += "{}".format(pname)
                             s_body += "\n"
 
                 if hasattr(val, '__str__'):
-
                     s_body += "\n__str__:\n"
                     s_body += self._add_indent(String(val), 1)
                     s_body += "\n"
@@ -756,10 +745,12 @@ class ObjectValue(Value):
                     s_body += "\n".join(traceback.format_exception(None, val, val.__traceback__))
 
                 s += self._add_indent(s_body.rstrip(), 1)
-                s += "\n>\n"
+                #s += "\n>\n"
 
             else:
                 s = String(repr(val))
+
+        s += "\n>"
 
         return s
 
@@ -820,21 +811,21 @@ class ModuleValue(ObjectValue):
                 #func_args = inspect.formatargspec(*inspect.getfullargspec(v))
                 #pout2.v(func_args)
 
-                s += self._add_indent("{}".format(k), 1)
+                s += self._add_indent(k, 1)
                 s += "\n"
 
                 # add methods
                 for m, mv in inspect.getmembers(v):
                     mv = Value(mv)
                     if mv.typename == 'FUNCTION':
-                        s += self._add_indent(".{}".format(mv), 2)
+                        s += self._add_indent(mv, 2)
                         s += "\n"
                 s += "\n"
 
         if properties:
             s += "\nProperties:\n"
             for k, v in properties.items():
-                s += self._add_indent("{}".format(k), 1)
+                s += self._add_indent(k, 1)
                 #s += self._add_indent("{} = {}".format(k, self._str_val(v, depth=2)), 1)
                 #s += self._add_indent("{} = {}".format(k, self._get_unicode(v)), 1)
                 s += "\n"
@@ -891,6 +882,13 @@ class FunctionValue(Value):
         except (TypeError, ValueError):
             func_args = "(...)"
 
-        return "{}{}".format(val.__name__, func_args)
+        signature = "{}{}".format(val.__name__, func_args)
+        if isinstance(val, types.MethodType):
+            ret = "<method {} at 0x{:02x}>".format(signature, id(val))
+
+        else:
+            ret = "<function {} at 0x{:02x}>".format(signature, id(val))
+
+        return ret
 
 

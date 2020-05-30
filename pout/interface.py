@@ -56,7 +56,7 @@ class BaseInterface(object):
         """
         s = self.name_value()
         s += self.path_value()
-        s += "\n\n"
+        s += "\n"
         return s
 
     def name_value(self):
@@ -153,12 +153,14 @@ class InfoInterface(BaseInterface):
 class ValueInterface(BaseInterface):
     def name_value(self):
         call_info = self.reflect.info
-        args = ["{}\n\n".format(self._str(v['name'], v['val'])) for v in call_info['args']]
+        # !!! you can add another \n here to put a newline between the value and
+        # the path (eg, change it from \n to \n\n)
+        args = ["{}\n".format(self._str(v['name'], v['val'])) for v in call_info['args']]
         return self._printstr(args)
 
     def value(self):
         call_info = self.reflect.info
-        args = ["{}\n\n".format(self._str(None, v['val'])) for v in call_info['args']]
+        args = ["{}\n".format(self._str(None, v['val'])) for v in call_info['args']]
         return self._printstr(args)
 
 
