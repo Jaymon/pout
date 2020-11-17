@@ -6,7 +6,10 @@ to print an object out
 from __future__ import unicode_literals, division, print_function, absolute_import
 import math
 import unicodedata
-import resource
+try:
+    import resource
+except ImportError:
+    resource = None
 import platform
 import time
 import logging
@@ -315,7 +318,10 @@ class JsonInterface(BaseInterface):
 
 class MemoryInterface(BaseInterface):
     def value(self):
-        call_info = self.reflect.info
+        if not resource:
+            return self._printstr(["UNSUPPORTED OS\n"])
+
+        #call_info = self.reflect.info
         name = self.kwargs.get("name", "")
         usage = resource.getrusage(resource.RUSAGE_SELF)
         # according to the docs, this should give something good but it doesn't jive
