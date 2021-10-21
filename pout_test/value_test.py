@@ -255,6 +255,18 @@ class ValueTest(TestCase):
         # no UnicodeError raised is success
         pout.v(t)
 
+    def test_object_4_recursive(self):
+        class To4(object):
+            def __str__(self):
+                return self.render()
+
+            def render(self):
+                pout.v(self)
+                return self.__class__.__name__
+
+        t = To4()
+        pout.v(t)
+
     def test_object_regex_match(self):
         m = re.match(r"(\d)(\d)(\d+)", "0213434")
 

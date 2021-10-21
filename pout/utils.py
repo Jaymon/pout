@@ -36,14 +36,19 @@ class String(StringMixin, BaseString):
         :param arg: mixed, arg can be anything
         :returns: unicode, a u"" string will always be returned
         """
-        if isinstance(arg, BaseBytes):
-            arg = arg.decode(environ.ENCODING, errors=environ.ENCODING_REPLACE_METHOD)
+        try:
+            if isinstance(arg, BaseBytes):
+                arg = arg.decode(environ.ENCODING, errors=environ.ENCODING_REPLACE_METHOD)
 
-        else:
-            if not isinstance(arg, BaseString):
-                arg = BaseString(arg)
+            else:
+                if not isinstance(arg, BaseString):
+                    arg = BaseString(arg)
+
+        except RuntimeError as e:
+            arg = e
 
         return super(String, cls).__new__(cls, arg)
+
 
     def indent(self, indent_count):
         '''
@@ -76,12 +81,16 @@ class Bytes(StringMixin, BaseBytes):
         :param arg: mixed, arg can be anything
         :returns: bytes, a b"" string will always be returned
         """
-        if isinstance(arg, BaseString):
-            arg = arg.encode(environ.ENCODING, errors=environ.ENCODING_REPLACE_METHOD)
+        try:
+            if isinstance(arg, BaseString):
+                arg = arg.encode(environ.ENCODING, errors=environ.ENCODING_REPLACE_METHOD)
 
-        else:
-            if not isinstance(arg, BaseBytes):
-                arg = BaseBytes(arg)
+            else:
+                if not isinstance(arg, BaseBytes):
+                    arg = BaseBytes(arg)
+
+        except RuntimeError as e:
+            arg = e
 
         return super(Bytes, cls).__new__(cls, arg)
 

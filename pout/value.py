@@ -685,6 +685,7 @@ class ObjectValue(Value):
                 if hasattr(val, '__str__'):
                     s_body += "\n__str__:\n"
                     s_body += self._add_indent(String(val), 1)
+
                     s_body += "\n"
 
                 if cls:
