@@ -22,7 +22,7 @@ import traceback
 
 from .compat import *
 from . import environ
-from .value import Inspect, Value
+from .value import Value
 from .path import Path
 from .utils import String, Bytes
 from .reflect import Call
@@ -31,7 +31,7 @@ from .reflect import Call
 logger = logging.getLogger(__name__)
 
 
-class BaseInterface(object):
+class Interface(object):
     """Most of pout's output will go through a child of this class"""
 
     path_class = Path
@@ -141,7 +141,7 @@ class BaseInterface(object):
         return s
 
 
-class InfoInterface(BaseInterface):
+class InfoInterface(Interface):
     def value(self):
         call_info = self.reflect.info
         pargs = []
@@ -153,7 +153,7 @@ class InfoInterface(BaseInterface):
         return self._printstr(pargs)
 
 
-class ValueInterface(BaseInterface):
+class ValueInterface(Interface):
     def name_value(self):
         call_info = self.reflect.info
         # !!! you can add another \n here to put a newline between the value and
@@ -205,7 +205,7 @@ class RowInterface(ValueInterface):
         r_class.calls[s]["info"] = self.reflect.info
 
 
-class HereInterface(BaseInterface):
+class HereInterface(Interface):
     def value(self):
         call_info = self.reflect.info
         count = self.kwargs.get("count", 0)
@@ -215,7 +215,7 @@ class HereInterface(BaseInterface):
         return self._printstr(args)
 
 
-class BreakInterface(BaseInterface):
+class BreakInterface(Interface):
     def value(self):
         call_info = self.reflect.info
         args = self.kwargs.get("args", [])
@@ -266,7 +266,7 @@ class BreakInterface(BaseInterface):
         return self._printstr(["\n".join(lines)])
 
 
-class CharInterface(BaseInterface):
+class CharInterface(Interface):
     def value(self):
         call_info = self.reflect.info
         args = self.kwargs.get("args", [])
@@ -303,7 +303,7 @@ class CharInterface(BaseInterface):
         return self._printstr(["\n".join(lines)])
 
 
-class JsonInterface(BaseInterface):
+class JsonInterface(Interface):
     def value(self):
         call_info = self.reflect.info
         #print(call_info)
@@ -316,7 +316,7 @@ class JsonInterface(BaseInterface):
         return self._printstr(args)
 
 
-class MemoryInterface(BaseInterface):
+class MemoryInterface(Interface):
     def value(self):
         if not resource:
             return self._printstr(["UNSUPPORTED OS\n"])
@@ -347,7 +347,7 @@ class MemoryInterface(BaseInterface):
         return self._printstr(calls)
 
 
-class ErrorInterface(BaseInterface):
+class ErrorInterface(Interface):
     """Easy exception printing
 
     see e()
@@ -375,7 +375,7 @@ class ErrorInterface(BaseInterface):
             reraise(exc_type, exc_value, traceback)
 
 
-class ProfileInterface(BaseInterface):
+class ProfileInterface(Interface):
     """this is a context manager for Profiling
 
     see -- p()
@@ -610,7 +610,7 @@ class LoggingInterface(object):
                     setattr(logger, name, val)
 
 
-class TraceInterface(BaseInterface):
+class TraceInterface(Interface):
 
     call_class = Call
 

@@ -1,51 +1,21 @@
 # Customizing Pout
 
-## Overriding Values
+## How Pout decides what to print
 
-You can actually completely replace the current Value system with your own by doing something like:
+Pout uses `pout.value.Value` to decide how to print out any values passed to `pout.v()`. The `Value` class uses the `pout.value.Values` class to actually find the `Value` subclasses and decide which is the correct `Value` subclass for the given value (see the `pout.value.Values.find_class` method).
 
-```python
-import pout
-from pout.value import Inspect, Value
-
-class MyInspect(Inspect):
-    @property
-    def classtype(self):
-        return MyValue
-        
-class MyValue(Value):
-    def string_value(self):
-        return repr(self.val)
-
-pout.Value.inspect_class = MyInspect
-
-class Foo(object):
-    bar = {"che": 1, "baz": 2}
-        
-f = Foo()
-pout.v(f)
-```
-
-Which would result in:
-
-```
-f = <__main__.Foo object at 0x10d025310>
-
-(FILENAME.py:N)
-```
-
-Likewise, you can selectively override just certain types if you want by doing something like:
+You can completely replace the `Values` class with your own by doing something like:
 
 ```python
-# override just dictionary values
-class MyInspect(Inspect):
-    @property
-    def classtype(self):
-        if self.is_dict():
-            return MyValue
-        else:
-            return super(MyInspect, self).classtype
+import pout.value
+
+class MyValues(pout.value.Values):
+    pass
+    
+pout.value.Value.values_class = MyValues
 ```
+
+Pout will now use your `MyValues` clas to find the correct `Value` subclass.
 
 
 ## Add a function
@@ -59,16 +29,19 @@ class MyInspect(Inspect):
 
 ## Add a new value
 
-1. Modify `pout.value.Inspect` to know about your new value.
+This section is intended for people wanting to add core functionality to Pout itself.
 
-    Basically, `Inspect.typename` should return the name you want to give to this value, and you usually add an `Inspect.is_NAME` method and then modify `Inspect.typename` to check that `is_NAME` method and return the type name.
+Add a `Value` subclass to `pout.value`:
 
-2. Add `TypenameValue` class in `pout/value.py`.
+```python
 
-    If your typename is `FOO` then you would add `value.FooValue`. Whatever value you choose for the type name, it will be normalized to find the `*Value` class, so `FOO_BAR` would become `FooBar`.
+class CustomValue(Value):
+    @classmethod
+    def is_valid(cls, val):
+        # return True if val is the right type
+    
+    def string_value(self):
+        # return string representation of val
+```
 
-3. The `Value` method you will usually override is `Value.string_value()`
-
-    You might also need to override `Value.__iter__()`.
-
-4. Add tests to make sure your new value is printing correctly
+You can use the class hierarchy to decide when your `CustomValue` class should be checked. For example, if you want your class to be checked before `ListValue` because your custom value is a derivative of a `list` then you would just have `CustomValue` extend `ListValue` and it will be checked before `ListValue` in `Values.find_class()`.

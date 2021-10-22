@@ -316,7 +316,7 @@ Use PIP
 
 Generally, the pypi version and the github version shouldn't be that out of sync, but just in case, you can install from github also:
 
-    pip install --upgrade "git+https://github.com/Jaymon/pout#egg=pout"
+    pip install -U "git+https://github.com/Jaymon/pout#egg=pout"
 
 
 -------------------------------------------------------------------------------
@@ -330,7 +330,7 @@ import pout
 pout.inject()
 ```
 
-Somewhere near the top of your application startup script, then `pout` will be available in all your files whether you imported it or not, it will be just like `str()`, `object`, or the rest of python's standard library.
+Somewhere near the top of your application startup script, then `pout` will be available in all your files whether you imported it or not, it will be just like `str`, `object`, or the rest of python's standard library.
 
 If you don't even want to bother with doing that, then just run:
 

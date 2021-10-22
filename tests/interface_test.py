@@ -12,7 +12,6 @@ import logging
 # this is the local pout that is going to be tested
 import pout
 from pout.compat import *
-from pout import Inspect
 from pout import environ
 
 from . import testdata, TestCase
@@ -183,7 +182,7 @@ class PTest(TestCase):
 
 class XTest(TestCase):
     def test_x(self):
-        path = testdata.create_file("xx1.py", [
+        path = testdata.create_file([
             "# -*- coding: utf-8 -*-",
             "from __future__ import unicode_literals, division, print_function, absolute_import",
             "import pout",
@@ -196,7 +195,7 @@ class XTest(TestCase):
         r = path.run(code=1)
         self.assertTrue('"xx"' in r)
 
-        path = testdata.create_file("xx2.py", [
+        path = testdata.create_file([
             "# -*- coding: utf-8 -*-",
             "from __future__ import unicode_literals, division, print_function, absolute_import",
             "import pout",
@@ -267,7 +266,7 @@ class STest(TestCase):
 
 class RTest(TestCase):
     def test_run(self):
-        path = testdata.create_file("rtest_run.py", [
+        path = testdata.create_file([
             "# -*- coding: utf-8 -*-",
             "from __future__ import unicode_literals, division, print_function, absolute_import",
             "import pout",
@@ -413,7 +412,7 @@ class VTest(TestCase):
         pout.v(cur)
 
     def test_encoding_in_src_file(self):
-        path = testdata.create_file("foobar.py", [
+        path = testdata.create_file([
             "# -*- coding: iso-8859-1 -*-",
             "from __future__ import unicode_literals, division, print_function, absolute_import",
             "import pout",
@@ -429,9 +428,10 @@ class VTest(TestCase):
 
         # convert encoding to ISO-8859-1 from UTF-8, this is convoluted because
         # I usually never have to do this
-        contents = path.contents()
-        path.encoding = "iso-8859-1"
-        path.replace(contents)
+        contents = path.read_text()
+        path.write_text(contents, encoding="iso-8859-1")
+        #path.encoding = "iso-8859-1"
+        #path.replace(contents)
 
         environ = {
             "PYTHONPATH": os.path.abspath(os.path.expanduser("."))
@@ -444,7 +444,7 @@ class VTest(TestCase):
         self.assertTrue("foo bar" in output.decode("utf-8"))
 
     def test_unicode_in_src_file(self):
-        path = testdata.create_file("foobar.py", [
+        path = testdata.create_file([
             "# -*- coding: utf-8 -*-",
             "from __future__ import unicode_literals, division, print_function, absolute_import",
             "import pout",

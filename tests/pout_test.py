@@ -18,7 +18,7 @@ class PoutTest(TestCase):
             pout.v(s)
             pout.h()
 
-        r = path.contents()
+        r = path.read_text()
         self.assertTrue("foobar" in r)
         self.assertTrue("here" in r)
 

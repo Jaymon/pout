@@ -14,6 +14,9 @@ import traceback
 import logging
 import re
 import array
+from pathlib import PurePath
+from types import MappingProxyType
+from collections.abc import MappingView
 
 from .compat import *
 from . import environ
@@ -24,277 +27,87 @@ from .utils import String, Bytes
 logger = logging.getLogger(__name__)
 
 
-class Inspect(object):
-    """Identify what a python object is (eg, FUNCTION, STRING, etc)"""
+class Values(list):
+    def __init__(self):
+        super().__init__()
 
-    @property
-    def classname(self):
-        name = self.typename
-        class_name = "{}Value".format(name.title().replace("_", ""))
-        return class_name
+        self.indexes = {}
+        self.cutoff_class = Value
 
-    @property
-    def classtype(self):
-        classname = self.classname
         module = sys.modules[__name__]
-        return getattr(module, classname)
+        for ni, vi in inspect.getmembers(module, inspect.isclass):
+            if issubclass(vi, self.cutoff_class):
+                self.insert(vi)
 
-    @property
-    def cls(self):
-        return self.val.__class__ if self.has_attr('__class__') else None
+        #print(self)
 
-    @property
-    def typename(self):
-        '''
-        get the type of val
+    def insert(self, value_class):
+        index = len(self)
+        #print("================================\n")
+        for vclass in reversed(inspect.getmro(value_class)):
+            if issubclass(vclass, self.cutoff_class):
+                #print(vclass)
+                index_name = f"{vclass.__module__}.{vclass.__name__}"
+                if index_name in self.indexes:
+                    index = min(index, self.indexes[index_name])
 
-        there are multiple places where we want to know if val is an object, or a string, or whatever,
-        this method allows us to find out that information
+                else:
+                    self.indexes[index_name] = len(self)
+                    super().insert(index, vclass)
 
-        since -- 7-10-12
-
-        val -- mixed -- the value to check
-
-        return -- string -- the type
-        '''
-        t = 'DEFAULT'
-        # http://docs.python.org/2/library/types.html
-#         func_types = (
-#             types.FunctionType,
-#             types.BuiltinFunctionType,
-#             types.MethodType,
-#             types.UnboundMethodType,
-#             types.BuiltinFunctionType,
-#             types.BuiltinMethodType,
-#             classmethod
-#         )
-
-        if self.is_primitive():
-            t = 'DEFAULT'
-
-        elif self.is_dict():
-            t = 'DICT'
-
-        elif self.is_list():
-            t = 'LIST'
-
-        elif self.is_array():
-            t = 'ARRAY'
-
-        elif self.is_tuple():
-            t = 'TUPLE'
-
-        elif self.is_type():
-            t = 'TYPE'
-
-        elif self.is_binary():
-            t = 'BINARY'
-
-        elif self.is_str():
-            t = 'STRING'
-
-        elif self.is_exception():
-            t = 'EXCEPTION'
-
-        elif self.is_module():
-            # this has to go before the object check since a module will pass the object tests
-            t = 'MODULE'
-
-        elif self.is_callable():
-            t = 'FUNCTION'
-
-            # not doing this one since it can cause the class instance to do unexpected
-            # things just to print it out
-            #elif isinstance(val, property):
-            # uses the @property decorator and the like
-            #t = 'PROPERTY'
-
-        elif self.is_dict_proxy():
-            # maybe we have a dict proxy?
-            t = 'DICT_PROXY'
-
-        elif self.is_generator():
-            t = 'GENERATOR'
-
-        elif self.is_set():
-            t = 'SET'
-
-        elif self.is_object():
-            t = 'OBJECT'
-
-#         elif isinstance(val, func_types) and hasattr(val, '__call__'):
-#             # this has to go after object because lots of times objects can be classified as functions
-#             # http://stackoverflow.com/questions/624926/
-#             t = 'FUNCTION'
-
-        elif self.is_regex():
-            t = 'REGEX'
-
-        else:
-            t = 'DEFAULT'
-
-        return t
-
-    def __init__(self, val):
-        self.val = val
-        self.attrs = set(dir(val))
-
-    def is_generator(self):
-        if is_py2:
-            return isinstance(self.val, (types.GeneratorType, range))
-        else:
-            return isinstance(self.val, (types.GeneratorType, range, map))
-
-    def is_set(self):
-        return isinstance(self.val, (set, frozenset, Set))
-
-    def is_primitive(self):
-        """is the value a built-in type?"""
-        if is_py2:
-            return isinstance(
-                self.val, 
-                (
-                    types.NoneType,
-                    types.BooleanType,
-                    types.IntType,
-                    types.LongType,
-                    types.FloatType
-                )
-            )
-
-        else:
-            return isinstance(
-                self.val,
-                (
-                    type(None),
-                    bool,
-                    int,
-                    float
-                )
-            )
-
-    def is_dict(self):
-        return isinstance(self.val, dict)
-
-    def is_list(self):
-        return isinstance(self.val, (list, KeysView))
-
-    def is_array(self):
-        return isinstance(self.val, array.array)
-
-    def is_tuple(self):
-        return isinstance(self.val, tuple)
-
-    def is_type(self):
-        return isinstance(self.val, type)
-
-    def is_binary(self):
-        return isinstance(self.val, (bytes, bytearray, memoryview))
-
-    def is_str(self):
-        return isinstance(self.val, basestring)
-
-    def is_exception(self):
-        return isinstance(self.val, BaseException)
-
-    def is_module(self):
-        # this has to go before the object check since a module will pass the object tests
-        return isinstance(self.val, types.ModuleType)
-
-    def is_object(self):
-#         print("{}".format(isinstance(self.val, (types.FunctionType, types.BuiltinFunctionType, types.MethodType))))
-#         pout2.v(inspect.ismethod(self.val))
-#         pout2.v(inspect.isfunction(self.val))
-#         pout2.v(dir(self.val))
-#         pout2.v(self.val.__class__)
-#         pout2.v(inspect.ismethoddescriptor(self.val))
-        if inspect.ismethod(self.val) or inspect.isfunction(self.val) or inspect.ismethoddescriptor(self.val):
-            return False
-
-        ret = False
-        if isinstance(self.val, getattr(types, "InstanceType", object)):
-            # this is an old-school non object inherited class
-            ret = True
-        else:
-            if self.has_attr("__dict__"):
-                ret = True
-                for a in ["func_name", "im_func"]:
-                    if self.has_attr(a):
-                        ret = False
-                        break
-
-        return ret
-
-    def is_callable(self):
-        # not sure why class methods pulled from __class__ fail the callable check
-
-        # if it has a __call__ and __func__ it's a method
-        # if it has a __call__ and __name__ it's a function
-        # if it just has a __call__ it's most likely an object instance
-        ret = False
-        d = dir(self.val)
-        if "__call__" in d:
-            ret = "__func__" in d or "__name__" in d
-
-#         if hasattr(self.val, "__call__") and hasattr(self.val, "__func__"):
-#             ret = True
-# 
-#         elif hasattr(self.val, "__call__") and hasattr(self.val, "__name__"):
-#             ret = True
-
-        return ret
-        #return isinstance(self.val, Callable) or isinstance(self.val, classmethod)
-
-    def is_dict_proxy(self):
-        # NOTE -- in 3.3+ dict proxy is exposed, from types import MappingProxyType
-        # https://github.com/eevee/dictproxyhack/blob/master/dictproxyhack.py
-        ret = True
-        attrs = self.attrs
-        for a in ["__getitem__", "keys", "values"]:
-            if not self.has_attr(a):
-                ret = False
+    def find_class(self, val):
+        """Return the *Value class that represents val"""
+        for vcls in self:
+            if vcls.is_valid(val):
+                value_cls = vcls
                 break
-        return ret
-
-    def is_regex(self):
-        return "SRE_Pattern" in repr(self.val)
-
-    def has_attr(self, k):
-        """return True if this instance has the attribute"""
-        return k in self.attrs
+        return value_cls
 
 
 class Value(object):
 
-    inspect_class = Inspect
+    values_class = Values
+    """Holds the class this will use to find the right Value class to return"""
+
+    values_instance = None
+    """Holds a cached instance of value_class for faster searches"""
+
+    @property
+    def typename(self):
+        s = self.__class__.__name__.replace("Value", "")
+        return String(s).snakecase().upper()
 
     @property
     def raw(self):
         return self.val
     value = raw
 
+    @classmethod
+    def find_class(cls, val):
+        """Return the *Value class that represents val"""
+        if not cls.values_instance:
+            cls.values_instance = cls.values_class()
+        return cls.values_instance.find_class(val)
+
+    @classmethod
+    def is_valid(cls, val):
+        return True
+
     def __new__(cls, val, depth=0):
         """through magic, instantiating an instance will actually create
         subclasses of the different *Value classes, once again, through magic"""
-        t = cls.inspect_class(val)
-        typename = t.typename
-        try:
-            value_cls = t.classtype
-        except AttributeError:
-            value_cls = DefaultValue
 
         # we don't pass in (val, depth) because this just returns the instance
         # and then __init__ is called with those values also
-        instance = super(Value, cls).__new__(value_cls)
-        instance.typename = typename
-        return instance
+        return super().__new__(cls.find_class(val))
 
     def __init__(self, val, depth=0):
         self.val = val
         self.depth = depth
+        self.indent = 1 if depth > 0 else 0
 
     def string_value(self):
-        raise NotImplementedError()
+        return "{}".format(repr(self.val))
     string_val = string_value
 
     def bytes_value(self):
@@ -303,10 +116,7 @@ class Value(object):
     bytes_val = bytes_value
 
     def __repr__(self):
-        if is_py2:
-            s = self.bytes_value()
-        else:
-            s = self.string_value()
+        s = self.string_value()
         return s
 
     def __format__(self, format_str):
@@ -316,15 +126,22 @@ class Value(object):
         methods = []
         properties = []
         for ni, vi in inspect.getmembers(self.val):
-            i = self.inspect_class(vi)
+#             i = self.inspect_class(vi)
             #print(ni, i.typename, type(vi))
             #print(ni, type(vi))
-            if i.is_type():
+            if TypeValue.is_valid(vi):
                 properties.append((ni, vi))
-            elif i.is_callable():
+            elif CallableValue.is_valid(vi):
                 methods.append((ni, vi))
             else:
                 properties.append((ni, vi))
+
+#             if i.is_type():
+#                 properties.append((ni, vi))
+#             elif i.is_callable():
+#                 methods.append((ni, vi))
+#             else:
+#                 properties.append((ni, vi))
 
         full_info = repr(self)
         info = "MEMBERS:\n"
@@ -426,123 +243,26 @@ class Value(object):
         return String(arg)
 
 
-class DefaultValue(Value):
-    def string_value(self):
-        return "{}".format(repr(self.val))
+class ObjectValue(Value):
+    @classmethod
+    def is_valid(cls, val):
+        if inspect.ismethod(val) or inspect.isfunction(val) or inspect.ismethoddescriptor(val):
+            return False
 
-
-class DictValue(Value):
-    left_paren = "{"
-    right_paren = "}"
-    prefix = "\n"
-
-    def name_callback(self, k):
-        if isinstance(k, basestring):
-            ret = "'{}'".format(self._get_unicode(k))
+        ret = False
+        if isinstance(val, getattr(types, "InstanceType", object)):
+            # this is an old-school non object inherited class
+            ret = True
         else:
-            ret = self._get_unicode(k)
+            if self.has_attr("__dict__"):
+                ret = True
+                for a in ["func_name", "im_func"]:
+                    if self.has_attr(a):
+                        ret = False
+                        break
+
         return ret
 
-    def __iter__(self):
-        for v in self.val.items():
-            yield v
-
-    def string_value(self):
-        val = self.val
-        if len(val) > 0:
-
-            s = self._str_iterator(
-                iterator=self, 
-                name_callback=self.name_callback,
-                left_paren=self.left_paren,
-                right_paren=self.right_paren,
-                prefix=self.prefix,
-                depth=self.depth,
-            )
-
-        else:
-            s = "{}{}".format(self.left_paren, self.right_paren)
-
-        return s
-
-class DictProxyValue(DictValue):
-    left_paren = 'dict_proxy({'
-    right_paren = '})'
-    prefix = ""
-
-
-class ListValue(DictValue):
-    left_paren = '['
-    right_paren = ']'
-    name_callback = None
-
-    def __iter__(self):
-        for v in enumerate(self.val):
-            yield v
-
-
-class ArrayValue(ListValue):
-    """Handles array.array instances"""
-    @property
-    def left_paren(self):
-        return "{}.{}('{}', [".format(
-            self.val.__class__.__module__,
-            self.val.__class__.__name__,
-            self.val.typecode
-        )
-
-
-class SetValue(ListValue):
-    left_paren = '{'
-    right_paren = '}'
-
-    def name_callback(self, k):
-        return None
-
-
-class TupleValue(ListValue):
-    left_paren = '('
-    right_paren = ')'
-
-
-class BinaryValue(Value):
-    def string_value(self):
-        val = self.val
-        try:
-            if is_py2:
-                s = "b'{}'".format(String(bytes(val)))
-                #s = "b'{}'".format(bytes(val).decode(environ.ENCODING, errors=environ.ENCODING_REPLACE))
-
-            else:
-                s = repr(bytes(val))
-
-        except (TypeError, UnicodeError) as e:
-            s = "<UNICODE ERROR>"
-
-        return s
-
-
-class StringValue(Value):
-    def string_value(self):
-        val = self.val
-        try:
-            if isinstance(val, unicode):
-                s = '"{}"'.format(val)
-
-            else:
-                # !!! 12-27-2017 - with the new BINARY typename I don't think
-                # this is reachable anymore
-                # we need to convert the byte string to unicode
-                #s = u'"{}"'.format(val.decode('utf-8', 'replace'))
-                s = 'b"{}"'.format(val.decode(environ.ENCODING, environ.ENCODING_REPLACE))
-
-        except (TypeError, UnicodeError) as e:
-            s = "<UNICODE ERROR>"
-
-        return s
-
-
-class ObjectValue(Value):
     def _is_magic(self, name):
         '''
         return true if the name is __name__
@@ -621,20 +341,20 @@ class ObjectValue(Value):
 
         return path
 
+    def prefix_value(self):
+        #full_name = self._get_name(val, src_file=src_file) # full classpath
+        full_name = self._get_name(self.val, src_file="") # just the classname
+        return "{} instance at 0x{:02x}".format(full_name, id(self.val))
+
     def string_value(self):
         val = self.val
         depth = self.depth
-        d = {}
-        vt = Inspect(val)
-        errmsgs = []
+        indent = self.indent
 
         src_file = ""
-        cls = vt.cls
-        if cls:
-            src_file = self._get_src_file(cls, default="")
-
-        #full_name = self._get_name(val, src_file=src_file) # full classpath
-        full_name = self._get_name(val, src_file="") # just the classname
+        val_class = self._getattr(val, "__class__", None)
+        if val_class:
+            src_file = self._get_src_file(val_class, default="")
 
         try:
             instance_dict = {k: Value(v, depth+1) for k, v in vars(val).items()}
@@ -648,27 +368,21 @@ class ObjectValue(Value):
             for k, v in inspect.getmembers(val):
                 if not self._is_magic(k):
                     v = Value(v, depth+1)
-                    if v.typename != 'FUNCTION':
+                    if v.typename != 'CALLABLE':
                         instance_dict[k] = v
 
-            #instance_dict = {}
-            #instance_dict = {k: Value(v, depth+1) for k, v in inspect.getmembers(val)}
-            #errmsgs.append("Failed to get vars because: {}".format(e))
+        s = self.prefix_value()
+        s_body = ""
 
-
-        s = "{} instance at 0x{:02x}".format(full_name, id(val))
-        s += "\n<"
-
-        if vt.has_attr('__pout__'):
-            v = Value(val.__pout__())
-            s += self._add_indent(v.string_value(), 1)
+        pout_method = self._getattr(val, "__pout__", None)
+        if pout_method and callable(pout_method):
+            v = Value(pout_method())
+            s_body = v.string_value()
 
         else:
             if depth < environ.OBJECT_DEPTH:
-                s_body = ''
-
-                if cls:
-                    pclses = inspect.getmro(cls)
+                if val_class:
+                    pclses = inspect.getmro(val_class)
                     if pclses:
                         s_body += "\n"
                         for pcls in pclses:
@@ -688,12 +402,12 @@ class ObjectValue(Value):
 
                     s_body += "\n"
 
-                if cls:
+                if val_class:
 
                     # build a full class variables dict with the variables of 
                     # the full class hierarchy
                     class_dict = {}
-                    for pcls in reversed(inspect.getmro(cls)):
+                    for pcls in reversed(inspect.getmro(val_class)):
                         for k, v in vars(pcls).items():
                             # filter out anything that's in the instance dict also
                             # since that takes precedence.
@@ -706,19 +420,10 @@ class ObjectValue(Value):
                         s_body += "\nClass Properties:\n"
 
                         for k, v in class_dict.items():
-                            #if k in instance_dict:
-                            #    continue
-
-                            if v.typename != 'FUNCTION':
+                            if v.typename != 'CALLABLE':
 
                                 s_var = '{} = '.format(k)
                                 s_var += v.string_value()
-
-#                                 if v.typename == 'OBJECT':
-#                                     s_var += repr(v.val)
-#                                 else:
-#                                     s_var += repr(v)
-
                                 s_body += self._add_indent(s_var, 1)
                                 s_body += "\n"
 
@@ -728,39 +433,214 @@ class ObjectValue(Value):
                     for k, v in instance_dict.items():
                         s_var = '{} = '.format(k)
                         s_var += v.string_value()
-#                         if v.typename == 'OBJECT':
-#                             s_var += repr(v.val)
-#                         else:
-#                             s_var += repr(v)
 
                         s_body += self._add_indent(s_var, 1)
                         s_body += "\n"
 
-                if errmsgs:
-                    s_body += "\nREAD ERRORS: \n"
-                    s_body += self._add_indent("\n".join(errmsgs), 1)
-                    s_body += "\n"
-
-                if not is_py2 and self.typename == 'EXCEPTION':
+                if self.typename == 'EXCEPTION':
                     s_body += "\n"
                     s_body += "\n".join(traceback.format_exception(None, val, val.__traceback__))
 
-                s += self._add_indent(s_body.rstrip(), 1)
-                #s += "\n>\n"
-
             else:
-                s = String(repr(val))
+                s_body = String(repr(val))
 
-        s += "\n>"
+        return self.finalize_value(s, s_body)
+
+    def finalize_value(self, prefix, body, start_wrapper="<", stop_wrapper=">"):
+        indent = self.indent
+        start_wrapper = self._add_indent(f"\n{start_wrapper}", indent) + "\n"
+        body = self._add_indent(body.strip(), indent + 1)
+        stop_wrapper = self._add_indent(f"\n{stop_wrapper}", indent)
+        return prefix + start_wrapper + body + stop_wrapper
+
+
+class PrimitiveValue(Value):
+    @classmethod
+    def is_valid(cls, val):
+        """is the value a built-in type?"""
+        return isinstance(
+            val,
+            (
+                type(None),
+                bool,
+                int,
+                float
+            )
+        )
+
+
+class DictValue(ObjectValue):
+    left_paren = "{"
+    right_paren = "}"
+    prefix = "\n"
+
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, dict)
+
+    def name_callback(self, k):
+        if isinstance(k, basestring):
+            ret = "'{}'".format(self._get_unicode(k))
+        else:
+            ret = self._get_unicode(k)
+        return ret
+
+    def __iter__(self):
+        for v in self.val.items():
+            yield v
+
+    def string_value(self):
+        val = self.val
+        if len(val) > 0:
+
+            s = self._str_iterator(
+                iterator=self, 
+                name_callback=self.name_callback,
+                left_paren=self.left_paren,
+                right_paren=self.right_paren,
+                prefix=self.prefix,
+                depth=self.depth,
+            )
+
+        else:
+            s = "{}{}".format(self.left_paren, self.right_paren)
+
+        return s
+
+
+class DictProxyValue(DictValue):
+    left_paren = 'dict_proxy({'
+    right_paren = '})'
+    prefix = ""
+
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, MappingProxyType)
+
+
+class ListValue(DictValue):
+    left_paren = '['
+    right_paren = ']'
+    name_callback = None
+
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, list)
+
+    def __iter__(self):
+        for v in enumerate(self.val):
+            yield v
+
+
+class MappingViewValue(ListValue):
+
+    @property
+    def left_paren(self):
+        return "{}([".format(
+            self.val.__class__.__name__,
+        )
+
+    right_paren = '])'
+
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, MappingView)
+
+    def __iter__(self):
+        for v in enumerate(self.val):
+            yield v
+
+
+class ArrayValue(ListValue):
+    """Handles array.array instances"""
+    @property
+    def left_paren(self):
+        return "{}.{}('{}', [".format(
+            self.val.__class__.__module__,
+            self.val.__class__.__name__,
+            self.val.typecode
+        )
+
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, array.array)
+
+
+class SetValue(ListValue):
+    left_paren = '{'
+    right_paren = '}'
+
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, (set, frozenset, Set)) and not isinstance(val, MappingView)
+
+    def name_callback(self, k):
+        return None
+
+
+class GeneratorValue(SetValue):
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, (types.GeneratorType, range, map))
+
+    def string_value(self):
+        s = self.prefix_value()
+        return f"<{s}>"
+
+
+class TupleValue(ListValue):
+    left_paren = '('
+    right_paren = ')'
+
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, tuple)
+
+
+class StringValue(ObjectValue):
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, basestring)
+
+    def string_value(self):
+        val = self.val
+        try:
+            s = '"{}"'.format(String(val))
+
+        except (TypeError, UnicodeError) as e:
+            s = "<UNICODE ERROR>"
+
+        return s
+
+
+class BinaryValue(StringValue):
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, (bytes, bytearray, memoryview))
+
+    def string_value(self):
+        val = self.val
+        try:
+            s = repr(bytes(val))
+
+        except (TypeError, UnicodeError) as e:
+            s = "<UNICODE ERROR>"
 
         return s
 
 
 class ExceptionValue(ObjectValue):
-    pass
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, BaseException)
 
 
 class ModuleValue(ObjectValue):
+    @classmethod
+    def is_valid(cls, val):
+        # this has to go before the object check since a module will pass the object tests
+        return isinstance(val, types.ModuleType)
+
     def string_value(self):
         val = self.val
         file_path = Path(self._get_src_file(val))
@@ -779,7 +659,7 @@ class ModuleValue(ObjectValue):
             if self._is_magic(k): continue
 
             v = Value(v)
-            if v.typename == 'FUNCTION':
+            if v.typename == 'CALLABLE':
                 funcs[k] = v
             elif v.typename == 'MODULE':
                 modules[k] = v
@@ -818,7 +698,7 @@ class ModuleValue(ObjectValue):
                 # add methods
                 for m, mv in inspect.getmembers(v):
                     mv = Value(mv)
-                    if mv.typename == 'FUNCTION':
+                    if mv.typename == 'CALLABLE':
                         s += self._add_indent(mv, 2)
                         s += "\n"
                 s += "\n"
@@ -827,19 +707,25 @@ class ModuleValue(ObjectValue):
             s += "\nProperties:\n"
             for k, v in properties.items():
                 s += self._add_indent(k, 1)
-                #s += self._add_indent("{} = {}".format(k, self._str_val(v, depth=2)), 1)
-                #s += self._add_indent("{} = {}".format(k, self._get_unicode(v)), 1)
                 s += "\n"
 
         return s
 
 
 class TypeValue(Value):
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, type)
+
     def string_value(self):
         return '{}'.format(self.val)
 
 
 class RegexValue(Value):
+    @classmethod
+    def is_valid(cls, val):
+        return "SRE_Pattern" in repr(val)
+
     def string_value(self):
         # https://docs.python.org/2/library/re.html#regular-expression-objects
         val = self.val
@@ -872,7 +758,21 @@ class RegexValue(Value):
         return s
 
 
-class FunctionValue(Value):
+class CallableValue(Value):
+    @classmethod
+    def is_valid(cls, val):
+        # not sure why class methods pulled from __class__ fail the callable check
+
+        # if it has a __call__ and __func__ it's a method
+        # if it has a __call__ and __name__ it's a function
+        # if it just has a __call__ it's most likely an object instance
+        ret = False
+        d = dir(val)
+        if "__call__" in d:
+            ret = "__func__" in d or "__name__" in d
+
+        return ret
+
     def string_value(self):
         val = self.val
         try:
@@ -891,5 +791,20 @@ class FunctionValue(Value):
             ret = "<function {} at 0x{:02x}>".format(signature, id(val))
 
         return ret
+
+
+class PathValue(ObjectValue):
+    """
+    https://docs.python.org/3/library/pathlib.html
+    """
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, PurePath)
+
+    def string_value(self):
+        prefix = self.prefix_value()
+        body = String(self.val)
+        return self.finalize_value(prefix, body)
+
 
 

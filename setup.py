@@ -46,7 +46,6 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
         'Topic :: Software Development :: Testing',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
     ],
     #test_suite = "pout_test",

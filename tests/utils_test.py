@@ -32,3 +32,11 @@ class StringTest(TestCase):
         self.assertFalse(s.indent(2).startswith("..."))
         environ.INDENT_STRING = chars
 
+    def test_camelcase(self):
+        s = String("foo_bar").camelcase()
+        self.assertEqual("FooBar", s)
+
+    def test_snakecase(self):
+        s = String("FooBar").snakecase()
+        self.assertEqual("foo_bar", s)
+

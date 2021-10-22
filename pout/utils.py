@@ -2,6 +2,7 @@
 from __future__ import unicode_literals, division, print_function, absolute_import
 import sys
 import logging
+import re
 
 from .compat import String as BaseString, Bytes as BaseBytes, is_py2
 from . import environ
@@ -11,17 +12,6 @@ class StringMixin(object):
     def __format__(self, format_str):
         #pout2.v(format_str)
         return String(self) if isinstance(format_str, BaseString) else Bytes(self)
-
-#     def __str__(self):
-#         return self.__bytes__() if is_py2 else self.__unicode__()
-
-#     def __bytes__(self):
-#         return Bytes(self)
-#         #return self.__unicode__().encode(sys.getdefaultencoding()) #"utf-8")
-# 
-#     def __unicode__(self):
-#         return String(self)
-    #__str__ = __bytes__ if is_py2 else __unicode__
 
 
 class String(StringMixin, BaseString):
@@ -67,8 +57,19 @@ class String(StringMixin, BaseString):
         s = "\n".join(s)
         return type(self)(s)
 
-#     def __unicode__(self):
-#         return self
+    def camelcase(self):
+        """Convert a string to use camel case (spaces removed and capital letters)"""
+        return "".join(map(lambda s: s.title(), re.split(r"[_-]+", self)))
+
+    def snakecase(self):
+        """Convert a string to use snake case (lowercase with underscores in place
+        of spaces"""
+        s = []
+        for i, ch in enumerate(self):
+            if ch.isupper() and i:
+                s.append("_")
+            s.append(ch)
+        return re.sub(r"[\s-]+", "_", "".join(s)).lower()
 
 
 class Bytes(StringMixin, BaseBytes):
@@ -93,10 +94,6 @@ class Bytes(StringMixin, BaseBytes):
             arg = e
 
         return super(Bytes, cls).__new__(cls, arg)
-
-#     def __bytes__(self):
-#         return self
-#         #return self.__unicode__().encode(sys.getdefaultencoding()) #"utf-8")
 
 
 class Stream(object):

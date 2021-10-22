@@ -35,8 +35,6 @@ from .compat import (
     Iterable,
     Set,
 )
-from .value import Inspect, Value
-from .path import Path
 from .utils import String, StderrStream, FileStream
 from .reflect import Call, Reflect
 from .interface import (
@@ -55,7 +53,7 @@ from .interface import (
 )
 
 
-__version__ = '0.8.17'
+__version__ = '2.0.0'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been

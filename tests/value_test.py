@@ -4,15 +4,15 @@ import hmac
 import hashlib
 import array
 import re
+from pathlib import Path
 
 from . import testdata, TestCase
 
 import pout
 from pout import environ
-from pout.compat import range, is_py2, String
-from pout.value import Inspect, Value
+from pout.compat import *
 from pout.value import (
-    DefaultValue,
+    PrimitiveValue,
     DictValue,
     DictProxyValue,
     ListValue,
@@ -24,84 +24,87 @@ from pout.value import (
     ExceptionValue,
     ModuleValue,
     TypeValue,
-    RegexValue
+    RegexValue,
+    GeneratorValue,
+    Values,
+    Value,
 )
 
 
-class InspectTest(TestCase):
+class ValuesTest(TestCase):
+    def test___init__(self):
+        vs = Values()
+        self.assertEqual(Value, vs[-1])
+
+
+class ValueTest(TestCase):
     def test_is_set(self):
         v = set(["foo", "bar", "che"])
-        t = Inspect(v)
-        self.assertTrue(t.is_set())
+        t = Value(v)
+        self.assertTrue(SetValue.is_valid(v))
         self.assertEqual("SET", t.typename)
 
     def test_is_generator(self):
         v = (x for x in range(100))
-        t = Inspect(v)
+        t = Value(v)
+        self.assertTrue(GeneratorValue.is_valid(v))
         self.assertEqual("GENERATOR", t.typename)
 
         v = map(str, range(5))
-        t = Inspect(v)
-        if is_py2:
-            self.assertEqual("LIST", t.typename)
-        else:
-            self.assertEqual("GENERATOR", t.typename)
+        t = Value(v)
+        self.assertTrue(GeneratorValue.is_valid(v))
+        self.assertEqual("GENERATOR", t.typename)
 
     def test_is_binary(self):
         v = memoryview(b'abcefg')
-        t = Inspect(v)
+        t = Value(v)
+        self.assertTrue(BinaryValue.is_valid(v))
         self.assertEqual("BINARY", t.typename)
 
         v = bytearray.fromhex('2Ef0 F1f2  ')
-        t = Inspect(v)
+        t = Value(v)
+        self.assertTrue(BinaryValue.is_valid(v))
         self.assertEqual("BINARY", t.typename)
 
-        if is_py2:
-            v = bytes("foobar")
-        else:
-            v = bytes("foobar", "utf-8")
-        t = Inspect(v)
+        v = bytes("foobar", "utf-8")
+        t = Value(v)
+        self.assertTrue(BinaryValue.is_valid(v))
         self.assertEqual("BINARY", t.typename)
 
     def test_typename(self):
         class FooTypename(object): pass
         v = FooTypename()
-        self.assertEqual('OBJECT', Inspect(v).typename)
-        #import types
-        #print dir(Foo.__init__)
-        #print "{}".format(isinstance(Foo.__init__, (types.FunctionType, types.BuiltinFunctionType, types.MethodType)))
-        self.assertEqual('FUNCTION', Inspect(FooTypename.__init__).typename)
+        self.assertEqual('OBJECT', Value(v).typename)
+        self.assertEqual('CALLABLE', Value(FooTypename.__init__).typename)
 
         v = 'foo'
-        self.assertEqual('STRING', Inspect(v).typename)
+        self.assertEqual('STRING', Value(v).typename)
 
         v = 123
-        self.assertEqual('DEFAULT', Inspect(v).typename)
+        self.assertEqual('PRIMITIVE', Value(v).typename)
 
         v = True
-        self.assertEqual('DEFAULT', Inspect(v).typename)
+        self.assertEqual('PRIMITIVE', Value(v).typename)
 
         def baz(): pass
-        self.assertEqual('FUNCTION', Inspect(baz).typename)
+        self.assertEqual('CALLABLE', Value(baz).typename)
 
         v = TypeError()
-        self.assertEqual('EXCEPTION', Inspect(v).typename)
+        self.assertEqual('EXCEPTION', Value(v).typename)
 
         v = {}
-        self.assertEqual('DICT', Inspect(v).typename)
+        self.assertEqual('DICT', Value(v).typename)
 
         v = []
-        self.assertEqual('LIST', Inspect(v).typename)
+        self.assertEqual('LIST', Value(v).typename)
 
         v = ()
-        self.assertEqual('TUPLE', Inspect(v).typename)
+        self.assertEqual('TUPLE', Value(v).typename)
 
-        self.assertEqual('MODULE', Inspect(pout).typename)
+        self.assertEqual('MODULE', Value(pout).typename)
 
         import ast
-        self.assertEqual('MODULE', Inspect(ast).typename)
-
-        #self.assertEqual('CLASS', pout._get_type(self.__class__))
+        self.assertEqual('MODULE', Value(ast).typename)
 
     def test_instance_callable(self):
         class InsCall(object):
@@ -111,26 +114,15 @@ class InspectTest(TestCase):
 
         instance = InsCall()
 
-        v = Inspect(instance)
-#         import sys
-#         pout2.v(dir(instance))
-#         pout2.v(dir(instance.__call__))
-#         pout2.v(dir(sys.exit))
+        v = Value(instance)
         self.assertEqual('OBJECT', v.typename)
 
-        v = Inspect(instance.__call__)
-        self.assertEqual('FUNCTION', v.typename)
+        v = Value(instance.__call__)
+        self.assertEqual('CALLABLE', v.typename)
 
-        v = Inspect(InsCall.cmeth)
-        self.assertEqual('FUNCTION', v.typename)
+        v = Value(InsCall.cmeth)
+        self.assertEqual('CALLABLE', v.typename)
 
-#     def test_bs4(self):
-#         from bs4 import BeautifulSoup
-#         soup = BeautifulSoup("<p>blah</p>", "html.parser")
-#         pout2.v(soup)
-#         #pout.v(soup)
-
-class ValueTest(TestCase):
     def test___format__(self):
         """Make sure Value instances handle string format correctly"""
         #s = "C'est <b>full</b> poche, ça !"
@@ -138,12 +130,10 @@ class ValueTest(TestCase):
         v = Value(s)
         # if there are no exceptions the test passes
         "{}".format(v)
-        if is_py2:
-            b"{}".format(v)
 
-    def test_default(self):
+    def test_primitive(self):
         v = Value(5)
-        self.assertTrue(isinstance(v, DefaultValue))
+        self.assertTrue(isinstance(v, PrimitiveValue))
 
     def test_dict(self):
         v = Value({})
@@ -212,7 +202,16 @@ class ValueTest(TestCase):
         o.baz = [3]
 
         v = Value(o)
-        repr(v)
+        s = repr(v)
+        self.assertTrue("\n<\n" in s)
+
+        d = {
+            "che": o,
+            "baz": {"foo": 1, "bar": 2}
+        }
+        v = Value(d)
+        s = repr(v)
+        self.assertTrue("\n\t\t<\n" in s)
 
     def test_object_2(self):
         class To26(object):
@@ -269,6 +268,7 @@ class ValueTest(TestCase):
 
     def test_object_regex_match(self):
         m = re.match(r"(\d)(\d)(\d+)", "0213434")
+        pout.v(m)
 
         with self.assertLogs(logger=pout.stream.logger, level="DEBUG") as c:
             pout.v(m)
@@ -288,7 +288,19 @@ class ValueTest(TestCase):
     def test_dict_keys(self):
         d = {"foo": 1, "bar": 2}
         v = Value(d.keys())
-        self.assertEqual("LIST", v.typename)
+        self.assertEqual("MAPPING_VIEW", v.typename)
+        s = v.string_value()
+        print(s)
+
+    def test_object___pout__1(self):
+        class OPU(object):
+            def __pout__(self):
+                return "foo"
+
+        v = Value(OPU())
+        s = v.string_value()
+        self.assertEqual(4, len(s.splitlines(False)))
+        self.assertTrue("foo" in s)
 
     def test_object___pout___unicode(self):
         s = testdata.get_unicode_words()
@@ -301,4 +313,10 @@ class ValueTest(TestCase):
             pout.v(o)
 
         self.assertTrue(String(s) in String(c))
+
+    def test_path(self):
+        p = Path("/foo/bar/che")
+        v = Value(p)
+        s = v.string_value()
+        self.assertEqual(4, len(s.splitlines(False)))
 
