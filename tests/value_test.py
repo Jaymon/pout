@@ -268,7 +268,6 @@ class ValueTest(TestCase):
 
     def test_object_regex_match(self):
         m = re.match(r"(\d)(\d)(\d+)", "0213434")
-        pout.v(m)
 
         with self.assertLogs(logger=pout.stream.logger, level="DEBUG") as c:
             pout.v(m)

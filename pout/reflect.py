@@ -81,7 +81,6 @@ class CallString(String):
                 arg_names.append(n)
 
     def arg_names(self):
-
         arg_names = []
         try:
             tokens = list(self.tokens)
@@ -145,8 +144,7 @@ class CallString(String):
 
             token = tokens.pop(0)
 
-        #append_name(arg_name)
-        self._append_name(arg_names, arg_name)
+        #self._append_name(arg_names, arg_name)
 
         #pout2.v(arg_names)
         return arg_names
@@ -159,7 +157,7 @@ class Call(object):
     https://docs.python.org/3/library/inspect.html
     """
 
-    def __init__(self, frame_tuple):
+    def __init__(self, called_module, called_func, frame_tuple):
     #def _get_call_info(self, frame_tuple, called_module='', called_func=''):
         '''
         build a dict of information about the call
@@ -177,14 +175,13 @@ class Call(object):
         try:
             frames = inspect.getouterframes(frame_tuple[0])
 
-            called_module = inspect.getmodule(frame_tuple[0]).__name__
-            called_func = frame_tuple[0].f_code.co_name
+            #called_module = inspect.getmodule(frame_tuple[0]).__name__
+            #called_func = frame_tuple[0].f_code.co_name
             prev_frame = frame_tuple
             frame_tuple = frames[1]
 
         except Exception as e:
             logger.exception(e)
-
 
         call_info = {}
         #call_info['frame'] = frame_tuple
@@ -199,7 +196,8 @@ class Call(object):
             arg_names = []
             call = ''
 
-            if called_func and called_func != '__call__':
+            if called_func:
+            #if called_func and called_func != '__call__':
                 # get the call block
                 try:
                     open_kwargs = dict(mode='r', errors='replace', encoding=environ.ENCODING)
@@ -272,9 +270,9 @@ class Call(object):
 
         self.info = call_info
 
-    def is_match(self, modname, funcname):
-        info = self.info
-        return modname == info.get("call_modname", "") and funcname == info.get("call_funcname", "")
+#     def is_match(self, modname, funcname):
+#         info = self.info
+#         return modname == info.get("call_modname", "") and funcname == info.get("call_funcname", "")
 
     def _get_path(self, path):
         return Path(path)
@@ -346,28 +344,25 @@ class Call(object):
 
 class Reflect(object):
     """This provides the meta information (file, line number) for the actual pout call"""
-    def __init__(self, call, arg_vals=None):
-        #self.call = call or self._find_call()
-        self.call = call
-        self.arg_vals = arg_vals or []
-        self.info = self._get_arg_info()
+    def __init__(self, module, module_function_name, function_arg_vals):
+        self.module = module
+        self.module_function_name = module_function_name
+        self.arg_vals = function_arg_vals or []
 
-    @classmethod
-    @contextmanager
-    def context(cls, arg_vals=None, **kwargs):
+#     def __init__(self, call, arg_vals=None):
+#         #self.call = call or self._find_call()
+#         self.call = call
+#         self.arg_vals = arg_vals or []
+#         self.info = self._get_arg_info()
 
+    def __enter__(self):
         frame = frames = None
 
         try:
             # we want to get the frame of the current pout.* call
             frames = inspect.stack()
-            frame = frames[2]
-
-            #modname = inspect.getmodule(frame[0]).__name__
-            #funcname = frame[0].f_code.co_name
-            #print("{}:{} {} {}.{}".format(frame[1], frame[2], frame[4], modname, funcname))
-
-            yield cls(Call(frame), arg_vals)
+            frame = frames[1]
+            self.call = Call(self.module.__name__, self.module_function_name, frame)
 
         except IndexError as e:
             # There was a very specific bug that would cause inspect.getouterframes(frame)
@@ -375,11 +370,43 @@ class Reflect(object):
             # within a Jinja template, it seemed like it was going to be annoying to
             # reproduce and so I now catch the IndexError that inspect was throwing
             #logger.exception(e)
-            yield cls(None, arg_vals)
+            self.call = None
 
-        finally:
-            del frame
-            del frames
+        self.info = self._get_arg_info()
+
+        return self
+
+    def __exit__(self, exception_type, exception_val, trace):
+        del self.call
+
+#     @classmethod
+#     @contextmanager
+#     def context(cls, arg_vals=None, **kwargs):
+# 
+#         frame = frames = None
+# 
+#         try:
+#             # we want to get the frame of the current pout.* call
+#             frames = inspect.stack()
+#             frame = frames[2]
+# 
+#             #modname = inspect.getmodule(frame[0]).__name__
+#             #funcname = frame[0].f_code.co_name
+#             #print("{}:{} {} {}.{}".format(frame[1], frame[2], frame[4], modname, funcname))
+# 
+#             yield cls(Call(frame), arg_vals)
+# 
+#         except IndexError as e:
+#             # There was a very specific bug that would cause inspect.getouterframes(frame)
+#             # to fail when pout was called from an object's method that was called from
+#             # within a Jinja template, it seemed like it was going to be annoying to
+#             # reproduce and so I now catch the IndexError that inspect was throwing
+#             #logger.exception(e)
+#             yield cls(None, arg_vals)
+# 
+#         finally:
+#             del frame
+#             del frames
 
     def _get_arg_info(self):
         '''

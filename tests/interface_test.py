@@ -214,6 +214,12 @@ class SleepTest(TestCase):
         self.assertTrue("Done Sleeping" in c)
         self.assertTrue("Sleeping 0.25 seconds" in c)
 
+    def test_sleep(self):
+        start = time.time()
+        pout.sleep(1.1)
+        stop = time.time()
+        self.assertLess(1.0, stop - start)
+
 
 class TTest(TestCase):
     """test the pout.t() method"""
@@ -283,11 +289,6 @@ class RTest(TestCase):
 
 
 class VTest(TestCase):
-#     def test_bs4(self):
-#         from bs4 import BeautifulSoup
-#         soup = BeautifulSoup('<html><body><div id="foo">body</div></body></html>', "html.parser")
-#         pout.v(soup)
-
     def test_function(self):
         b = Bam()
 
@@ -327,47 +328,47 @@ class VTest(TestCase):
         self.assertTrue("'foo':" in c)
         self.assertTrue("'bar':" in c)
 
-    def test_overriding(self):
-        """This verifies that child classes still can find the correct stack traces
-
-        https://github.com/Jaymon/pout/issues/8
-        """
-        original_class = pout.V_CLASS
-
-        class Child(original_class):
-            def full_value(self):
-                call_info = self.reflect.info
-                if call_info["args"][0]["val"] == "foo":
-                    return self._printstr(["foo custom "], call_info)
-
-                else:
-                    return super(Child, self).full_value()
-
-        pout.V_CLASS = Child
-
-        try:
-#             v = "foo"
-#             pout.v(v)
-#             return
-
-            with testdata.capture() as c:
-                v = "foo"
-                pout.v(v)
-            self.assertTrue("foo custom" in c)
-
-            with testdata.capture() as c:
-                v = "bar"
-                pout.v(v)
-            self.assertTrue('"bar"' in c)
-
-        finally:
-            pout.V_CLASS = original_class
+#     def test_overriding(self):
+#         """This verifies that child classes still can find the correct stack traces
+# 
+#         https://github.com/Jaymon/pout/issues/8
+#         """
+#         original_class = pout.V_CLASS
+# 
+#         class Child(original_class):
+#             def full_value(self):
+#                 call_info = self.reflect.info
+#                 if call_info["args"][0]["val"] == "foo":
+#                     return self._printstr(["foo custom "], call_info)
+# 
+#                 else:
+#                     return super(Child, self).full_value()
+# 
+#         pout.V_CLASS = Child
+# 
+#         try:
+# #             v = "foo"
+# #             pout.v(v)
+# #             return
+# 
+#             with testdata.capture() as c:
+#                 v = "foo"
+#                 pout.v(v)
+#             self.assertTrue("foo custom" in c)
+# 
+#             with testdata.capture() as c:
+#                 v = "bar"
+#                 pout.v(v)
+#             self.assertTrue('"bar"' in c)
+# 
+#         finally:
+#             pout.V_CLASS = original_class
 
     def test_issue_31(self):
         """https://github.com/Jaymon/pout/issues/31"""
         class Issue31String(String):
             def bar(self):
-                pout.h()
+                pout.v("")
                 return ""
 
         with testdata.capture() as c:
@@ -851,11 +852,6 @@ class VTest(TestCase):
         v = [testdata.get_words(1) for x in range(260818)]
         pout.v(v)
 
-    def test_sleep(self):
-        start = time.time()
-        pout.sleep(1.1)
-        stop = time.time()
-        self.assertLess(1.0, stop - start)
 
 class MTest(TestCase):
     def test_m(self):

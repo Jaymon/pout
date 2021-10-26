@@ -19,31 +19,115 @@ import atexit
 from collections import defaultdict
 import json
 import traceback
+import functools
 
 from .compat import *
 from . import environ
 from .value import Value
 from .path import Path
 from .utils import String, Bytes
-from .reflect import Call
+from .reflect import Call, Reflect
 
 
 logger = logging.getLogger(__name__)
 
 
-class Interface(object):
-    """Most of pout's output will go through a child of this class"""
+from .utils import String, StderrStream, FileStream
 
+
+class Interface(object):
+    """Most of pout's output will go through some child of this class
+
+    To add a new pout function, you would extend this class and the class name
+    would be the name of the function, so if you did:
+
+        class Foo(Interface):
+            def __call__(self, *args, **kwargs):
+                self.writeline(f"Foo called with {len(args)} args and {len(kwargs) kwargs})"
+
+    Then you could do:
+
+        pout.foo(1, 2, 3, bar=4)
+
+    When you extend the `Interface` class, you only need to implement the `__call__`
+    method
+    """
     path_class = Path
 
-    def __init__(self, reflect, stream, **kwargs):
+    @classmethod
+    def function_name(cls):
+        """returns the name that pout will use to interface with an instance of this
+        class
+
+        :returns: string, the class name, by default, this is just the class name
+            lowercased
+        """
+        function_name = String(cls.__name__).snakecase().lower()
+        return function_name
+
+    @classmethod
+    def create_instance(cls, *args, **kwargs):
+        """This is the hook, basically pout.<FUNCTION_NAME> will actually call
+        this method, and this method will, in turn, call __call__
+
+        :param *args: mixed, the arguments passed to pout.<FUNCTION_NAME>
+        :param **kwargs: mixed, the keyword arguments passed to pout.<FUNCTION_NAME>
+            plus some other arguments that were bound to <FUNCTION_NAME> like
+            `pout_module` and `pout_function_name`
+        :returns: mixed, whatever __call__ returns
+        """
+        module = kwargs["pout_module"]
+        module_function_name = kwargs["pout_function_name"]
+        instance_class = kwargs["pout_interface_class"]
+
+        with Reflect(module, module_function_name, args) as r:
+            instance = instance_class(r, module.stream)
+            return instance(*args, **kwargs)
+
+    @classmethod
+    def find_classes(cls, cutoff_class=None):
+        """Used by auto-discovery to find all the children of Interface
+
+        :param cutoff_class: object, this method will only find children of this
+            class, if not passed in then it will be set to Interface
+        :returns: generator, yields all found classes
+        """
+        cutoff_class = cutoff_class or Interface
+        module = sys.modules[__name__]
+        for ni, vi in inspect.getmembers(module, inspect.isclass):
+            if issubclass(vi, cutoff_class) and vi is not cutoff_class:
+                yield vi
+
+    @classmethod
+    def inject_classes(cls, cutoff_class=None, module=None):
+        """This will find all the children of cutoff_class and inject them into
+        module as being callable at module.<FUNCTION_NAME>
+
+        :param cutoff_class: see find_classes
+        :param module: module, a python module that will be injected with the 
+            found cutoff_class children. This will default to pout
+        """
+        module = module or sys.modules[__name__.split(".")[0]]
+        for inter_class in cls.find_classes(cutoff_class=cutoff_class):
+            inter_class.inject(module)
+
+    @classmethod
+    def inject(cls, module=None):
+        """Actually inject this cls into module"""
+        module = module or sys.modules[__name__.split(".")[0]]
+        function_name = cls.function_name()
+        logger.debug(f"Injecting {__name__}.{cls.__name__} as {module.__name__}.{function_name} function")
+        func = functools.partial(
+            cls.create_instance,
+            pout_module=module,
+            pout_function_name=function_name,
+            pout_interface_class=cls,
+        )
+        setattr(module, function_name, func)
+
+    def __init__(self, reflect, stream):
         self.reflect = reflect
         self.stream = stream
-        self.kwargs = kwargs
-
-    def __call__(self):
-        s = self.full_value()
-        self.writeline(s)
 
     def writeline(self, s):
         self.stream.writeline(s)
@@ -73,17 +157,6 @@ class Interface(object):
         :returns: String
         """
         return self.value()
-
-    def value(self):
-        """Returns that actual value and nothing else in a format that can be
-        printed
-
-        all the other value methods rely on the return value of this method, and
-        all child classes will need to implement this method
-
-        :returns: String
-        """
-        raise NotImplementedError()
 
     def path_value(self):
         s = ""
@@ -132,7 +205,7 @@ class Interface(object):
                 s = "{} ({}) = {}".format(name, count, v.string_value())
 
             except (TypeError, KeyError, AttributeError) as e:
-                logger.info(e, exc_info=True)
+                logger.debug(e, exc_info=True)
                 s = "{} = {}".format(name, v.string_value())
 
         else:
@@ -140,20 +213,29 @@ class Interface(object):
 
         return s
 
-
-class InfoInterface(Interface):
     def value(self):
-        call_info = self.reflect.info
-        pargs = []
-        for v in call_info["args"]:
-            vt = Value(v['val'])
-            full_info = self._str(v['name'], vt.info())
-            pargs.append(full_info)
+        """Returns that actual value and nothing else in a format that can be
+        printed
 
-        return self._printstr(pargs)
+        all the other value methods rely on the return value of this method, and
+        all child classes will need to implement this method
+
+        :returns: String
+        """
+        raise NotImplementedError()
+
+    def __call__(self, *args, **kwargs):
+        """Whenever a bound <FUNCTION_NAME> is invoked, this method is called
+
+        :param *args: mixed, the module.<FUNCTION_NAME> args
+        :param **kwargs: mixed, the module.<FUNCTION_NAME> kwargs plus extra bound
+            keywords
+        :returns: mixed, whatever you want module.<FUNCTION_NAME> to return
+        """
+        raise NotImplementedError()
 
 
-class ValueInterface(Interface):
+class V(Interface):
     def name_value(self):
         call_info = self.reflect.info
         # !!! you can add another \n here to put a newline between the value and
@@ -166,15 +248,136 @@ class ValueInterface(Interface):
         args = ["{}\n".format(self._str(None, v['val'])) for v in call_info['args']]
         return self._printstr(args)
 
+    def __call__(self, *args, **kwargs):
+        '''
+        print the name = values of any passed in variables
 
-class RowInterface(ValueInterface):
+        this prints out the passed in name, the value, and the file:line where the v()
+        method was called so you can easily find it and remove it later
 
+        example -- 
+            foo = 1
+            bar = [1, 2, 3]
+            out.v(foo, bar)
+            """ prints out:
+            foo = 1
+
+            bar = 
+            [
+                0: 1,
+                1: 2,
+                2: 3
+            ]
+
+            (/file:line)
+            """
+
+        *args -- list -- the variables you want to see pretty printed for humans
+        '''
+        if not args:
+        #if not self.reflect.arg_vals:
+            raise ValueError("you didn't pass any arguments to print out")
+
+        self.writeline(self.full_value())
+
+
+class VS(V):
+    def __call__(self, *args, **kwargs):
+        """
+        exactly like v, but doesn't print variable names or file positions
+
+        .. seealso:: ss()
+        """
+        if not args:
+        #if not self.reflect.arg_vals:
+            raise ValueError("you didn't pass any arguments to print out")
+
+        self.writeline(self.value())
+
+
+class VV(VS):
+    def __call__(self, *args, **kwargs):
+        """alias of VS"""
+        return super().__call__(*args, **kwargs)
+
+
+class S(V):
+    def __call__(self, *args, **kwargs):
+        """
+        exactly like v() but returns the string instead of printing it out
+
+        since -- 10-15-2015
+        return -- str
+        """
+        if not args:
+        #if not self.reflect.arg_vals:
+            raise ValueError("you didn't pass any arguments")
+
+        return self.full_value().strip()
+
+
+class SS(V):
+    def __call__(self, *args, **kwargs):
+        """
+        exactly like s, but doesn't return variable names or file positions (useful for logging)
+
+        since -- 10-15-2015
+        return -- str
+        """
+        if not args:
+            raise ValueError("you didn't pass any arguments")
+        return self.value().strip()
+
+
+class X(V):
+    def __call__(self, *args, **kwargs):
+        '''same as v() but calls sys.exit() after printing values
+
+        I just find this really handy for debugging sometimes
+
+        since -- 2013-5-9
+        https://github.com/Jaymon/pout/issues/50
+        '''
+        if args:
+            super().__call__(*args, **kwargs)
+
+        else:
+            self.writelines([
+                'exit at line {}'.format(self.reflect.info["line"]),
+                self.path_value()
+            ])
+
+        exit_code = int(kwargs.get("exit_code", kwargs.get("code", 1)))
+        sys.exit(exit_code)
+
+
+class Sleep(V):
+    def __call__(self, seconds, **kwargs):
+        '''
+        same as time.sleep(seconds) but prints out where it was called before sleeping
+        and then again after finishing sleeping
+
+        I just find this really handy for debugging sometimes
+
+        since -- 2017-4-27
+
+        :param seconds: float|int, how many seconds to sleep
+        '''
+        if seconds <= 0.0:
+            raise ValueError("Invalid seconds {}".format(seconds))
+
+        self.writeline("Sleeping {} second{} at {}".format(
+            seconds,
+            "s" if seconds != 1.0 else "",
+            self.path_value()
+        ))
+
+        time.sleep(seconds)
+        self.writelines(["...Done Sleeping", self.path_value(), ""])
+
+
+class R(V):
     calls = defaultdict(lambda: {"count": 0, "info": {}})
-
-    def __call__(self):
-        super(RowInterface, self).__call__()
-        self.register()
-        self.bump()
 
     @classmethod
     def goodbye(cls, instance):
@@ -204,21 +407,72 @@ class RowInterface(ValueInterface):
 
         r_class.calls[s]["info"] = self.reflect.info
 
+    def __call__(self, *args, **kwargs):
+        """Similar to pout.v() but gets rid of name and file information so it can be used
+        in loops and stuff, it will print out where the calls came from at the end of
+        execution
 
-class HereInterface(Interface):
+        this just makes it nicer when you're printing a bunch of stuff each iteration
+
+        :Example:
+            for x in range(x):
+                pout.r(x)
+        """
+        super().__call__(*args, **kwargs)
+        self.register()
+        self.bump()
+
+
+class VR(R):
+    def __call__(self, *args, **kwargs):
+        """alias of R"""
+        return super().__call__(*args, **kwargs)
+
+
+class I(Interface):
     def value(self):
         call_info = self.reflect.info
-        count = self.kwargs.get("count", 0)
-        #pout2.b()
-        #pout2.v(call_info)
+        pargs = []
+        for v in call_info["args"]:
+            vt = Value(v['val'])
+            full_info = self._str(v['name'], vt.info())
+            pargs.append(full_info)
+
+        return self._printstr(pargs)
+
+    def __call__(self, *args, **kwargs):
+        if not args:
+        #if not self.reflect.arg_vals:
+            raise ValueError("you didn't pass any arguments to print out")
+
+        self.writeline(self.full_value())
+
+
+class H(Interface):
+    def value(self):
+        call_info = self.reflect.info
+        count = getattr(self, "count", 0)
         args = ["here {} ".format(count if count > 0 else call_info['line'])]
         return self._printstr(args)
 
+    def __call__(self, count=0, **kwargs):
+        '''
+        prints "here count"
 
-class BreakInterface(Interface):
+        example -- 
+            h(1) # here 1 (/file:line)
+            h() # here line (/file:line)
+
+        count -- integer -- the number you want to put after "here"
+        '''
+        self.count = int(count)
+        self.writeline(self.full_value())
+
+
+class B(Interface):
     def value(self):
         call_info = self.reflect.info
-        args = self.kwargs.get("args", [])
+        args = getattr(self, "args", [])
 
         lines = []
 
@@ -265,11 +519,24 @@ class BreakInterface(Interface):
         lines.append('')
         return self._printstr(["\n".join(lines)])
 
+    def __call__(self, *args, **kwargs):
+        '''
+        create a big text break, you just kind of have to run it and see
 
-class CharInterface(Interface):
+        since -- 2013-5-9
+
+        *args -- 1 arg = title if string, rows if int
+            2 args = title, int
+            3 args = title, int, sep
+        '''
+        self.args = args
+        self.writeline(self.full_value())
+
+
+class C(Interface):
     def value(self):
         call_info = self.reflect.info
-        args = self.kwargs.get("args", [])
+        args = getattr(self, "args", [])
         lines = []
         for arg in args:
             arg = String(arg)
@@ -302,27 +569,45 @@ class CharInterface(Interface):
 
         return self._printstr(["\n".join(lines)])
 
+    def __call__(self, *args, **kwargs):
+        '''
+        kind of like od -c on the command line, basically it dumps each character and info
+        about that char
 
-class JsonInterface(Interface):
+        since -- 2013-5-9
+
+        *args -- tuple -- one or more strings to dump
+        '''
+        self.args = args
+        self.writeline(self.full_value())
+
+
+class J(Interface):
     def value(self):
         call_info = self.reflect.info
-        #print(call_info)
-#         for v in call_info["args"]:
-#             s = json.loads(v["val"])
-#             #print(s)
-#             pout.v(s)
-#         return ""
         args = ["{}\n\n".format(self._str(v['name'], json.loads(v['val']))) for v in call_info['args']]
         return self._printstr(args)
 
+    def __call__(self, *args, **kwargs):
+        """
+        dump json
 
-class MemoryInterface(Interface):
+        since -- 2013-9-10
+
+        *args -- tuple -- one or more json strings to dump
+        """
+        if not args:
+            raise ValueError("you didn't pass any arguments to print out")
+        self.writeline(self.full_value())
+
+
+class M(Interface):
     def value(self):
         if not resource:
             return self._printstr(["UNSUPPORTED OS\n"])
 
         #call_info = self.reflect.info
-        name = self.kwargs.get("name", "")
+        name = getattr(self, "name", "")
         usage = resource.getrusage(resource.RUSAGE_SELF)
         # according to the docs, this should give something good but it doesn't jive
         # with activity monitor, so I'm using the value that gives me what activity 
@@ -342,12 +627,23 @@ class MemoryInterface(Interface):
         if name:
             summary += "{}: ".format(name)
 
-        summary += "{0} mb{1}{1}".format(round(rss, 2), "\n")
+        summary += "{0} mb\n".format(round(rss, 2))
         calls = [summary]
         return self._printstr(calls)
 
+    def __call__(self, name='', **kwargs):
+        """
+        Print out memory usage at this point in time
 
-class ErrorInterface(Interface):
+        http://docs.python.org/2/library/resource.html
+        http://stackoverflow.com/a/15448600/5006
+        http://stackoverflow.com/questions/110259/which-python-memory-profiler-is-recommended
+        """
+        self.name = name
+        self.writeline(self.full_value())
+
+
+class E(Interface):
     """Easy exception printing
 
     see e()
@@ -371,11 +667,21 @@ class ErrorInterface(Interface):
             self.exc_type = exc_type
             self.exc_value = exc_value
             self.traceback = traceback
-            self()
+            self.writeline(self.full_value())
             reraise(exc_type, exc_value, traceback)
 
+    def __call__(self, **kwargs):
+        """easy error printing
 
-class ProfileInterface(Interface):
+        :Example:
+            with pout.e():
+                raise ValueError("foo")
+        :returns: context manager
+        """
+        return self
+
+
+class P(Interface):
     """this is a context manager for Profiling
 
     see -- p()
@@ -384,14 +690,6 @@ class ProfileInterface(Interface):
 
     # profiler p() state is held here
     stack = []
-
-    def __init__(self, reflect, stream, name="", **kwargs):
-        super(ProfileInterface, self).__init__(reflect, stream, **kwargs)
-
-        if name:
-            self.start(name, reflect.info)
-        else:
-            self.start_call_info = reflect.info
 
     @classmethod
     def pop(cls, reflect=None):
@@ -441,14 +739,12 @@ class ProfileInterface(Interface):
                 pr_class.stack.pop(i)
                 break
 
-        self()
+        self.writeline(self.full_value())
 
     def value(self):
         s = ""
-        d = None
         start_call_info = self.start_call_info
         stop_call_info = self.stop_call_info
-        d = self.kwargs.get("profiler")
 
         summary = []
         summary.append("{} - {}".format(self.name, self.total))
@@ -470,76 +766,51 @@ class ProfileInterface(Interface):
 
         return self._printstr(["\n".join(summary)])
 
-#         if name:
-#             d = Profiler(String(name), call_info)
-# 
-#         else:
-#             if len(Profiler.stack) > 0:
-#                 d = Profiler.stack[-1]
-#                 d.__exit__()
-# 
-#                 summary = []
-#                 summary.append("{} - {}".format(d.name, d.total))
-#                 summary.append("  start: {} ({}:{})".format(
-#                     d.start,
-#                     self._get_path(d.start_call_info['file']),
-#                     d.start_call_info['line']
-#                 ))
-#                 if call_info:
-#                     summary.append("  stop: {} ({}:{})".format(
-#                         d.stop,
-#                         self._get_path(call_info['file']),
-#                         call_info['line']
-#                     ))
-#                     d.stop_call_info = call_info
-# 
-#                 else:
-#                     summary.append("  stop: {}".format(d.stop))
-#                     d.stop_call_info = d.start_call_info
-# 
-#                 calls = ["\n".join(summary)]
-#                 s = self._printstr(calls, None)
-# 
-#         if d:
-#             self.profiler = d
-# 
-#         return s
-
-#     def stop(self, call_info=None):
-#         pr_class = type(self)
-#         name = self.name
-#         if len(pr_class.stack) > 0:
-#             found = False
-#             ds = []
-#             for d in pr_class.stack:
-#                 if self is d:
-#                     found = True
-#                     break
-# 
-#                 else:
-#                     ds.append(d)
-# 
-#             if found and ds:
-#                 name = ' > '.join((d.name for d in pr_class.stack))
-#                 name += ' > {}'.format(self.name)
-# 
-# 
-# 
-# 
-# #             name = ' > '.join((d.name for d in pr_class.stack))
-# #             name += ' > {}'.format(self.name)
-# 
-#         #d = type(self).stack.pop()
-#         self.name = name
-#         self.stop = time.time()
-#         self.elapsed = self.get_elapsed(self.start, self.stop, 1000.00, 1)
-#         self.total = "{:.1f} ms".format(self.elapsed)
-
     def get_elapsed(self, start, stop, multiplier, rnd):
         return round(abs(stop - start) * float(multiplier), rnd)
 
+    def __call__(self, name="", **kwargs):
+        '''
+        really quick and dirty profiling
 
-class LoggingInterface(object):
+        you start a profile by passing in name, you stop the top profiling by not
+        passing in a name. You can also call this method using a with statement
+
+        This is for when you just want to get a really back of envelope view of
+        how your fast your code is, super handy, not super accurate
+
+        since -- 2013-5-9
+        example --
+            p("starting profile")
+            time.sleep(1)
+            p() # stop the "starting profile" session
+
+            # you can go N levels deep
+            p("one")
+            p("two")
+            time.sleep(0.5)
+            p() # stop profiling of "two"
+            time.sleep(0.5)
+            p() # stop profiling of "one"
+
+            with pout.p("three"):
+                time.sleep(0.5)
+
+        name -- string -- pass this in to start a profiling session
+        return -- context manager
+        '''
+        print(name, kwargs)
+        if name:
+            self.start(name, self.reflect.info)
+            instance = self
+        else:
+            instance = type(self).pop(self.reflect)
+            instance.writeline(instance.full_value())
+
+        return instance
+
+
+class L(Interface):
     """Logging context manager used in pout.l()
 
     This will turn logging to the stderr on for everything inside the with block
@@ -566,18 +837,6 @@ class LoggingInterface(object):
             ret = list(logging.Logger.manager.loggerDict.items())
             ret.append(("root", logging.getLogger()))
         return ret
-
-    def __init__(self, logger_name="", level=logging.DEBUG):
-        self.logger_name = logger_name
-
-        if isinstance(level, basestring):
-            if is_py2:
-                self.level = logging._checkLevel(level.upper())
-            else:
-                self.level = logging._nameToLevel[level.upper()]
-
-        else:
-            self.level = level
 
     def __enter__(self):
         old_loggers = collections.defaultdict(dict)
@@ -609,8 +868,35 @@ class LoggingInterface(object):
                 else:
                     setattr(logger, name, val)
 
+    def __call__(self, logger_name="", level=logging.DEBUG, **kwargs):
+        """see Logging class for details, this is just the method wrapper around Logging
 
-class TraceInterface(Interface):
+        :Example:
+            # turn on logging for all loggers
+            with pout.l():
+                # do stuff that produces logs and see it prints to stderr
+
+            # turn on logging just for a specific logger
+            with pout.l("name"):
+                # "name" logger will print to stderr, all other loggers will act
+                # as configured
+
+        :param logger_name: string|Logger, the logger name you want to print to stderr
+        :param level: string|int, the logging level the logger should be set at,
+            this defaults to logging.DEBUG
+        """
+        self.logger_name = logger_name
+
+        if isinstance(level, basestring):
+            self.level = logging._nameToLevel[level.upper()]
+
+        else:
+            self.level = level
+
+        return self
+
+
+class T(Interface):
 
     call_class = Call
 
@@ -647,8 +933,10 @@ class TraceInterface(Interface):
             #prev_f = frames[i]
             #called_module = inspect.getmodule(prev_f[0]).__name__
             #called_func = prev_f[3]
+            called_module = f[0]
+            called_func = f[3]
 
-            call = self.call_class(f)
+            call = self.call_class(called_module, called_func, f)
             s = self._get_call_summary(call, inspect_packages=inspect_packages, index=count)
             calls.append(s)
             #count += 1
@@ -702,5 +990,28 @@ class TraceInterface(Interface):
             s = "{:02d} - {}".format(index, s)
 
         return s
+
+    def __call__(self, inspect_packages=False, depth=0, **kwargs):
+        '''
+        print a backtrace
+
+        since -- 7-6-12
+
+        inpsect_packages -- boolean -- by default, this only prints code of packages that are not 
+            in the pythonN directories, that cuts out a lot of the noise, set this to True if you
+            want a full stacktrace
+        depth -- integer -- how deep you want the stack trace to print (ie, if you only care about
+            the last three calls, pass in depth=3 so you only get the last 3 rows of the stack)
+        '''
+        try:
+            frames = inspect.stack()
+            kwargs["frames"] = frames
+            kwargs["inspect_packages"] = inspect_packages
+            kwargs["depth"] = depth
+            self.kwargs = kwargs
+            self.writeline(self.full_value())
+
+        finally:
+            del frames
 
 

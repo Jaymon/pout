@@ -63,11 +63,20 @@ class String(StringMixin, BaseString):
 
     def snakecase(self):
         """Convert a string to use snake case (lowercase with underscores in place
-        of spaces"""
+        of spaces)"""
         s = []
+        prev_ch_was_lower = False
+
         for i, ch in enumerate(self):
-            if ch.isupper() and i:
-                s.append("_")
+            if ch.isupper():
+                if i and prev_ch_was_lower:
+                    s.append("_")
+
+                prev_ch_was_lower = False
+
+            else:
+                prev_ch_was_lower = True
+
             s.append(ch)
         return re.sub(r"[\s-]+", "_", "".join(s)).lower()
 

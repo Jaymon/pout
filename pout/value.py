@@ -28,6 +28,14 @@ logger = logging.getLogger(__name__)
 
 
 class Values(list):
+    """We want to keep a particular order of the Value subclasses to make sure
+    that certain classes are checked before others, this is because certain values
+    might actually resolve into 2 different sub values, so order becomes important
+
+    this class maintains that order, basically, it makes sure all subclasses get
+    checked before the parent class, so if you want your CustomValue to evaluate
+    before DictValue, you would just have CustomValue extend DictValue
+    """
     def __init__(self):
         super().__init__()
 
@@ -39,14 +47,10 @@ class Values(list):
             if issubclass(vi, self.cutoff_class):
                 self.insert(vi)
 
-        #print(self)
-
     def insert(self, value_class):
         index = len(self)
-        #print("================================\n")
         for vclass in reversed(inspect.getmro(value_class)):
             if issubclass(vclass, self.cutoff_class):
-                #print(vclass)
                 index_name = f"{vclass.__module__}.{vclass.__name__}"
                 if index_name in self.indexes:
                     index = min(index, self.indexes[index_name])
@@ -65,12 +69,15 @@ class Values(list):
 
 
 class Value(object):
-
+    """Pout is mainly used to print values of different objects, and that printing
+    of objects happens in subclasses of this parent class. See the .interface.V
+    class for how this is hooked into pout.v
+    """
     values_class = Values
     """Holds the class this will use to find the right Value class to return"""
 
     values_instance = None
-    """Holds a cached instance of value_class for faster searches"""
+    """Holds a cached instance of values_class for faster searches"""
 
     @property
     def typename(self):
