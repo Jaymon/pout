@@ -131,9 +131,11 @@ class Interface(object):
         self.stream = stream
 
     def writeline(self, s):
+        """Actually write s to something using self.stream"""
         self.stream.writeline(s)
 
     def writelines(self, ss):
+        """Write a list of string to something using self.stream"""
         for s in ss:
             self.writeline(s)
 
@@ -170,8 +172,7 @@ class Interface(object):
         return self.path_class(path)
 
     def _printstr(self, args, call_info=None):
-        """this gets all the args ready to be printed, see self._print()"""
-        # unicode sandwich, everything printed should be a byte string
+        """this gets all the args ready to be printed, this is terribly named"""
         s = "\n"
 
         for arg in args:
@@ -182,7 +183,6 @@ class Interface(object):
             s += "({}:{})\n\n".format(self._get_path(call_info['file']), call_info['line'])
 
         return s
-        #return s.encode('utf-8', 'pout.replace')
 
     def _str(self, name, val):
         '''
