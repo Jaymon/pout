@@ -133,22 +133,12 @@ class Value(object):
         methods = []
         properties = []
         for ni, vi in inspect.getmembers(self.val):
-#             i = self.inspect_class(vi)
-            #print(ni, i.typename, type(vi))
-            #print(ni, type(vi))
             if TypeValue.is_valid(vi):
                 properties.append((ni, vi))
             elif CallableValue.is_valid(vi):
                 methods.append((ni, vi))
             else:
                 properties.append((ni, vi))
-
-#             if i.is_type():
-#                 properties.append((ni, vi))
-#             elif i.is_callable():
-#                 methods.append((ni, vi))
-#             else:
-#                 properties.append((ni, vi))
 
         full_info = repr(self)
         info = "MEMBERS:\n"
@@ -451,10 +441,11 @@ class ObjectValue(Value):
             else:
                 s_body = String(repr(val))
 
-        return self.finalize_value(s, s_body)
+        return self.finalize_value(body=s_body, prefix=s)
 
-    def finalize_value(self, prefix, body, start_wrapper="<", stop_wrapper=">"):
+    def finalize_value(self, body, prefix="", start_wrapper="<", stop_wrapper=">"):
         indent = self.indent
+        prefix = prefix or self.prefix_value()
         start_wrapper = self._add_indent(f"\n{start_wrapper}", indent) + "\n"
         body = self._add_indent(body.strip(), indent + 1)
         stop_wrapper = self._add_indent(f"\n{stop_wrapper}", indent)
@@ -486,7 +477,9 @@ class DictValue(ObjectValue):
         return isinstance(val, dict)
 
     def name_callback(self, k):
-        if isinstance(k, basestring):
+        if isinstance(k, (bytes, bytearray)):
+            ret = "b'{}'".format(self._get_unicode(k))
+        elif isinstance(k, basestring):
             ret = "'{}'".format(self._get_unicode(k))
         else:
             ret = self._get_unicode(k)
@@ -499,15 +492,21 @@ class DictValue(ObjectValue):
     def string_value(self):
         val = self.val
         if len(val) > 0:
+            pout_method = self._getattr(val, "__pout__", None)
+            if pout_method and callable(pout_method):
+                v = Value(pout_method())
+                s_body = v.string_value()
+                s = self.finalize_value(s_body, start_wrapper=self.left_paren, stop_wrapper=self.right_paren)
 
-            s = self._str_iterator(
-                iterator=self, 
-                name_callback=self.name_callback,
-                left_paren=self.left_paren,
-                right_paren=self.right_paren,
-                prefix=self.prefix,
-                depth=self.depth,
-            )
+            else:
+                s = self._str_iterator(
+                    iterator=self, 
+                    name_callback=self.name_callback,
+                    left_paren=self.left_paren,
+                    right_paren=self.right_paren,
+                    prefix=self.prefix,
+                    depth=self.depth,
+                )
 
         else:
             s = "{}{}".format(self.left_paren, self.right_paren)
@@ -809,9 +808,8 @@ class PathValue(ObjectValue):
         return isinstance(val, PurePath)
 
     def string_value(self):
-        prefix = self.prefix_value()
         body = String(self.val)
-        return self.finalize_value(prefix, body)
+        return self.finalize_value(body)
 
 
 

@@ -13,6 +13,20 @@ class ReflectTest(TestCase):
         foo = 1
         pout.v(foo, "foo bar che")
 
+    def test__get_arg_info(self):
+        foo = 1
+        with testdata.capture() as c:
+            pout.v(foo)
+        self.assertTrue('foo = 1' in c)
+
+    def test_multi_command_on_one_line(self):
+        """make sure we are finding the correct call on a multi command line"""
+        name = "foo"
+        val = 1
+        with testdata.capture() as c:
+            if not hasattr(self, name): pout.v(name); hasattr(self, name)
+        self.assertTrue('name (3) = "foo"' in c)
+
 
 class CallStringTest(TestCase):
     def test_string_in_parse(self):
@@ -258,4 +272,5 @@ class CallStringTest(TestCase):
 
         c = CallString("pout.v('isn\'t, no')")
         pout2.v(c.arg_names())
+
 

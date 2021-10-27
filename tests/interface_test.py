@@ -13,6 +13,7 @@ import logging
 import pout
 from pout.compat import *
 from pout import environ
+from pout.interface import Interface, V
 
 from . import testdata, TestCase
 
@@ -121,7 +122,7 @@ class CTest(TestCase):
         self.assertTrue("Total Characters:" in c)
 
 class BTest(TestCase):
-    def test_variable(self):
+    def test_variable_1(self):
         s = "foo"
         with testdata.capture() as c:
             pout.b(s)
@@ -131,6 +132,17 @@ class BTest(TestCase):
         with testdata.capture() as c:
             pout.b(s)
         self.assertTrue("foo" in c)
+
+    def test_variable_2(self):
+        """https://github.com/Jaymon/pout/issues/40"""
+        i = 5
+        with testdata.capture() as c:
+            pout.b(i)
+        self.assertTrue(" 5 " in c)
+
+        with testdata.capture() as c:
+            pout.b(5)
+        self.assertEqual(8, len(c.splitlines()))
 
     def test_b(self):
         with testdata.capture() as c:
@@ -226,7 +238,7 @@ class TTest(TestCase):
     def get_trace(self):
         pout.t()
 
-    def test_t(self):
+    def test_t_1(self):
         with testdata.capture() as c:
             pout.t()
         self.assertTrue("pout.t()" in c)
@@ -289,6 +301,34 @@ class RTest(TestCase):
 
 
 class VTest(TestCase):
+    def test_issue42(self):
+        class Foo(object):
+            def __init__(self, a, b):
+                self.a = a
+                self.b = b
+                pout.v(self)
+
+        f = Foo(1, 2) # success if no error raised
+
+    def test_issue16(self):
+        """ https://github.com/Jaymon/pout/issues/16 """
+        class Module(object): pass
+        ret = "foo"
+        default_val = "bar"
+        self.issue_module = Module()
+        self.issue_fields = {}
+        k = "che"
+
+        with testdata.capture() as c:
+            pout.v(ret, default_val, getattr(self.issue_module, k, None), self.issue_fields.get(k, None))
+        self.assertTrue('ret (3) = "foo"' in c)
+        self.assertTrue('default_val (3) = "bar"' in c)
+        self.assertTrue('getattr(self.issue_module, k, None) = None' in c)
+        self.assertTrue('self.issue_fields.get(k, None) = None')
+
+        del self.issue_module
+        del self.issue_fields
+
     def test_function(self):
         b = Bam()
 
@@ -328,41 +368,41 @@ class VTest(TestCase):
         self.assertTrue("'foo':" in c)
         self.assertTrue("'bar':" in c)
 
-#     def test_overriding(self):
-#         """This verifies that child classes still can find the correct stack traces
-# 
-#         https://github.com/Jaymon/pout/issues/8
-#         """
-#         original_class = pout.V_CLASS
-# 
-#         class Child(original_class):
-#             def full_value(self):
-#                 call_info = self.reflect.info
-#                 if call_info["args"][0]["val"] == "foo":
-#                     return self._printstr(["foo custom "], call_info)
-# 
-#                 else:
-#                     return super(Child, self).full_value()
-# 
-#         pout.V_CLASS = Child
-# 
-#         try:
-# #             v = "foo"
-# #             pout.v(v)
-# #             return
-# 
-#             with testdata.capture() as c:
-#                 v = "foo"
-#                 pout.v(v)
-#             self.assertTrue("foo custom" in c)
-# 
-#             with testdata.capture() as c:
-#                 v = "bar"
-#                 pout.v(v)
-#             self.assertTrue('"bar"' in c)
-# 
-#         finally:
-#             pout.V_CLASS = original_class
+    def test_overriding(self):
+        """This verifies that child classes still can find the correct stack traces
+
+        https://github.com/Jaymon/pout/issues/8
+        """
+        original_function = pout.v
+
+        class Child(V):
+            @classmethod
+            def function_name(cls):
+                return "v"
+
+            def full_value(self):
+                call_info = self.reflect.info
+                if call_info["args"][0]["val"] == "foo":
+                    return self._printstr(["foo custom "], call_info)
+
+                else:
+                    return super(Child, self).full_value()
+
+        Child.inject()
+
+        try:
+            with testdata.capture() as c:
+                v = "foo"
+                pout.v(v)
+            self.assertTrue("foo custom" in c)
+
+            with testdata.capture() as c:
+                v = "bar"
+                pout.v(v)
+            self.assertTrue('"bar"' in c)
+
+        finally:
+            pout.v = original_function
 
     def test_issue_31(self):
         """https://github.com/Jaymon/pout/issues/31"""
@@ -904,4 +944,22 @@ class ETest(TestCase):
         with self.assertRaises(ValueError):
             with pout.e():
                 raise ValueError("foo")
+
+
+class ToFileTest(TestCase):
+    def test_tofile(self):
+        path = testdata.get_file("pout.txt")
+        with pout.tofile(path):
+            s = "foobar"
+            pout.b()
+            pout.v(s)
+            pout.h()
+
+        r = path.read_text()
+        self.assertTrue("foobar" in r)
+        self.assertTrue("here" in r)
+
+        with testdata.capture() as c:
+            pout.v("after tofile")
+        self.assertTrue("after tofile" in c)
 

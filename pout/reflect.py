@@ -171,7 +171,6 @@ class Call(object):
             file -- the full filepath the call was made from
             call -- the full text of the call (currently, this might be missing a closing paren)
         '''
-
         try:
             frames = inspect.getouterframes(frame_tuple[0])
 
@@ -196,8 +195,8 @@ class Call(object):
             arg_names = []
             call = ''
 
-            if called_func:
-            #if called_func and called_func != '__call__':
+            #if called_func:
+            if called_func and called_func != '__call__':
                 # get the call block
                 try:
                     open_kwargs = dict(mode='r', errors='replace', encoding=environ.ENCODING)
@@ -269,10 +268,6 @@ class Call(object):
             call_info['call_funcname'] = called_func
 
         self.info = call_info
-
-#     def is_match(self, modname, funcname):
-#         info = self.info
-#         return modname == info.get("call_modname", "") and funcname == info.get("call_funcname", "")
 
     def _get_path(self, path):
         return Path(path)
@@ -349,12 +344,6 @@ class Reflect(object):
         self.module_function_name = module_function_name
         self.arg_vals = function_arg_vals or []
 
-#     def __init__(self, call, arg_vals=None):
-#         #self.call = call or self._find_call()
-#         self.call = call
-#         self.arg_vals = arg_vals or []
-#         self.info = self._get_arg_info()
-
     def __enter__(self):
         frame = frames = None
 
@@ -378,35 +367,6 @@ class Reflect(object):
 
     def __exit__(self, exception_type, exception_val, trace):
         del self.call
-
-#     @classmethod
-#     @contextmanager
-#     def context(cls, arg_vals=None, **kwargs):
-# 
-#         frame = frames = None
-# 
-#         try:
-#             # we want to get the frame of the current pout.* call
-#             frames = inspect.stack()
-#             frame = frames[2]
-# 
-#             #modname = inspect.getmodule(frame[0]).__name__
-#             #funcname = frame[0].f_code.co_name
-#             #print("{}:{} {} {}.{}".format(frame[1], frame[2], frame[4], modname, funcname))
-# 
-#             yield cls(Call(frame), arg_vals)
-# 
-#         except IndexError as e:
-#             # There was a very specific bug that would cause inspect.getouterframes(frame)
-#             # to fail when pout was called from an object's method that was called from
-#             # within a Jinja template, it seemed like it was going to be annoying to
-#             # reproduce and so I now catch the IndexError that inspect was throwing
-#             #logger.exception(e)
-#             yield cls(None, arg_vals)
-# 
-#         finally:
-#             del frame
-#             del frames
 
     def _get_arg_info(self):
         '''

@@ -10,21 +10,41 @@ You can completely replace the `Values` class with your own by doing something l
 import pout.value
 
 class MyValues(pout.value.Values):
-    pass
+    @classmethod
+    def find_class(cls, val):
+        # customize this to decide how to handle val
+        pass
     
 pout.value.Value.values_class = MyValues
 ```
 
-Pout will now use your `MyValues` clas to find the correct `Value` subclass.
+Pout will now use your `MyValues` class to find the correct `Value` subclass.
 
 
 ## Add a function
 
-1. Add an interface class in `pout/interface.py`
-2. Import the interface class into `pout/__init__.py`
-3. Set a class constant so it can be overridden (eg, `ValueInterface` is set to `V_CLASS` in `pout/__init__.py`)
-4. Add your new function using the existing functions as a template (eg, `pout.v`).
-5. Add appropriate tests to make sure everything is working as expected
+This section is intended for people wanting to add core functionality to Pout itself.
+
+Add an `Interface` subclass to `pout.interface` and implement the required methods
+
+```python
+class Foo(Interface):
+    def __call__(self, *args, **kwargs):
+        # the args and kwargs are what's passed to pout.foo()
+        pass
+    
+    def value(self):
+        # return the value you want Foo to return
+        pass
+```
+
+If your class is not in the `pout.interface` module you will need to manually inject your new class into pout:
+
+```python
+Foo.inject()
+```
+
+After `.inject()` is called then `pout.<FUNCTION_NAME>` should work and use your custom interface subclass.
 
 
 ## Add a new value
@@ -34,7 +54,6 @@ This section is intended for people wanting to add core functionality to Pout it
 Add a `Value` subclass to `pout.value`:
 
 ```python
-
 class CustomValue(Value):
     @classmethod
     def is_valid(cls, val):

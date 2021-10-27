@@ -276,22 +276,6 @@ pout.s() # this will print to stderr
 Any class object can define a `__pout__` magic method, similar to Python's built in `__str__` magic method that can return a customized string of the object if you want to. This method can return anything, it will be run through Pout's internal stringify methods to convert it to a string and print it out.
 
 
-### Customizing functionality
-
-You can create your own interface classes:
-
-```python
-from pout.interface import ValueInterface
-class VChild(ValueInterface):
-	def value(self):
-		# we can change how pout.v() prints here
-		return "some new string"
-
-# any pout.v calls will now use your child class, customize as you like
-pout.V_CLASS = VChild
-```
-
-
 ## Console commands
 
 ### pout json

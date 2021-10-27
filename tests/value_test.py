@@ -284,12 +284,31 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, ModuleValue))
         repr(v)
 
-    def test_dict_keys(self):
+    def test_dict_keys_1(self):
         d = {"foo": 1, "bar": 2}
         v = Value(d.keys())
         self.assertEqual("MAPPING_VIEW", v.typename)
         s = v.string_value()
-        print(s)
+        self.assertTrue("dict_keys" in s)
+
+    def test_std_collections__pout__(self):
+        """https://github.com/Jaymon/pout/issues/61"""
+        class PoutDict(dict):
+            def __pout__(self):
+                return "custom dict"
+
+        d = PoutDict(foo=1, bar=2)
+        v = Value(d)
+        s = v.string_value()
+        self.assertTrue("custom dict" in s)
+
+    def test_dict_keys_bytes(self):
+        d = {
+            b'foo': b'bar'
+        }
+        v = Value(d)
+        s = v.string_value()
+        self.assertTrue("b'foo'" in s)
 
     def test_object___pout__1(self):
         class OPU(object):

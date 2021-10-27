@@ -4,6 +4,8 @@ The pout functions like pout.v() use the interfaces that are defined in this mod
 to print an object out
 """
 from __future__ import unicode_literals, division, print_function, absolute_import
+import os
+import sys
 import math
 import unicodedata
 try:
@@ -25,14 +27,11 @@ from .compat import *
 from . import environ
 from .value import Value
 from .path import Path
-from .utils import String, Bytes
+from .utils import String, Bytes, FileStream
 from .reflect import Call, Reflect
 
 
 logger = logging.getLogger(__name__)
-
-
-from .utils import String, StderrStream, FileStream
 
 
 class Interface(object):
@@ -123,6 +122,8 @@ class Interface(object):
             pout_function_name=function_name,
             pout_interface_class=cls,
         )
+        func.__name__ = function_name
+        func.__module__ = module
         setattr(module, function_name, func)
 
     def __init__(self, reflect, stream):
@@ -296,9 +297,8 @@ class VS(V):
 
 
 class VV(VS):
-    def __call__(self, *args, **kwargs):
-        """alias of VS"""
-        return super().__call__(*args, **kwargs)
+    """alias of VS"""
+    pass
 
 
 class S(V):
@@ -424,9 +424,8 @@ class R(V):
 
 
 class VR(R):
-    def __call__(self, *args, **kwargs):
-        """alias of R"""
-        return super().__call__(*args, **kwargs)
+    """alias of R"""
+    pass
 
 
 class I(Interface):
@@ -481,13 +480,25 @@ class B(Interface):
         sep = '*'
 
         if len(args) == 1:
-            if Value(args[0]).typename in set(['STRING', 'BINARY']):
+            v = Value(args[0])
+            if v.typename in set(['STRING', 'BINARY']):
                 title = args[0]
+
+            elif v.typename in set(["PRIMITIVE"]):
+                arg_name = String(self.reflect.info["args"][0]["name"])
+                arg_val = String(self.reflect.info["args"][0]["val"])
+                if arg_name == arg_val:
+                    rows = int(args[0])
+                else:
+                    title = args[0]
+
             else:
                 rows = int(args[0])
+
         elif len(args) == 2:
             title = args[0]
             rows = args[1]
+
         elif len(args) == 3:
             title = args[0]
             rows = args[1]
@@ -525,7 +536,7 @@ class B(Interface):
 
         since -- 2013-5-9
 
-        *args -- 1 arg = title if string, rows if int
+        *args -- 1 arg = title if string/variable, rows if int
             2 args = title, int
             3 args = title, int, sep
         '''
@@ -926,22 +937,20 @@ class T(Interface):
         return -- list -- each line will be a nicely formatted entry of the backtrace
         '''
         calls = []
-        #count = 1
 
-        #for count, f in enumerate(frames[1:], 1):
-        for count, f in enumerate(frames, 1):
+        for index, f in enumerate(frames, 1):
             #prev_f = frames[i]
             #called_module = inspect.getmodule(prev_f[0]).__name__
             #called_func = prev_f[3]
-            called_module = f[0]
+
+            # https://stackoverflow.com/a/2011168/5006
+            called_module = sys.modules[f[0].f_back.f_globals["__name__"]] if f[0].f_back else None
             called_func = f[3]
-
             call = self.call_class(called_module, called_func, f)
-            s = self._get_call_summary(call, inspect_packages=inspect_packages, index=count)
+            s = self._get_call_summary(call, inspect_packages=inspect_packages, index=index)
             calls.append(s)
-            #count += 1
 
-            if depth and (count > depth):
+            if depth and (index > depth):
                 break
 
         # reverse the order on return so most recent is on the bottom
@@ -1005,7 +1014,7 @@ class T(Interface):
         '''
         try:
             frames = inspect.stack()
-            kwargs["frames"] = frames
+            kwargs["frames"] = frames[1:]
             kwargs["inspect_packages"] = inspect_packages
             kwargs["depth"] = depth
             self.kwargs = kwargs
@@ -1014,4 +1023,39 @@ class T(Interface):
         finally:
             del frames
 
+
+class Tofile(Interface):
+    def __enter__(self):
+        self.orig_stream = self.kwargs["pout_module"].stream
+        self.kwargs["pout_module"].stream = self.stream
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        self.kwargs["pout_module"].stream = self.orig_stream
+
+    def __call__(self, path="", **kwargs):
+        """Instead of printing to a screen print to a file
+
+        :Example:
+            with pout.tofile("/path/to/file.txt"):
+                # all pout calls in this with block will print to file.txt
+                pout.v("a string")
+                pout.b()
+                pout.h()
+
+        :param path: str, a path to the file you want to write to
+        """
+        if not path:
+            path = os.path.join(os.getcwd(), "{}.txt".format(__name__))
+
+        self.path = path
+        self.kwargs = kwargs
+        self.stream = FileStream(path)
+
+        return self
+
+
+class F(Tofile):
+    """alias function name of Tofile"""
+    pass
 

@@ -13,7 +13,6 @@ from pout.compat import builtins
 from pout import environ
 
 
-#t = imp.find_module("pout", [s])
 try:
     # https://stackoverflow.com/a/50028745/5006
     pout2 = importlib.machinery.PathFinder().find_spec("pout", [SitePackagesDir()])

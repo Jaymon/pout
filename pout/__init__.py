@@ -21,16 +21,16 @@ import os
 import sys
 import time
 import logging
-from contextlib import contextmanager
 
 from . import environ
 from .compat import *
-from .utils import String, StderrStream, FileStream
+from .utils import StderrStream
 from .reflect import Call, Reflect
 from .interface import Interface
+from .value import Value
 
 
-__version__ = '2.0.0'
+__version__ = '2.0.1'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
@@ -55,46 +55,8 @@ if len(logger.handlers) == 0:
 stream = StderrStream()
 
 
-@contextmanager
-def tofile(path=""):
-    """Instead of printing to a screen print to a file
-
-    :Example:
-        with pout.tofile("/path/to/file.txt"):
-            # all pout calls in this with block will print to file.txt
-            pout.v("a string")
-            pout.b()
-            pout.h()
-
-    :param path: str, a path to the file you want to write to
-    """
-    if not path:
-        path = os.path.join(os.getcwd(), "{}.txt".format(__name__))
-
-    global stream
-    orig_stream = stream
-
-    try:
-        stream = FileStream(path)
-        yield stream
-
-    finally:
-        stream = orig_stream
-f = tofile
-
-
-
-# def inject_interface():
-#     Interface.inject_classes()
-#     #inters = Interfaces()
-#     #inters.inject()
-#     #ValueInterface.inject()
-#     #module = sys.modules[__name__]
-#     #setattr(module, "foo", inters)
-# inject_interface()
-
-
-# This will inject functions into the pout module
+# This will inject functions into the pout module, so if you're wondering where
+# the pout.v() method is, look at the pout.interface.V class
 Interface.inject_classes()
 
 
