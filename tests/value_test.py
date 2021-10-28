@@ -38,6 +38,17 @@ class ValuesTest(TestCase):
 
 
 class ValueTest(TestCase):
+    def test_descriptor(self):
+        class Foo(object):
+            @property
+            def bar(self):
+                return 1
+
+        f = Foo()
+        v = Value(f)
+        s = v.string_value()
+        self.assertTrue("<property instance" in s)
+
     def test_is_set(self):
         v = set(["foo", "bar", "che"])
         t = Value(v)

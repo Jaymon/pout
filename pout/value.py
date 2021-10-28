@@ -17,6 +17,7 @@ import array
 from pathlib import PurePath
 from types import MappingProxyType
 from collections.abc import MappingView
+import functools
 
 from .compat import *
 from . import environ
@@ -450,6 +451,26 @@ class ObjectValue(Value):
         body = self._add_indent(body.strip(), indent + 1)
         stop_wrapper = self._add_indent(f"\n{stop_wrapper}", indent)
         return prefix + start_wrapper + body + stop_wrapper
+
+
+class DescriptorValue(ObjectValue):
+    """Handle user defined properties (things like @property)
+
+    https://docs.python.org/3/howto/descriptor.html
+    """
+    @classmethod
+    def is_valid(cls, val):
+        is_descriptor = isinstance(val, (property, functools.cached_property))
+        if not is_descriptor:
+            for name in ["__get__", "__set__", "__delete__"]:
+                if not hasattr(val, name):
+                    is_descriptor = False
+                    break
+
+        return is_descriptor
+
+    def string_value(self):
+        return f"<{self.prefix_value()}>"
 
 
 class PrimitiveValue(Value):
