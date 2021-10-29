@@ -32,7 +32,14 @@ class String(StringMixin, BaseString):
 
             else:
                 if not isinstance(arg, BaseString):
-                    arg = BaseString(arg)
+                    try:
+                        arg = BaseString(arg)
+                    except TypeError:
+                        # this error can happen if arg.__str__() doesn't return
+                        # a string, so we call the method directly and go back
+                        # through the __new__() flow
+                        if hasattr(arg, "__str__"):
+                            arg = cls(arg.__str__())
 
         except RuntimeError as e:
             arg = e

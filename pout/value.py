@@ -439,18 +439,20 @@ class ObjectValue(Value):
                     s_body += "\n"
                     s_body += "\n".join(traceback.format_exception(None, val, val.__traceback__))
 
-            else:
-                s_body = String(repr(val))
-
         return self.finalize_value(body=s_body, prefix=s)
 
     def finalize_value(self, body, prefix="", start_wrapper="<", stop_wrapper=">"):
-        indent = self.indent
         prefix = prefix or self.prefix_value()
-        start_wrapper = self._add_indent(f"\n{start_wrapper}", indent) + "\n"
-        body = self._add_indent(body.strip(), indent + 1)
-        stop_wrapper = self._add_indent(f"\n{stop_wrapper}", indent)
-        return prefix + start_wrapper + body + stop_wrapper
+        if body:
+            indent = self.indent
+            start_wrapper = self._add_indent(f"\n{start_wrapper}", indent) + "\n"
+            body = self._add_indent(body.strip(), indent + 1)
+            stop_wrapper = self._add_indent(f"\n{stop_wrapper}", indent)
+            ret = prefix + start_wrapper + body + stop_wrapper
+
+        else:
+            ret = f"{start_wrapper}{prefix}{stop_wrapper}"
+        return ret
 
 
 class DescriptorValue(ObjectValue):
