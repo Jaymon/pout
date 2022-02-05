@@ -47,7 +47,7 @@ class String(StringMixin, BaseString):
         return super(String, cls).__new__(cls, arg)
 
 
-    def indent(self, indent_count):
+    def indent(self, indent_count, indent_string=None):
         '''
         add whitespace to the beginning of each line of val
 
@@ -60,7 +60,10 @@ class String(StringMixin, BaseString):
         '''
         if indent_count < 1: return self
 
-        s = ((environ.INDENT_STRING * indent_count) + line for line in self.splitlines(False))
+        if indent_string is None:
+            indent_string = environ.INDENT_STRING
+
+        s = ((indent_string * indent_count) + line for line in self.splitlines(False))
         s = "\n".join(s)
         return type(self)(s)
 
@@ -165,4 +168,16 @@ class FileStream(StderrStream):
             logger.propagate = False
 
         self.logger = logger
+
+
+class OrderedItems(object):
+    """Returns the items of the wrapped dict in alphabetical/sort order of the keys"""
+    def __init__(self, d: dict):
+        self.d = d
+
+    def __iter__(self):
+        keys = list(self.d.keys())
+        keys.sort()
+        for k in keys:
+            yield k, self.d[k]
 

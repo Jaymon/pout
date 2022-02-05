@@ -41,7 +41,14 @@ annoying, but setting this to like 1 would cause all those nested instances to j
 have repr(instance) be printed instead"""
 
 
-INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\t")
+ITERATE_LIMIT = int(os.environ.get("POUT_ITERATE_LIMIT", os.environ.get("POUT_ITERATOR_LIMIT", 101)))
+"""Change this to limit how many rows of list/set/etc and how many keys of dict you
+want to print out. Turns out, after so many it becomes a pain to actually inspect
+the object"""
+
+
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\t")
+INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "    ")
 
 
 def handle_decode_replace(e):

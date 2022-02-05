@@ -17,20 +17,18 @@ link -- http://docs.python.org/2.7/library/repr.html
 since -- 6-26-12
 """
 from __future__ import unicode_literals, division, print_function, absolute_import
-import os
 import sys
-import time
 import logging
 
 from . import environ
-from .compat import *
+#from .compat import *
 from .utils import StderrStream
 from .reflect import Call, Reflect
 from .interface import Interface
 from .value import Value
 
 
-__version__ = '2.0.1'
+__version__ = '2.1.0'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
@@ -39,15 +37,15 @@ logger = logging.getLogger(__name__)
 # don't try and configure the logger for default if it has been configured elsewhere
 # http://stackoverflow.com/questions/6333916/python-logging-ensure-a-handler-is-added-only-once
 if len(logger.handlers) == 0:
-    logger.setLevel(logging.WARNING)
-    logger.addHandler(logging.NullHandler())
-
     # set to True to turn on all logging:
     if environ.DEBUG:
         logger.setLevel(logging.DEBUG)
         log_handler = logging.StreamHandler(stream=sys.stderr)
         log_handler.setFormatter(logging.Formatter('[%(levelname).1s] %(message)s'))
         logger.addHandler(log_handler)
+    else:
+        logger.setLevel(logging.WARNING)
+        logger.addHandler(logging.NullHandler())
 
 
 # this is the pout printing logger, you can modify the logger this instance uses

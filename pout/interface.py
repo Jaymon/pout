@@ -25,7 +25,7 @@ import functools
 
 from .compat import *
 from . import environ
-from .value import Value
+from .value import Value, ObjectValue
 from .path import Path
 from .utils import String, Bytes, FileStream
 from .reflect import Call, Reflect
@@ -139,39 +139,10 @@ class Interface(object):
         for s in ss:
             self.writeline(s)
 
-    def full_value(self):
-        """Returns the full value with the path also (ie, name = value (path))
-
-        :returns: String
-        """
-        s = self.name_value()
-        s += self.path_value()
-        s += "\n"
-        return s
-
-    def name_value(self):
-        """Returns the value with the name also (ie, name = value)
-
-        this usually is just a wrapper around value() and value() will also return
-        name = value but sometimes you might want to separate out those values and
-        this allows you to do that, so you can have value() return just the value
-        and this will return name = value
-
-        :returns: String
-        """
-        return self.value()
-
-    def path_value(self):
-        s = ""
-        call_info = self.reflect.info
-        if call_info:
-            s = "({}:{})".format(self._get_path(call_info['file']), call_info['line'])
-        return s
-
     def _get_path(self, path):
         return self.path_class(path)
 
-    def _printstr(self, args, call_info=None):
+    def _printstr(self, args):
         """this gets all the args ready to be printed, this is terribly named"""
         s = "\n"
 
@@ -179,42 +150,30 @@ class Interface(object):
             #s += arg.encode('utf-8', 'pout.replace')
             s += arg
 
-        if call_info:
-            s += "({}:{})\n\n".format(self._get_path(call_info['file']), call_info['line'])
-
         return s
 
-    def _str(self, name, val):
-        '''
-        return a string version of name = val that can be printed
-
-        example -- 
-            _str('foo', 'bar') # foo = bar
-
-        name -- string -- the variable name that was passed into one of the public methods
-        val -- mixed -- the variable at name's value
-
-        return -- string
-        '''
-        s = ''
-        v = Value(val)
-
-        if name:
-            logger.debug("{} is type {}".format(name, v.typename))
-            try:
-                count = len(val)
-                s = "{} ({}) = {}".format(name, count, v.string_value())
-
-            except (TypeError, KeyError, AttributeError) as e:
-                logger.debug(e, exc_info=True)
-                s = "{} = {}".format(name, v.string_value())
-
-        else:
-            s = v.string_value()
-
+    def name_value(self, name, **kwargs):
+        s = ""
+        show_meta = kwargs.get("show_meta", True)
+        show_name = show_meta and kwargs.get("show_name", True)
+        if name and show_name:
+            s = name
         return s
 
-    def value(self):
+    def body_value(self, body, **kwargs):
+        return body
+
+    def path_value(self, **kwargs):
+        s = ""
+        show_meta = kwargs.get("show_meta", True)
+        show_path = show_meta and kwargs.get("show_path", True)
+        if show_path:
+            call_info = self.reflect.info
+            if call_info:
+                s = "({}:{})".format(self._get_path(call_info['file']), call_info['line'])
+        return s
+
+    def value(self, *args, **kwargs):
         """Returns that actual value and nothing else in a format that can be
         printed
 
@@ -223,7 +182,31 @@ class Interface(object):
 
         :returns: String
         """
-        raise NotImplementedError()
+        bodies = []
+        for name, body in self.values(*args, **kwargs):
+            name = self.name_value(name, **kwargs)
+            body = self.body_value(body, **kwargs)
+
+            if name:
+                bodies.append("{} = {}".format(name, body))
+            else:
+                bodies.append(body)
+
+        #bodies.append("\n")
+        path = self.path_value(**kwargs)
+        if path:
+            bodies.append(path)
+        bodies.append("\n")
+
+        return self._printstr(bodies)
+
+    def values(self, *args, **kwargs):
+        if args:
+            for arg in args:
+                yield None, arg
+        else:
+            # if we don't have any arguments we want to fire .value once
+            yield None, None
 
     def __call__(self, *args, **kwargs):
         """Whenever a bound <FUNCTION_NAME> is invoked, this method is called
@@ -233,23 +216,83 @@ class Interface(object):
             keywords
         :returns: mixed, whatever you want module.<FUNCTION_NAME> to return
         """
-        raise NotImplementedError()
+        #raise NotImplementedError()
+        kwargs.setdefault("print_value", True)
+        kwargs.setdefault("return_value", False)
+
+        s = self.value(*args, **kwargs)
+        if kwargs["print_value"]:
+            self.writeline(s)
+
+        return s.strip() if kwargs["return_value"] else None
 
 
 class V(Interface):
-    def name_value(self):
-        call_info = self.reflect.info
-        # !!! you can add another \n here to put a newline between the value and
-        # the path (eg, change it from \n to \n\n)
-        args = ["{}\n".format(self._str(v['name'], v['val'])) for v in call_info['args']]
-        return self._printstr(args)
 
-    def value(self):
-        call_info = self.reflect.info
-        args = ["{}\n".format(self._str(None, v['val'])) for v in call_info['args']]
-        return self._printstr(args)
+#     def name_value(self, name, **kwargs):
+#         return self.value.name_value(name) if name else name
 
-    def __call__(self, *args, **kwargs):
+    def body_value(self, body, **kwargs):
+        #return body + "\n"
+        value_class = kwargs.get("value_class", Value)
+        value = value_class(body, **kwargs)
+        return value.string_value() + "\n"
+
+    def values(self, *args, **kwargs):
+        if not args:
+            raise ValueError("you didn't pass any arguments")
+
+        call_info = self.reflect.info
+        #value_class = kwargs.get("value_class", Value)
+        for v in call_info["args"]:
+            #value = value_class(v["val"], **kwargs)
+            #self.value = value
+            #yield v["name"], value.string_value()
+            #yield value.name_value(v["name"]), value.string_value()
+            yield v["name"], v["val"]
+
+#     def value2(self, **kwargs):
+#         call_info = self.reflect.info
+#         value_class = kwargs.get("value_class", Value)
+#         args = []
+#         vkwargs = dict(kwargs)
+#         vkwargs["show_path"] = False
+#         for v in call_info["args"]:
+#             value = value_class(v["val"], **kwargs)
+#             args.append(super().value(value=value, **vkwargs))
+# 
+#         path = self.path_value(**kwargs)
+#         if path:
+#             args.append(path)
+#         args.append("\n")
+#         return self._printstr(args)
+# 
+#     def value2(self, **kwargs):
+#         call_info = self.reflect.info
+#         show_meta = kwargs.get("show_meta", True)
+#         show_path = show_meta and kwargs.get("show_path", True)
+#         show_name = show_meta and kwargs.get("show_name", True)
+#         value_class = kwargs.get("value_class", Value)
+# 
+#         args = []
+#         for v in call_info["args"]:
+#             val = value_class(v["val"], **kwargs)
+#             name = v["name"]
+# 
+#             if name and show_name:
+#                 s = "{} = {}".format(val.name_value(name), val.string_value())
+#             else:
+#                 s = val.string_value()
+# 
+#             args.append("{}\n".format(s))
+# 
+#         if show_path:
+#             args.append(self.path_value())
+#         args.append("\n")
+# 
+#         return self._printstr(args)
+
+    def __call__2(self, *args, **kwargs):
         '''
         print the name = values of any passed in variables
 
@@ -276,10 +319,16 @@ class V(Interface):
         *args -- list -- the variables you want to see pretty printed for humans
         '''
         if not args:
-        #if not self.reflect.arg_vals:
-            raise ValueError("you didn't pass any arguments to print out")
+            raise ValueError("you didn't pass any arguments")
 
-        self.writeline(self.full_value())
+        kwargs.setdefault("print_value", True)
+        kwargs.setdefault("return_value", False)
+
+        s = self.value(**kwargs)
+        if kwargs["print_value"]:
+            self.writeline(s)
+
+        return None if kwargs["return_value"] else s.strip()
 
 
 class VS(V):
@@ -289,11 +338,10 @@ class VS(V):
 
         .. seealso:: ss()
         """
-        if not args:
-        #if not self.reflect.arg_vals:
-            raise ValueError("you didn't pass any arguments to print out")
-
-        self.writeline(self.value())
+        kwargs.setdefault("show_meta", False)
+        kwargs.setdefault("print_value", True)
+        #kwargs.setdefault("return_value", True)
+        return super().__call__(*args, **kwargs)
 
 
 class VV(VS):
@@ -309,14 +357,12 @@ class S(V):
         since -- 10-15-2015
         return -- str
         """
-        if not args:
-        #if not self.reflect.arg_vals:
-            raise ValueError("you didn't pass any arguments")
-
-        return self.full_value().strip()
+        kwargs.setdefault("print_value", False)
+        kwargs.setdefault("return_value", True)
+        return super().__call__(*args, **kwargs)
 
 
-class SS(V):
+class SS(S):
     def __call__(self, *args, **kwargs):
         """
         exactly like s, but doesn't return variable names or file positions (useful for logging)
@@ -324,9 +370,8 @@ class SS(V):
         since -- 10-15-2015
         return -- str
         """
-        if not args:
-            raise ValueError("you didn't pass any arguments")
-        return self.value().strip()
+        kwargs.setdefault("show_meta", False)
+        return super().__call__(*args, **kwargs)
 
 
 class X(V):
@@ -349,6 +394,36 @@ class X(V):
 
         exit_code = int(kwargs.get("exit_code", kwargs.get("code", 1)))
         sys.exit(exit_code)
+
+
+class I(V):
+    def __call__(self, *args, **kwargs):
+        kwargs.setdefault("show_methods", True)
+        kwargs.setdefault("show_magic", True)
+        kwargs.setdefault("value_class", ObjectValue)
+        super().__call__(*args, **kwargs)
+
+
+#     def value(self):
+#         call_info = self.reflect.info
+#         pargs = []
+#         for v in call_info["args"]:
+#             vt = ObjectValue(v['val'], show_methods=True, show_magic=True)
+# 
+# 
+# 
+#             #full_info = self._str(v['name'], vt.info())
+#             full_info = self._str(v['name'], vt)
+#             pargs.append(full_info)
+# 
+#         return self._printstr(pargs)
+# 
+#     def __call__(self, *args, **kwargs):
+#         if not args:
+#         #if not self.reflect.arg_vals:
+#             raise ValueError("you didn't pass any arguments to print out")
+# 
+#         self.writeline(self.full_value())
 
 
 class Sleep(V):
@@ -390,9 +465,6 @@ class R(V):
             c = info.get("call", default_c)
             instance.writeline("{} called {} times at {}".format(c, d["count"], s))
 
-    def full_value(self):
-        return self.value().strip()
-
     def bump(self, count=1):
         s = self.path_value()
         r_class = type(self)
@@ -407,6 +479,9 @@ class R(V):
 
         r_class.calls[s]["info"] = self.reflect.info
 
+    def value(self, *args, **kwargs):
+        return super().value(*args, **kwargs).strip()
+
     def __call__(self, *args, **kwargs):
         """Similar to pout.v() but gets rid of name and file information so it can be used
         in loops and stuff, it will print out where the calls came from at the end of
@@ -418,6 +493,7 @@ class R(V):
             for x in range(x):
                 pout.r(x)
         """
+        kwargs.setdefault("show_path", False)
         super().__call__(*args, **kwargs)
         self.register()
         self.bump()
@@ -428,48 +504,40 @@ class VR(R):
     pass
 
 
-class I(Interface):
-    def value(self):
-        call_info = self.reflect.info
-        pargs = []
-        for v in call_info["args"]:
-            vt = Value(v['val'])
-            full_info = self._str(v['name'], vt.info())
-            pargs.append(full_info)
-
-        return self._printstr(pargs)
-
-    def __call__(self, *args, **kwargs):
-        if not args:
-        #if not self.reflect.arg_vals:
-            raise ValueError("you didn't pass any arguments to print out")
-
-        self.writeline(self.full_value())
-
-
 class H(Interface):
-    def value(self):
+    '''
+    prints "here count"
+
+    example -- 
+        h(1) # here 1 (/file:line)
+        h() # here line (/file:line)
+
+    count -- integer -- the number you want to put after "here"
+    '''
+    def body_value(self, count, **kwargs):
         call_info = self.reflect.info
-        count = getattr(self, "count", 0)
+        count = int(count or 0)
+        #count = getattr(self, "count", 0)
         args = ["here {} ".format(count if count > 0 else call_info['line'])]
-        return self._printstr(args)
+        return self._printstr(args).lstrip()
 
-    def __call__(self, count=0, **kwargs):
-        '''
-        prints "here count"
-
-        example -- 
-            h(1) # here 1 (/file:line)
-            h() # here line (/file:line)
-
-        count -- integer -- the number you want to put after "here"
-        '''
-        self.count = int(count)
-        self.writeline(self.full_value())
+#     def __call__(self, count=0, **kwargs):
+#         '''
+#         prints "here count"
+# 
+#         example -- 
+#             h(1) # here 1 (/file:line)
+#             h() # here line (/file:line)
+# 
+#         count -- integer -- the number you want to put after "here"
+#         '''
+#         self.count = int(count)
+#         super().__call__(**kwargs)
+#         #self.writeline(self.value())
 
 
 class B(Interface):
-    def value(self):
+    def body_value(self, *args, **kwargs):
         call_info = self.reflect.info
         args = getattr(self, "args", [])
 
@@ -528,7 +596,7 @@ class B(Interface):
                 lines.append(sep * line_len)
 
         lines.append('')
-        return self._printstr(["\n".join(lines)])
+        return "\n".join(lines)
 
     def __call__(self, *args, **kwargs):
         '''
@@ -541,84 +609,109 @@ class B(Interface):
             3 args = title, int, sep
         '''
         self.args = args
-        self.writeline(self.full_value())
+        super().__call__(**kwargs)
+        #self.writeline(self.value(*args, **kwargs))
 
 
 class C(Interface):
-    def value(self):
+    '''
+    kind of like od -c on the command line, basically it dumps each character and info
+    about that char
+
+    since -- 2013-5-9
+
+    *args -- tuple -- one or more strings to dump
+    '''
+    def body_value(self, arg, **kwargs):
         call_info = self.reflect.info
-        args = getattr(self, "args", [])
         lines = []
-        for arg in args:
-            arg = String(arg)
-            lines.append('Total Characters: {}'.format(len(arg)))
-            for i, c in enumerate(arg, 1):
+        arg = String(arg)
+        lines.append('Total Characters: {}'.format(len(arg)))
+        for i, c in enumerate(arg, 1):
 
-                line = ['{}.'.format(i)]
-                if c == '\n':
-                    line.append('\\n')
-                elif c == '\r':
-                    line.append('\\r')
-                elif c == '\t':
-                    line.append('\\t')
-                else:
-                    line.append(c)
+            line = ['{}.'.format(i)]
+            if c == '\n':
+                line.append('\\n')
+            elif c == '\r':
+                line.append('\\r')
+            elif c == '\t':
+                line.append('\\t')
+            else:
+                line.append(c)
 
-                line.append(repr(c.encode(environ.ENCODING)))
+            line.append(repr(c.encode(environ.ENCODING)))
 
-                cint = ord(c)
-                if cint > 65535:
-                    line.append('\\U{:0>8X}'.format(cint))
-                else:
-                    line.append('\\u{:0>4X}'.format(cint))
+            cint = ord(c)
+            if cint > 65535:
+                line.append('\\U{:0>8X}'.format(cint))
+            else:
+                line.append('\\u{:0>4X}'.format(cint))
 
-                line.append(unicodedata.name(c, 'UNKNOWN'))
-                lines.append('\t'.join(line))
+            line.append(unicodedata.name(c, 'UNKNOWN'))
+            lines.append('\t'.join(line))
 
-            lines.append('')
-            lines.append('')
+            #lines.append('')
+            #lines.append('')
 
-        return self._printstr(["\n".join(lines)])
+        return "\n".join(lines)
 
-    def __call__(self, *args, **kwargs):
-        '''
-        kind of like od -c on the command line, basically it dumps each character and info
-        about that char
+#     def __call__(self, *args, **kwargs):
+#         '''
+#         kind of like od -c on the command line, basically it dumps each character and info
+#         about that char
+# 
+#         since -- 2013-5-9
+# 
+#         *args -- tuple -- one or more strings to dump
+#         '''
+#         self.args = args
+#         super().__call__(**kwargs)
+#         #self.writeline(self.value(*args, **kwargs))
 
-        since -- 2013-5-9
 
-        *args -- tuple -- one or more strings to dump
-        '''
-        self.args = args
-        self.writeline(self.full_value())
+class J(V):
+    """
+    dump json
 
+    since -- 2013-9-10
 
-class J(Interface):
-    def value(self):
-        call_info = self.reflect.info
-        args = ["{}\n\n".format(self._str(v['name'], json.loads(v['val']))) for v in call_info['args']]
-        return self._printstr(args)
+    *args -- tuple -- one or more json strings to dump
+    """
+    def body_value(self, body, **kwargs):
+        return super().body_value(json.loads(body), **kwargs)
+        #return json.loads(body.string_value())
 
-    def __call__(self, *args, **kwargs):
-        """
-        dump json
+#         call_info = self.reflect.info
+#         args = ["{}\n\n".format(self._str(v['name'], json.loads(v['val']))) for v in call_info['args']]
+#         return self._printstr(args)
 
-        since -- 2013-9-10
-
-        *args -- tuple -- one or more json strings to dump
-        """
-        if not args:
-            raise ValueError("you didn't pass any arguments to print out")
-        self.writeline(self.full_value())
+#     def __call__(self, *args, **kwargs):
+#         """
+#         dump json
+# 
+#         since -- 2013-9-10
+# 
+#         *args -- tuple -- one or more json strings to dump
+#         """
+#         if not args:
+#             raise ValueError("you didn't pass any arguments to print out")
+#         self.writeline(self.full_value())
 
 
 class M(Interface):
-    def value(self):
+    """
+    Print out memory usage at this point in time
+
+    http://docs.python.org/2/library/resource.html
+    http://stackoverflow.com/a/15448600/5006
+    http://stackoverflow.com/questions/110259/which-python-memory-profiler-is-recommended
+    """
+    def body_value(self, name, **kwargs):
         if not resource:
             return self._printstr(["UNSUPPORTED OS\n"])
 
         #call_info = self.reflect.info
-        name = getattr(self, "name", "")
+        #name = getattr(self, "name", "")
         usage = resource.getrusage(resource.RUSAGE_SELF)
         # according to the docs, this should give something good but it doesn't jive
         # with activity monitor, so I'm using the value that gives me what activity 
@@ -639,30 +732,35 @@ class M(Interface):
             summary += "{}: ".format(name)
 
         summary += "{0} mb\n".format(round(rss, 2))
-        calls = [summary]
-        return self._printstr(calls)
+        #calls = [summary]
+        return summary
 
-    def __call__(self, name='', **kwargs):
-        """
-        Print out memory usage at this point in time
-
-        http://docs.python.org/2/library/resource.html
-        http://stackoverflow.com/a/15448600/5006
-        http://stackoverflow.com/questions/110259/which-python-memory-profiler-is-recommended
-        """
-        self.name = name
-        self.writeline(self.full_value())
+#     def __call__(self, name='', **kwargs):
+#         """
+#         Print out memory usage at this point in time
+# 
+#         http://docs.python.org/2/library/resource.html
+#         http://stackoverflow.com/a/15448600/5006
+#         http://stackoverflow.com/questions/110259/which-python-memory-profiler-is-recommended
+#         """
+#         self.name = name
+#         super().__call__(**kwargs)
+#         #self.writeline(self.full_value())
 
 
 class E(Interface):
-    """Easy exception printing
+    """Easy exception/error printing
 
     see e()
     since 5-27-2020
 
+    :Example:
+        with pout.e():
+            raise ValueError("foo")
+
     https://github.com/Jaymon/pout/issues/59
     """
-    def value(self):
+    def body_value(self, *args, **kwargs):
         lines = traceback.format_exception(
             self.exc_type,
             self.exc_value,
@@ -678,15 +776,11 @@ class E(Interface):
             self.exc_type = exc_type
             self.exc_value = exc_value
             self.traceback = traceback
-            self.writeline(self.full_value())
+            self.writeline(self.value())
             reraise(exc_type, exc_value, traceback)
 
     def __call__(self, **kwargs):
-        """easy error printing
-
-        :Example:
-            with pout.e():
-                raise ValueError("foo")
+        """
         :returns: context manager
         """
         return self
@@ -709,10 +803,11 @@ class P(Interface):
         cls.stack.pop(-1)
         return instance
 
-    def start(self, name, call_info):
+    def start(self, name, call_info, **kwargs):
         self.start = time.time()
         self.name = name
         self.start_call_info = call_info
+        self.kwargs = kwargs
         type(self).stack.append(self)
 
     def stop(self, call_info=None):
@@ -750,9 +845,13 @@ class P(Interface):
                 pr_class.stack.pop(i)
                 break
 
-        self.writeline(self.full_value())
+        self.finish()
+        #self.writeline(self.value(**self.kwargs))
 
-    def value(self):
+    def finish(self):
+        self.writeline(self.value(**self.kwargs))
+
+    def body_value(self, *args, **kwargs):
         s = ""
         start_call_info = self.start_call_info
         stop_call_info = self.stop_call_info
@@ -775,7 +874,7 @@ class P(Interface):
         else:
             summary.append("  stop: {}".format(self.stop))
 
-        return self._printstr(["\n".join(summary)])
+        return "\n".join(summary)
 
     def get_elapsed(self, start, stop, multiplier, rnd):
         return round(abs(stop - start) * float(multiplier), rnd)
@@ -810,13 +909,15 @@ class P(Interface):
         name -- string -- pass this in to start a profiling session
         return -- context manager
         '''
-        print(name, kwargs)
+        #print(name, kwargs)
+        kwargs.setdefault("show_path", False)
         if name:
-            self.start(name, self.reflect.info)
+            self.start(name, self.reflect.info, **kwargs)
             instance = self
         else:
             instance = type(self).pop(self.reflect)
-            instance.writeline(instance.full_value())
+            instance.finish()
+            #instance.writeline(instance.value())
 
         return instance
 
@@ -911,15 +1012,15 @@ class T(Interface):
 
     call_class = Call
 
-    def value(self):
+    def body_value(self, *args, **kwargs):
         #call_info = self.reflect.info
-        name = self.kwargs.get("name", "")
-        frames = self.kwargs["frames"]
-        inspect_packages = self.kwargs.get("inspect_packages", False)
-        depth = self.kwargs.get("depth", 0)
+        name = kwargs.get("name", "")
+        frames = kwargs["frames"]
+        inspect_packages = kwargs.get("inspect_packages", False)
+        depth = kwargs.get("depth", 0)
 
         calls = self._get_backtrace(frames=frames, inspect_packages=inspect_packages, depth=depth)
-        return self._printstr(calls)
+        return "".join(calls)
 
     def _get_backtrace(self, frames, inspect_packages=False, depth=0):
         '''
@@ -1017,8 +1118,9 @@ class T(Interface):
             kwargs["frames"] = frames[1:]
             kwargs["inspect_packages"] = inspect_packages
             kwargs["depth"] = depth
-            self.kwargs = kwargs
-            self.writeline(self.full_value())
+            #self.kwargs = kwargs
+            super().__call__(**kwargs)
+            #self.writeline(self.value(**kwargs))
 
         finally:
             del frames

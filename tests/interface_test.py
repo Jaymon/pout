@@ -8,6 +8,7 @@ import subprocess
 import os
 import re
 import logging
+import json
 
 # this is the local pout that is going to be tested
 import pout
@@ -121,6 +122,18 @@ class CTest(TestCase):
             pout.c('\U00020731')
         self.assertTrue("Total Characters:" in c)
 
+class JTest(TestCase):
+    def test_j(self):
+        with testdata.capture() as c:
+            pout.j('["foo", {"bar":["baz", null, 1.0, 2]}]')
+        self.assertTrue("list (2)" in c)
+
+        with testdata.capture() as c:
+            s = json.dumps({"foo": 1, "bar": 2})
+            pout.j(s)
+        self.assertTrue("dict (2)" in c)
+
+
 class BTest(TestCase):
     def test_variable_1(self):
         s = "foo"
@@ -138,7 +151,7 @@ class BTest(TestCase):
         i = 5
         with testdata.capture() as c:
             pout.b(i)
-        self.assertTrue(" 5 " in c)
+            self.assertTrue(" 5 " in c)
 
         with testdata.capture() as c:
             pout.b(5)
@@ -380,13 +393,8 @@ class VTest(TestCase):
             def function_name(cls):
                 return "v"
 
-            def full_value(self):
-                call_info = self.reflect.info
-                if call_info["args"][0]["val"] == "foo":
-                    return self._printstr(["foo custom "], call_info)
-
-                else:
-                    return super(Child, self).full_value()
+            def name_value(self, name, **kwargs):
+                return "foo custom"
 
         Child.inject()
 
@@ -559,7 +567,7 @@ class VTest(TestCase):
         with testdata.capture() as c:
             pout.v(s)
 
-        for s in ['"foo"', '"che"', '"bar"', "s (3) =", "{", "}"]:
+        for s in ['"foo"', '"che"', '"bar"', "set (3) ", "{", "}"]:
             self.assertTrue(s in c, s)
 
     def test_descriptor_error(self):
@@ -582,7 +590,7 @@ class VTest(TestCase):
 
             e = DescExample()
             e.foo()
-        for s in ['"__init__"', 'args (1) =', 'kwargs (0) = ']:
+        for s in ['"__init__"', 'args = tuple', 'kwargs = {}']:
             self.assertTrue(s in c, s)
 
         for s in ['"__get__"', 'DescExample instance', 'klass = <']:
@@ -622,7 +630,9 @@ class VTest(TestCase):
     def test_proxy_dict(self):
         with testdata.capture() as c:
             pout.v(FooBar.__dict__)
-        self.assertTrue("FooBar.__dict__ (2) = dict_proxy({" in c)
+        for s in ["FooBar.__dict__", " (2) ", "{"]:
+            self.assertTrue(s in c)
+        #self.assertTrue("FooBar.__dict__ (2) = dict_proxy({" in c)
 
     def test_multiline_comma(self):
         # https://github.com/Jaymon/pout/issues/12
@@ -877,7 +887,8 @@ class VTest(TestCase):
         #print(p._get_type(range(5)))
         with testdata.capture() as c:
             pout.v(range(5))
-        self.assertTrue("range(5) (5) = " in c)
+        for s in ["range(5)", "range (5)"]:
+            self.assertTrue(s in c)
 
     def test_not_in_val(self):
         with testdata.capture() as c:
@@ -901,13 +912,40 @@ class MTest(TestCase):
 
 
 class ITest(TestCase):
-    def test_i(self):
+    def test_map(self):
         with testdata.capture() as c:
             v = map(str, range(5))
             pout.i(v)
 
-        for s in ["MEMBERS:", "Methods:", "Properties:"]:
+        for s in ["Methods (", "Instance Properties ("]:
             self.assertTrue(s in c, s)
+
+    def test_object(self):
+        bar = 1
+        with testdata.capture() as c:
+            pout.i(bar)
+        for s in ["<function"]:
+            self.assertTrue(s in c, s)
+
+        class Foo(object):
+            p = 1
+            o = 2
+            n = 3
+            m = 4
+            def z(self): pass
+            def y(self): pass
+            def x(self): pass
+            def c(self): pass
+            def b(self): pass
+            def a(self): pass
+
+        instance = Foo()
+        instance.k = 5
+        instance.j = 6
+
+        with testdata.capture() as c:
+            pout.i(instance)
+            self.assertRegex(str(c), re.compile(r"a\(.*b\(.*c\(.*x\(.*y\(", re.S))
 
 
 class LTest(TestCase):

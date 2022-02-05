@@ -38,6 +38,38 @@ class ValuesTest(TestCase):
 
 
 class ValueTest(TestCase):
+    def test_iterator_object_depth(self):
+        """dicts, lists, etc. should also be subject to OBJECT_DEPTH limits"""
+        t = {
+            "foo": 1,
+            "bar": {
+                "che": 2,
+                "boo": {
+                    "baz": 3,
+                    "moo": {
+                        "maz": 4,
+                    }
+                }
+            }
+        }
+        with testdata.modify(environ, OBJECT_DEPTH=1):
+            with testdata.capture() as c2:
+                pout.v(t)
+            self.assertTrue("'bar': <dict" in c2)
+
+    def test_iterate_limit(self):
+        """make sure iterators are cutoff when they reach the set limit"""
+        with testdata.modify(environ, ITERATE_LIMIT=10):
+            t = list(range(0, 100))
+            with testdata.capture() as c:
+                pout.v(t)
+            self.assertTrue("..." in c)
+
+            t = {f"{v}": v for v in range(0, 100)}
+            with testdata.capture() as c:
+                pout.v(t)
+            self.assertTrue("..." in c)
+
     def test_descriptor(self):
         class Foo(object):
             @property
@@ -162,6 +194,7 @@ class ValueTest(TestCase):
         class FooDictProxy(object): pass
         v = Value(FooDictProxy.__dict__)
         self.assertTrue(isinstance(v, DictProxyValue))
+        #s = v.string_value()
 
     def test_array(self):
         a = array.array("i", range(0, 100))
@@ -188,8 +221,9 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, SetValue))
 
     def test_tuple(self):
-        v = Value(tuple())
+        v = Value(tuple([1, 2, 3, 4]))
         self.assertTrue(isinstance(v, TupleValue))
+        #s = v.string_value()
 
     def test_binary(self):
         v = Value(b"")
@@ -222,7 +256,7 @@ class ValueTest(TestCase):
         }
         v = Value(d)
         s = repr(v)
-        self.assertTrue("\n\t\t<\n" in s)
+        self.assertTrue(f"\n{environ.INDENT_STRING}{environ.INDENT_STRING}<\n" in s)
 
     def test_object_2(self):
         class To26(object):
