@@ -268,42 +268,14 @@ class ObjectValue(Value):
         full_name = self._get_name(self.val, src_file="") # just the classname
         return "{} instance at 0x{:02x}".format(full_name, id(self.val))
 
-    def info2(self):
-        methods = []
-        properties = []
-        for ni, vi in inspect.getmembers(self.val):
-            if TypeValue.is_valid(vi):
-                properties.append((ni, vi))
-            elif CallableValue.is_valid(vi):
-                methods.append((ni, vi))
-            else:
-                properties.append((ni, vi))
-
-        full_info = repr(self)
-        info = "MEMBERS:\n"
-
-        info += self._add_indent("Methods:", 1)
-        info += "\n"
-        for name, vi in methods:
-            info += self._add_indent(Value(vi), 2)
-            info += "\n"
-
-        info += self._add_indent("Properties:", 1)
-        info += "\n"
-        for name, vi in properties:
-            info += self._add_indent(name, 2)
-            info += "\n"
-
-
-        full_info = full_info.rstrip().rstrip('>')
-        full_info += "\n"
-        full_info += self._add_indent(info.strip(), 1)
-        full_info += "\n>"
-        full_info += "\n\n"
-        return full_info
-
     def info(self):
+        """Gathers all the information about this object
 
+        each dict's key is the name of the property and the value is the actual
+        property
+
+        :returns: tuple, (class_name, instance_dict, class_dict, methods_dict
+        """
         val = self.val
         depth = self.depth
         val_class = self._getattr(val, "__class__", None)
@@ -313,29 +285,6 @@ class ObjectValue(Value):
 
         SHOW_METHODS = self.kwargs.get("show_methods", False)
         SHOW_MAGIC = self.kwargs.get("show_magic", False)
-
-#         for k, v in inspect.getmembers(val):
-#             v = Value(v, depth+1)
-#             if SHOW_MAGIC or not self._is_magic(k):
-#                 if v.typename == 'CALLABLE':
-#                     if SHOW_METHODS:
-#                         methods_dict[k] = v
-#                 else:
-#                     instance_dict[k] = v
-
-
-
-
-
-
-
-#             if TypeValue.is_valid(vi):
-#                 properties.append((ni, vi))
-#             elif CallableValue.is_valid(vi):
-#                 methods.append((ni, vi))
-#             else:
-#                 properties.append((ni, vi))
-
 
         try:
             instance_dict = {k: Value(v, depth+1) for k, v in vars(val).items()}
@@ -355,18 +304,6 @@ class ObjectValue(Value):
                             methods_dict[k] = v
                     else:
                         instance_dict[k] = v
-
-
-            # using vars(val) will give the instance's __dict__, which doesn't
-            # include methods because those are set on the instance's __class__.
-            # Since vars() failed we are going to try and make inspect.getmembers
-            # act like vars()
-#             instance_dict = {}
-#             for k, v in inspect.getmembers(val):
-#                 if not self._is_magic(k):
-#                     v = Value(v, depth+1)
-#                     if v.typename != 'CALLABLE':
-#                         instance_dict[k] = v
 
         if val_class:
             # build a full class variables dict with the variables of 
@@ -630,10 +567,6 @@ class DictValue(ObjectValue):
 
 
 class DictProxyValue(DictValue):
-    #left_paren = 'dict_proxy({'
-    #right_paren = '})'
-    #prefix = ""
-
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, MappingProxyType)
@@ -654,13 +587,6 @@ class ListValue(DictValue):
 
 
 class MappingViewValue(ListValue):
-
-#     @property
-#     def left_paren(self):
-#         return "{}([".format(
-#             self.val.__class__.__name__,
-#         )
-
     left_paren = '(['
     right_paren = '])'
 
@@ -767,24 +693,21 @@ class ModuleValue(ObjectValue):
         return isinstance(val, types.ModuleType)
 
     def prefix_value(self):
-        #full_name = self._get_name(val, src_file=src_file) # full classpath
-        full_name = self._get_name(self.val, src_file="") # just the classname
+        full_name = self._get_name(self.val, src_file="")
         return "{} module at 0x{:02x}".format(full_name, id(self.val))
 
     def string_value(self):
         depth = self.depth
         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
+        SHOW_MAGIC = self.kwargs.get("show_magic", False)
 
         if depth < OBJECT_DEPTH:
             val = self.val
-            file_path = Path(self._get_src_file(val))
-            #s = '{} module ({})\n'.format(val.__name__, file_path)
             s = ""
 
+            file_path = Path(self._get_src_file(val))
             if file_path:
                 s += '{} ({})\n'.format(val.__name__, file_path)
-
-            #s += "\nid: {}\n".format(id(val))
 
             modules = {}
             funcs = {}
@@ -792,9 +715,7 @@ class ModuleValue(ObjectValue):
             properties = {}
 
             for k, v in inspect.getmembers(val):
-
-                # canary, ignore magic values
-                if self._is_magic(k): continue
+                if self._is_magic(k) and not SHOW_MAGIC: continue
 
                 v = Value(v)
                 if v.typename == 'CALLABLE':
@@ -826,9 +747,6 @@ class ModuleValue(ObjectValue):
                 s += "\nClasses:\n"
 
                 for k, v in classes.items():
-
-                    #func_args = inspect.formatargspec(*inspect.getfullargspec(v))
-                    #pout2.v(func_args)
 
                     s += self._add_indent(k, 1)
                     s += "\n"

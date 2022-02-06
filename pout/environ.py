@@ -49,6 +49,7 @@ the object"""
 
 #INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\t")
 INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "    ")
+"""This is what pout uses to indent when it is creating the output"""
 
 
 def handle_decode_replace(e):

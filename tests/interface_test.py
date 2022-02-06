@@ -122,6 +122,13 @@ class CTest(TestCase):
             pout.c('\U00020731')
         self.assertTrue("Total Characters:" in c)
 
+    def test_variables(self):
+        v = "foo bar"
+        with testdata.capture() as c:
+            pout.c(v)
+        self.assertTrue("v = " in c)
+
+
 class JTest(TestCase):
     def test_j(self):
         with testdata.capture() as c:
