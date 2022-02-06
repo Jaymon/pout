@@ -18,7 +18,7 @@ import logging
 import collections
 import re
 import atexit
-from collections import defaultdict
+from collections import defaultdict, Counter
 import json
 import traceback
 import functools
@@ -586,8 +586,11 @@ class C(V):
     def body_value(self, arg, **kwargs):
         call_info = self.reflect.info
         lines = []
+        counter = Counter()
         arg = String(arg)
-        lines.append('Total Characters: {}'.format(len(arg)))
+        counter["total"] = len(arg)
+
+        lines.append('Total Characters: {}'.format(counter['total']))
         for i, c in enumerate(arg, 1):
 
             line = ['{}.'.format(i)]
@@ -608,9 +611,22 @@ class C(V):
             else:
                 line.append('\\u{:0>4X}'.format(cint))
 
+            if cint < 128:
+                counter["ascii"] += 1
+            elif cint < 256:
+                counter["extended"] += 1
+            else:
+                counter["unicode"] += 1
+
             line.append(unicodedata.name(c, 'UNKNOWN'))
             lines.append('\t'.join(line))
 
+        lines.append("Total: {}, Ascii: {}, extended: {}, unicode: {}".format(
+            counter['total'],
+            counter['ascii'],
+            counter['extended'],
+            counter['unicode'],
+        ))
         lines.append("")
         return "\n".join(lines)
 
