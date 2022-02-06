@@ -25,15 +25,15 @@ Pout will now use your `MyValues` class to find the correct `Value` subclass.
 
 This section is intended for people wanting to add core functionality to Pout itself.
 
-Add an `Interface` subclass to `pout.interface` and implement the required methods
+Add an `Interface` subclass to `pout.interface` and override any wanted methods. Usually `body_value` will be enough to do what you want, but you can change the functionality quite a bit by overriding other methods.
 
 ```python
 class Foo(Interface):
     def __call__(self, *args, **kwargs):
         # the args and kwargs are what's passed to pout.foo()
-        pass
+        return super().__call__(*args, **kwargs)
     
-    def value(self):
+    def body_value(self, body, **kwargs):
         # return the value you want Foo to return
         pass
 ```
