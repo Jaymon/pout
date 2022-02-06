@@ -142,7 +142,7 @@ class StderrStream(Stream):
     def __init__(self):
         # this is the pout printing logger, if it hasn't been touched it will be
         # configured to print to stderr, this is what is used in pout_class._print()
-        logger = logging.getLogger("{}.stderrstream".format(__name__.split(".")[0]))
+        logger = logging.getLogger("stderr.{}".format(__name__.split(".")[0]))
         if len(logger.handlers) == 0:
             logger.setLevel(logging.DEBUG)
             log_handler = logging.StreamHandler(stream=sys.stderr)
@@ -159,7 +159,7 @@ class StderrStream(Stream):
 class FileStream(StderrStream):
     """A stream object that writes to a file path passed into it"""
     def __init__(self, path):
-        logger = logging.getLogger("{}.filestream".format(__name__.split(".")[0]))
+        logger = logging.getLogger("file.{}".format(__name__.split(".")[0]))
         if len(logger.handlers) == 0:
             logger.setLevel(logging.DEBUG)
             log_handler = logging.FileHandler(path)
