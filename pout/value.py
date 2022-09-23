@@ -509,7 +509,13 @@ class DictValue(ObjectValue):
             for k, v in iterator:
                 count += 1
                 if count > ITERATE_LIMIT:
-                    s_body.append("...")
+                    try:
+                        total_rows = len(self.val)
+                    except Exception:
+                        s_body.append("...")
+                    else:
+                        s_body.append("... Truncated {}/{} rows ...".format(total_rows - ITERATE_LIMIT, total_rows))
+
                     break
 
                 k = k if name_callback is None else name_callback(k)
