@@ -80,6 +80,23 @@ class Interface(object):
         return function_name
 
     @classmethod
+    def module_name(cls):
+        """Returns the default module name
+
+        :returns: str, the default module name, which will usually be `pout`
+        """
+        return __name__.split(".")[0]
+
+    @classmethod
+    def get_module(cls, module=None):
+        """Returns either the passed in module or the default module
+
+        :param module: module, this module will override the default module
+        :returns: module
+        """
+        return module or sys.modules[cls.module_name()]
+
+    @classmethod
     def create_instance(cls, *args, **kwargs):
         """This is the hook, basically pout.<FUNCTION_NAME> will actually call
         this method, and this method will, in turn, call __call__
@@ -121,14 +138,14 @@ class Interface(object):
         :param module: module, a python module that will be injected with the 
             found cutoff_class children. This will default to pout
         """
-        module = module or sys.modules[__name__.split(".")[0]]
+        module = cls.get_module(module)
         for inter_class in cls.find_classes(cutoff_class=cutoff_class):
             inter_class.inject(module)
 
     @classmethod
     def inject(cls, module=None):
         """Actually inject this cls into module"""
-        module = module or sys.modules[__name__.split(".")[0]]
+        module = cls.get_module(module)
         function_name = cls.function_name()
         logger.debug(f"Injecting {__name__}.{cls.__name__} as {module.__name__}.{function_name} function")
         func = functools.partial(
@@ -1073,7 +1090,7 @@ class Tofile(Interface):
         :param path: str, a path to the file you want to write to
         """
         if not path:
-            path = os.path.join(os.getcwd(), "{}.txt".format(__name__))
+            path = os.path.join(os.getcwd(), "{}.txt".format(self.module_name().upper()))
 
         self.path = path
         self.kwargs = kwargs
