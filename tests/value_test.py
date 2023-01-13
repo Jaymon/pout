@@ -383,3 +383,25 @@ class ValueTest(TestCase):
         s = v.string_value()
         self.assertEqual(4, len(s.splitlines(False)))
 
+    def test_callable(self):
+
+        class Klass(object):
+            def instancemethod(self, *args, **kwargs): pass
+            @classmethod
+            def clsmethod(cls, *args, **kwargs): pass
+
+        v = Value(Klass.clsmethod)
+        s = v.string_value()
+        self.assertTrue("<classmethod tests." in s)
+
+        k = Klass()
+        v = Value(k.instancemethod)
+        s = v.string_value()
+        self.assertTrue("<method tests." in s)
+
+        def func(*args, **kwargs): pass
+
+        v = Value(func)
+        s = v.string_value()
+        self.assertTrue("<function tests." in s)
+

@@ -164,6 +164,10 @@ class Value(object):
         '''
         return String(arg)
 
+    def get_id(self):
+        """Return .val's id in hex format"""
+        return "0x{:02x}".format(id(self.val))
+
 
 class ObjectValue(Value):
     @classmethod
@@ -423,7 +427,7 @@ class DescriptorValue(ObjectValue):
             is_descriptor = True
             for name in ["__get__", "__set__", "__delete__"]:
                 try:
-                    if not hasattr(val, name):
+                    if not getattr(val, name, None):
                         is_descriptor = False
                         break
 
@@ -521,22 +525,10 @@ class DictValue(ObjectValue):
                 k = k if name_callback is None else name_callback(k)
 
                 v = Value(v, depth+1)
-                try:
-                    if k is None:
-                        s_body.append("{}".format(v))
-                    else:
-                        s_body.append("{}: {}".format(k, v))
-
-                except RuntimeError as e:
-                    # I've never gotten this to work
-                    if k is None:
-                        s_body.append("... Recursion error ...")
-                    else:
-                        s_body.append("{}: ... Recursion error ...".format(k))
-
-                except UnicodeError as e:
-                    print(v.val)
-                    print(type(v.val))
+                if k is None:
+                    s_body.append("{}".format(v))
+                else:
+                    s_body.append("{}: {}".format(k, v))
 
         except Exception as e:
             s_body.append("... {} Error {} ...".format(e, e.__class__.__name__))
@@ -847,10 +839,29 @@ class CallableValue(Value):
 
         signature = "{}{}".format(val.__name__, func_args)
         if isinstance(val, types.MethodType):
-            ret = "<method {} at 0x{:02x}>".format(signature, id(val))
+            typename = "method"
+            classpath = ""
+            klass = getattr(val, "__self__", None)
+            if klass:
+                modpath = getattr(klass, "__module__", "")
+                classname = getattr(klass, "__name__", "")
+                if not classname:
+                    classpath = f"{modpath}.{klass.__class__.__name__}"
+
+                else:
+                    typename = "classmethod"
+                    classpath = f"{modpath}.{klass.__name__}"
+
+                if classpath:
+                    classpath += "."
+
+            ret = "<{} {}{} at {}>".format(typename, classpath, signature, self.get_id())
 
         else:
-            ret = "<function {} at 0x{:02x}>".format(signature, id(val))
+            modpath = getattr(val, "__module__", "")
+            if modpath:
+                modpath += "."
+            ret = "<function {}{} at {}>".format(modpath, signature, self.get_id())
 
         return ret
 

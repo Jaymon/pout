@@ -340,7 +340,6 @@ class V(Interface):
     def body_value(self, body, **kwargs):
         value_class = kwargs.get("value_class", self.value_class)
         value = value_class(body, **kwargs)
-        self.value = value
         return value.string_value() + "\n"
 
     def input(self, *args, **kwargs):
