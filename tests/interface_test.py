@@ -919,6 +919,30 @@ class MTest(TestCase):
 
 
 class ITest(TestCase):
+    def test_class_info(self):
+        """I noticed when passing classes into pout.i() they identified as instances
+        in the output, this makes sense now that I've looked into it, but I went
+        ahead and fixed it"""
+        class Foo(object): pass
+
+        with testdata.capture() as c:
+            pout.i(Foo)
+        self.assertTrue("Foo class at" in c)
+
+        with testdata.capture() as c:
+            pout.i(dict)
+        self.assertTrue("dict class at" in c)
+
+        d = {}
+        with testdata.capture() as c:
+            pout.i(d)
+        self.assertTrue("dict instance at" in c)
+
+        f = Foo()
+        with testdata.capture() as c:
+            pout.i(f)
+        self.assertTrue("Foo instance at" in c)
+
     def test_map(self):
         with testdata.capture() as c:
             v = map(str, range(5))

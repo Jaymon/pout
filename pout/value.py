@@ -86,6 +86,10 @@ class Value(object):
         return String(s).snakecase().upper()
 
     @property
+    def instancename(self):
+        return self.typename.lower()
+
+    @property
     def raw(self):
         return self.val
     value = raw
@@ -170,6 +174,10 @@ class Value(object):
 
 
 class ObjectValue(Value):
+    @property
+    def instancename(self):
+        return "instance"
+
     @classmethod
     def is_valid(cls, val):
         if inspect.ismethod(val) or inspect.isfunction(val) or inspect.ismethoddescriptor(val):
@@ -270,7 +278,8 @@ class ObjectValue(Value):
     def prefix_value(self):
         #full_name = self._get_name(val, src_file=src_file) # full classpath
         full_name = self._get_name(self.val, src_file="") # just the classname
-        return "{} instance at 0x{:02x}".format(full_name, id(self.val))
+        v = Value(self.val)
+        return "{} {} at 0x{:02x}".format(full_name, v.instancename, id(self.val))
 
     def info(self):
         """Gathers all the information about this object
@@ -767,6 +776,10 @@ class ModuleValue(ObjectValue):
 
 
 class TypeValue(Value):
+    @property
+    def instancename(self):
+        return "class"
+
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, type)
