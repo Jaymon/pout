@@ -18,6 +18,8 @@ from pathlib import PurePath
 from types import MappingProxyType
 from collections.abc import MappingView
 import functools
+import sqlite3
+import datetime
 
 from .compat import *
 from . import environ
@@ -579,6 +581,16 @@ class DictProxyValue(DictValue):
         return isinstance(val, MappingProxyType)
 
 
+class SQLiteRowValue(DictValue):
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, sqlite3.Row)
+
+    def __iter__(self):
+        for v in dict(self.val).items():
+            yield v
+
+
 class ListValue(DictValue):
     left_paren = '['
     right_paren = ']'
@@ -879,17 +891,32 @@ class CallableValue(Value):
         return ret
 
 
-class PathValue(ObjectValue):
+class DatetimeValue(ObjectValue):
     """
-    https://docs.python.org/3/library/pathlib.html
+    https://docs.python.org/3/library/datetime.html
     """
     @classmethod
     def is_valid(cls, val):
-        return isinstance(val, PurePath)
+        return isinstance(val, (datetime.datetime, datetime.date))
 
     def string_value(self):
-        body = String(self.val)
+        body = "\n".join([
+            String(self.val),
+            "",
+            f"year: {self.val.year}",
+            f"month: {self.val.month}",
+            f"day: {self.val.day}",
+        ])
+
+        if isinstance(self.val, datetime.datetime):
+            body += "\n".join([
+                "",
+                f"hour: {self.val.hour}",
+                f"minute: {self.val.minute}",
+                f"second: {self.val.second}",
+                f"microsecond: {self.val.microsecond}",
+                f"tzinfo: {self.val.tzinfo}",
+            ])
+
         return self.finalize_value(body)
-
-
 
