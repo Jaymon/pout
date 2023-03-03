@@ -28,7 +28,7 @@ from .interface import Interface
 from .value import Value
 
 
-__version__ = '2.1.1'
+__version__ = '2.2.0'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
@@ -60,7 +60,7 @@ Interface.inject_classes()
 
 def inject():
     """Injects pout into the builtins module so it can be called from anywhere without
-    having to be explicitely imported, this is really just for convenience when
+    having to be explicitly imported, this is really just for convenience when
     debugging
 
     https://stackoverflow.com/questions/142545/python-how-to-make-a-cross-module-variable

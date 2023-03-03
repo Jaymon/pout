@@ -17,6 +17,7 @@ import array
 from pathlib import PurePath
 from types import MappingProxyType
 from collections.abc import MappingView
+from collections import defaultdict
 import functools
 import sqlite3
 import datetime
@@ -787,7 +788,7 @@ class ModuleValue(ObjectValue):
         return self.finalize_value(body=s)
 
 
-class TypeValue(Value):
+class TypeValue(ObjectValue):
     @property
     def instancename(self):
         return "class"
@@ -797,7 +798,25 @@ class TypeValue(Value):
         return isinstance(val, type)
 
     def string_value(self):
-        return '{}'.format(self.val)
+        depth = self.depth
+        OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
+        SHOW_MAGIC = self.kwargs.get("show_magic", False)
+
+        s_body = ""
+
+        if depth < OBJECT_DEPTH:
+            val_class, instance_dict, class_dict, methods_dict = self.info()
+            instance_dict = {k:v for k, v in instance_dict.items() if not self._is_magic(k)}
+            if instance_dict:
+                s_body += f"Properties ({len(instance_dict)}):\n"
+
+                for k, v in OrderedItems(instance_dict):
+                    s_var = '{} = '.format(k)
+                    s_var += v.string_value()
+                    s_body += self._add_indent(s_var, 1)
+                    s_body += "\n"
+
+        return self.finalize_value(body=s_body)
 
 
 class RegexValue(Value):

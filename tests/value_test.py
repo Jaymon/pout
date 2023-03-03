@@ -405,3 +405,15 @@ class ValueTest(TestCase):
         s = v.string_value()
         self.assertTrue("<function tests." in s)
 
+    def test_type_1(self):
+        v = Value(object)
+        s = v.string_value()
+        self.assertRegex(s, r"^<object\sclass\sat\s\dx[^>]+?>$")
+
+        class Foo(object):
+            bar = 1
+
+        v = Value(Foo)
+        s = v.string_value()
+        self.assertTrue("bar = 1" in s)
+
