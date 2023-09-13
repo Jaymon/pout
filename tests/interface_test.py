@@ -126,7 +126,8 @@ class CTest(TestCase):
         v = "foo bar"
         with testdata.capture() as c:
             pout.c(v)
-        self.assertTrue("v = " in c)
+        #self.assertTrue("v (7) = " in c)
+        self.assertRegex(str(c), r"^\s+v\s+\(\d+\)\s+=\s+")
 
 
 class JTest(TestCase):
@@ -293,7 +294,10 @@ class HTest(TestCase):
 class STest(TestCase):
     def test_s_return(self):
         v = "foo"
+#         from pout.value import Value
+#         pout.v(Value(v).name_value("v"))
         r = pout.s(v)
+#         pout.v(r)
         self.assertTrue('v (3) = "foo"' in r)
 
     def test_ss_return(self):
@@ -377,6 +381,7 @@ class VTest(TestCase):
         with testdata.capture() as c:
             fgn = FooGetName()
             pout.v(fgn)
+
         for s in ["interface_test.FooGetName", "at 0x", "__str__:", "fields = "]:
             self.assertTrue(s in c, s)
 
@@ -400,7 +405,7 @@ class VTest(TestCase):
             def function_name(cls):
                 return "v"
 
-            def name_value(self, name, **kwargs):
+            def name_value(self, name, body, **kwargs):
                 return "foo custom"
 
         Child.inject()
@@ -600,7 +605,7 @@ class VTest(TestCase):
         for s in ['"__init__"', 'args = tuple', 'kwargs = {}']:
             self.assertTrue(s in c, s)
 
-        for s in ['"__get__"', 'DescExample instance', 'klass = <']:
+        for s in ['"__get__"', 'DescExample instance', 'klass = DescExample']:
             self.assertTrue(s in c, s)
 
     def test_class_vars(self):
@@ -658,12 +663,12 @@ class VTest(TestCase):
 
         pout.v(str(c))
         self.assertTrue("type(100) =" in c)
-        self.assertTrue("'int'" in c)
+        self.assertTrue("int class" in c)
 
         with testdata.capture() as c:
             pout.v(type([]))
         self.assertTrue("type([]) =" in c)
-        self.assertTrue("'list'" in c)
+        self.assertTrue("<list class" in c)
 
     def test_str(self):
         '''

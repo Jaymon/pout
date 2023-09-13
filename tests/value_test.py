@@ -238,6 +238,42 @@ class ValueTest(TestCase):
         v = Value("")
         self.assertTrue(isinstance(v, StringValue))
 
+    def test_exception(self):
+        v = Value(ValueError("foo bar"))
+        self.assertTrue(isinstance(v, ExceptionValue))
+        repr(v)
+
+    def test_module(self):
+        v = Value(testdata)
+        self.assertTrue(isinstance(v, ModuleValue))
+        repr(v)
+
+    def test_dict_keys_1(self):
+        d = {"foo": 1, "bar": 2}
+        v = Value(d.keys())
+        self.assertEqual("MAPPING_VIEW", v.typename)
+        s = v.string_value()
+        self.assertTrue("dict_keys" in s)
+
+    def test_std_collections__pout__(self):
+        """https://github.com/Jaymon/pout/issues/61"""
+        class PoutDict(dict):
+            def __pout__(self):
+                return "custom dict"
+
+        d = PoutDict(foo=1, bar=2)
+        v = Value(d)
+        s = v.string_value()
+        self.assertTrue("custom dict" in s)
+
+    def test_dict_keys_bytes(self):
+        d = {
+            b'foo': b'bar'
+        }
+        v = Value(d)
+        s = v.string_value()
+        self.assertTrue("b'foo'" in s)
+
     def test_object_1(self):
         class FooObject(object):
             bar = 1
@@ -319,42 +355,6 @@ class ValueTest(TestCase):
         logs = "\n".join(c[1])
         self.assertFalse("READ ERRORS" in logs)
 
-    def test_exception(self):
-        v = Value(ValueError("foo bar"))
-        self.assertTrue(isinstance(v, ExceptionValue))
-        repr(v)
-
-    def test_module(self):
-        v = Value(testdata)
-        self.assertTrue(isinstance(v, ModuleValue))
-        repr(v)
-
-    def test_dict_keys_1(self):
-        d = {"foo": 1, "bar": 2}
-        v = Value(d.keys())
-        self.assertEqual("MAPPING_VIEW", v.typename)
-        s = v.string_value()
-        self.assertTrue("dict_keys" in s)
-
-    def test_std_collections__pout__(self):
-        """https://github.com/Jaymon/pout/issues/61"""
-        class PoutDict(dict):
-            def __pout__(self):
-                return "custom dict"
-
-        d = PoutDict(foo=1, bar=2)
-        v = Value(d)
-        s = v.string_value()
-        self.assertTrue("custom dict" in s)
-
-    def test_dict_keys_bytes(self):
-        d = {
-            b'foo': b'bar'
-        }
-        v = Value(d)
-        s = v.string_value()
-        self.assertTrue("b'foo'" in s)
-
     def test_object___pout__1(self):
         class OPU(object):
             def __pout__(self):
@@ -381,6 +381,7 @@ class ValueTest(TestCase):
         p = Path("/foo/bar/che")
         v = Value(p)
         s = v.string_value()
+        print(s)
         self.assertEqual(4, len(s.splitlines(False)))
 
     def test_callable(self):
@@ -416,4 +417,24 @@ class ValueTest(TestCase):
         v = Value(Foo)
         s = v.string_value()
         self.assertTrue("bar = 1" in s)
+
+    def test_classmethod(self):
+        """in python 3.10 classmethods were being categorized as properties"""
+        def foo(cls):
+            pass
+
+        func = classmethod(foo)
+        v = Value(func)
+        self.assertEqual("CALLABLE", v.typename)
+
+        class ToProp(object):
+            @classmethod
+            def foo(cls):
+                pass
+
+        v = Value(ToProp, show_methods=True)
+        info = v.info()
+        self.assertEqual({}, info[1])
+        self.assertEqual({}, info[2])
+        self.assertTrue("foo" in info[3])
 

@@ -28,7 +28,7 @@ from .interface import Interface
 from .value import Value
 
 
-__version__ = '2.2.0'
+__version__ = '2.3.0'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
@@ -43,6 +43,7 @@ if len(logger.handlers) == 0:
         log_handler = logging.StreamHandler(stream=sys.stderr)
         log_handler.setFormatter(logging.Formatter('[%(levelname).1s] %(message)s'))
         logger.addHandler(log_handler)
+
     else:
         logger.setLevel(logging.WARNING)
         logger.addHandler(logging.NullHandler())

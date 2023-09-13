@@ -147,7 +147,12 @@ class Interface(object):
         """Actually inject this cls into module"""
         module = cls.get_module(module)
         function_name = cls.function_name()
-        logger.debug(f"Injecting {__name__}.{cls.__name__} as {module.__name__}.{function_name} function")
+        logger.debug("Injecting {}.{} as {}.{} function".format(
+            __name__,
+            cls.__name__,
+            module.__name__,
+            function_name,
+        ))
         func = functools.partial(
             cls.create_instance,
             pout_module=module,
@@ -184,7 +189,7 @@ class Interface(object):
 
         return s
 
-    def name_value(self, name, **kwargs):
+    def name_value(self, name, body, **kwargs):
         """normalize name. This will only do something with name if it has a value
 
         this method is called after .body_value(). This method respects SHOW_META
@@ -192,6 +197,8 @@ class Interface(object):
         each tuple value [0] yielded from .input()
 
         :param name: str, the name value to use
+        :param body: Any, the original un-normalized body, this is handy to have
+            in case you want to tie the normalized name to the body in some way
         :param **kwargs: dict, anything passed into the interface
         :returns: str, the name normalized
         """
@@ -230,7 +237,10 @@ class Interface(object):
         if show_path:
             call_info = self.reflect.info
             if call_info:
-                s = "({}:{})".format(self._get_path(call_info['file']), call_info['line'])
+                s = "({}:{})".format(
+                    self._get_path(call_info['file']),
+                    call_info['line']
+                )
         return s
 
     def input(self, *args, **kwargs):
@@ -263,16 +273,16 @@ class Interface(object):
         :returns: str, a string ready to be printed or returned
         """
         bodies = []
-        for name, body in self.input(*args, **kwargs):
-            body = self.body_value(body, **kwargs)
-            name = self.name_value(name, **kwargs)
+        for n, b in self.input(*args, **kwargs):
+            body = self.body_value(b, **kwargs)
+            name = self.name_value(n, b, **kwargs)
 
             if name:
                 bodies.append("{} = {}".format(name, body))
+
             else:
                 bodies.append(body)
 
-        #bodies.append("\n")
         path = self.path_value(**kwargs)
         if path:
             bodies.append(path)
@@ -329,23 +339,24 @@ class V(Interface):
     value_class = Value
     """the default class to use to introspect an input's value"""
 
-    def name_value(self, name, **kwargs):
-        name = super().name_value(name, **kwargs)
+    def create_value(self, value, **kwargs):
+        value_class = kwargs.get("value_class", self.value_class)
+        return value_class(value, **kwargs)
+
+    def name_value(self, name, body, **kwargs):
+        name = super().name_value(name, body, **kwargs)
         if name:
-            value = getattr(self, "value", None)
-            if value:
-                name = value.name_value(name)
+            value = self.create_value(body, **kwargs)
+            name = value.name_value(name)
         return name
 
     def body_value(self, body, **kwargs):
-        value_class = kwargs.get("value_class", self.value_class)
-        value = value_class(body, **kwargs)
+        value = self.create_value(body, **kwargs)
         return value.string_value() + "\n"
 
     def input(self, *args, **kwargs):
         call_info = self.reflect.info
         if not call_info["args"]:
-        #if not args:
             raise ValueError("you didn't pass any arguments")
 
         for v in call_info["args"]:

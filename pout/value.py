@@ -303,11 +303,18 @@ class ObjectValue(Value):
         SHOW_MAGIC = self.kwargs.get("show_magic", False)
 
         try:
-            instance_dict = {k: Value(v, depth+1) for k, v in vars(val).items()}
+            for k, v in vars(val).items():
+                if SHOW_MAGIC or not self._is_magic(k):
+                    v = Value(v, depth+1)
+                    if v.typename == 'CALLABLE':
+                        if SHOW_METHODS:
+                            methods_dict[k] = v
+                    else:
+                        instance_dict[k] = v
+
+            #instance_dict = {k: Value(v, depth+1) for k, v in vars(val).items()}
 
         except TypeError as e:
-            # using vars(val) will give the instance's __dict__, which doesn't
-            # include methods because those are set on the instance's __class__.
             # Since vars() failed we are going to try and make inspect.getmembers
             # act like vars()
             # Also, I could get a recursion error if I tried to just do
@@ -717,13 +724,13 @@ class ModuleValue(ObjectValue):
         return "{} module at 0x{:02x}".format(full_name, id(self.val))
 
     def string_value(self):
+        s = ""
         depth = self.depth
         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
         SHOW_MAGIC = self.kwargs.get("show_magic", False)
 
         if depth < OBJECT_DEPTH:
             val = self.val
-            s = ""
 
             file_path = Path(self._get_src_file(val))
             if file_path:
@@ -789,6 +796,16 @@ class ModuleValue(ObjectValue):
 
 
 class TypeValue(ObjectValue):
+    """A class-like value, basically, this is things like a class that hasn't
+    been initiated yet
+
+    :Example:
+        class Foo(object):
+            pass
+
+        Value(Foo).typename # TYPE
+        Value(Foo()).typename # INSTANCE
+    """
     @property
     def instancename(self):
         return "class"
@@ -817,6 +834,34 @@ class TypeValue(ObjectValue):
                     s_body += "\n"
 
         return self.finalize_value(body=s_body)
+
+
+class RegexMatchValue(ObjectValue):
+    def _get_name(self, *args, **kwargs):
+        return "re.Match"
+
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, re.Match)
+
+    def string_value(self):
+        #print(dir(self.val))
+        #match = self.val.string[self.val.start():self.val.end()]
+        body = [
+            f"Pattern: {self.val.re.pattern}",
+            "",
+            #f"group 0: {match}",
+        ]
+
+        for i, gs in enumerate(self.val.regs, 0):
+            start, stop = gs
+            match = self.val.string[start:stop]
+            body.append(f"Group {i} from {start} to {stop}: {match}")
+
+        #for i, g in enumerate(self.val.groups(), 1):
+        #    body.append(f"Group {i}: {g}")
+
+        return self.finalize_value(body="\n".join(body))
 
 
 class RegexValue(Value):
@@ -869,6 +914,18 @@ class CallableValue(Value):
         if "__call__" in d:
             ret = "__func__" in d or "__name__" in d
 
+        else:
+            # classmethod's have __func__ and __name__ but I'm not sure how 
+            # unique that is
+            ret = isinstance(val, (
+                types.FunctionType,
+                types.LambdaType,
+                types.MethodWrapperType,
+                types.WrapperDescriptorType,
+                types.MethodDescriptorType,
+                classmethod,
+            ))
+
         return ret
 
     def string_value(self):
@@ -903,8 +960,12 @@ class CallableValue(Value):
 
         else:
             modpath = getattr(val, "__module__", "")
+            if modpath and not isinstance(modpath, str):
+                modpath = modpath.__name__
+
             if modpath:
                 modpath += "."
+
             ret = "<function {}{} at {}>".format(modpath, signature, self.get_id())
 
         return ret
@@ -937,5 +998,18 @@ class DatetimeValue(ObjectValue):
                 f"tzinfo: {self.val.tzinfo}",
             ])
 
+        return self.finalize_value(body)
+
+
+class PathValue(ObjectValue):
+    """
+    https://docs.python.org/3/library/pathlib.html
+    """
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, PurePath)
+
+    def string_value(self):
+        body = String(self.val)
         return self.finalize_value(body)
 
