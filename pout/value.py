@@ -931,14 +931,21 @@ class CallableValue(Value):
     def string_value(self):
         val = self.val
         try:
-            if is_py2:
-                func_args = inspect.formatargspec(*inspect.getfullargspec(val))
-            else:
-                func_args = "{}".format(inspect.signature(val))
+            func_args = "{}".format(inspect.signature(val))
+
         except (TypeError, ValueError):
             func_args = "(...)"
 
-        signature = "{}{}".format(val.__name__, func_args)
+        try:
+            signature = "{}{}".format(val.__name__, func_args)
+
+        except AttributeError:
+            if isinstance(val, staticmethod):
+                signature = "{}{}".format(val.__func__.__name__, func_args)
+
+            else:
+                signature = "UNKNOWN{}".format(func_args)
+
         if isinstance(val, types.MethodType):
             typename = "method"
             classpath = ""
@@ -957,6 +964,9 @@ class CallableValue(Value):
                     classpath += "."
 
             ret = "<{} {}{} at {}>".format(typename, classpath, signature, self.get_id())
+
+        elif isinstance(val, staticmethod):
+            ret = "<staticmethod {} at {}>".format(signature, self.get_id())
 
         else:
             modpath = getattr(val, "__module__", "")
