@@ -21,7 +21,7 @@ readme = "README.md"
 license = { file = "LICENSE.txt" }
 
 [project.urls]
-Homepage = "http://github.com/Jaymon/pout"
+Homepage = "https://github.com/Jaymon/pout"
 Repository = "https://github.com/Jaymon/pout"
 
 [project.optional-dependencies]
