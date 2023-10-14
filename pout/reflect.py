@@ -372,8 +372,8 @@ class Reflect(object):
         '''
         get all the info of a method call
 
-        this will find what arg names you passed into the method and tie them to their passed in values,
-        it will also find file and line number
+        this will find what arg names you passed into the method and tie them
+        to their passed in values, it will also find file and line number
 
         :returns: dict, a bunch of info on the call
         '''
@@ -397,10 +397,17 @@ class Reflect(object):
             if len(ret_dict['arg_names']) > 0:
                 # match the found arg names to their respective values
                 for i, arg_name in enumerate(ret_dict['arg_names']):
-                    args.append({'name': arg_name, 'val': arg_vals[i]})
+                    try:
+                        args.append({'name': arg_name, 'val': arg_vals[i]})
+
+                    except IndexError:
+                        # arg_vals[i] will fail with keywords passed into the
+                        # method
+                        break
 
             else:
-                # we can't autodiscover the names, in an interactive shell session?
+                # we can't autodiscover the names, in an interactive shell
+                # session?
                 for i, arg_val in enumerate(arg_vals):
                     args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
 
