@@ -17,7 +17,7 @@ import array
 from pathlib import PurePath
 from types import MappingProxyType
 from collections.abc import MappingView
-from collections import defaultdict
+from collections import defaultdict, Counter
 import functools
 import sqlite3
 import datetime
@@ -125,12 +125,106 @@ class Value(object):
         self.indent = 1 if depth > 0 else 0
         self.kwargs = kwargs
 
+        # tracks which instances have been seen so they are only fully expanded
+        # one time, you'll see seen is cloned and passed to other Value
+        # instances created further down the stack in .create_instance()
+        self.seen = self.kwargs.pop("seen", Counter())
+        vid = self.get_id()
+        self.seen[vid] += 1
+        self.seen_first = self.seen[vid] == 1
+
+    def create_instance(self, val, **kwargs):
+        kwargs.setdefault("depth", self.depth + 1)
+        kwargs.setdefault("seen", self.seen)
+        instance = Value(val, **kwargs)
+        return instance
+
+    def _is_magic(self, name):
+        '''
+        return true if the name is __name__
+
+        since -- 7-10-12
+
+        name -- string -- the name to check
+
+        return -- boolean
+        '''
+        #return (name[:2] == u'__' and name[-2:] == u'__')
+        return name.startswith('__') and name.endswith('__')
+
+    def _getattr(self, val, key, default_val):
+        """wrapper around global getattr(...) method that suppresses any
+        exception raised"""
+        try:
+            ret = getattr(val, key, default_val)
+
+        except Exception as e:
+            logger.exception(e)
+            ret = default_val
+
+        return ret
+
     def string_value(self):
+        prefix = self.prefix_value()
+
+        #vid = self.get_id()
+        #seen_before = vid in self.seen
+
+        depth = self.depth
+        OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
+        if depth < OBJECT_DEPTH:
+            pout_method = self._getattr(self.val, "__pout__", None)
+
+            if pout_method and callable(pout_method):
+                body = self.create_instance(pout_method()).string_value()
+
+            else:
+                body = self.body_value().strip()
+
+        else:
+            body = ""
+
+        if prefix:
+            start_wrapper = self.start_value()
+            stop_wrapper = self.stop_value()
+
+            if body and self.seen_first:
+
+                start_wrapper = self._add_indent(start_wrapper, 1)
+
+                body = self._add_indent(body, 2)
+
+                stop_wrapper = self._add_indent(stop_wrapper, 1)
+
+                ret = prefix + "\n" \
+                    + start_wrapper + "\n" \
+                    + body + "\n" \
+                    + stop_wrapper
+
+            else:
+                ret = self.empty_value()
+                #ret = f"{start_wrapper}{prefix}{stop_wrapper}"
+
+        else:
+            ret = body
+
+        return ret
+
+    def prefix_value(self):
+        return ""
+
+    def start_value(self):
+        return ""
+
+    def stop_value(self):
+        return ""
+
+    def body_value(self, **kwargs):
         return "{}".format(repr(self.val))
 
-    def bytes_value(self):
-        s = self.string_value()
-        return Bytes(s)
+    def empty_value(self):
+        prefix = self.prefix_value()
+        return f"<{prefix}>"
 
     def name_value(self, name):
         """wrapper method that the interface can use to customize the name for a
@@ -142,7 +236,7 @@ class Value(object):
         return s
 
     def __format__(self, format_str):
-        return self.string_value() if isinstance(format_str, String.types) else self.bytes_value()
+        return self.string_value()
 
     def _add_indent(self, val, indent_count):
         '''
@@ -171,9 +265,25 @@ class Value(object):
         '''
         return String(arg)
 
+    @functools.cache
     def get_id(self):
         """Return .val's id in hex format"""
         return "0x{:02x}".format(id(self.val))
+
+
+class PrimitiveValue(Value):
+    @classmethod
+    def is_valid(cls, val):
+        """is the value a built-in type?"""
+        return isinstance(
+            val,
+            (
+                type(None),
+                bool,
+                int,
+                float
+            )
+        )
 
 
 class ObjectValue(Value):
@@ -197,30 +307,6 @@ class ObjectValue(Value):
                     if self.has_attr(a):
                         ret = False
                         break
-
-        return ret
-
-    def _is_magic(self, name):
-        '''
-        return true if the name is __name__
-
-        since -- 7-10-12
-
-        name -- string -- the name to check
-
-        return -- boolean
-        '''
-        #return (name[:2] == u'__' and name[-2:] == u'__')
-        return name.startswith('__') and name.endswith('__')
-
-    def _getattr(self, val, key, default_val):
-        """wrapper around global getattr(...) method that suppresses any exception raised"""
-        try:
-            ret = getattr(val, key, default_val)
-
-        except Exception as e:
-            logger.exception(e)
-            ret = default_val
 
         return ret
 
@@ -278,12 +364,6 @@ class ObjectValue(Value):
 
         return path
 
-    def prefix_value(self):
-        #full_name = self._get_name(val, src_file=src_file) # full classpath
-        full_name = self._get_name(self.val, src_file="") # just the classname
-        v = Value(self.val)
-        return "{} {} at 0x{:02x}".format(full_name, v.instancename, id(self.val))
-
     def info(self):
         """Gathers all the information about this object
 
@@ -305,7 +385,7 @@ class ObjectValue(Value):
         try:
             for k, v in vars(val).items():
                 if SHOW_MAGIC or not self._is_magic(k):
-                    v = Value(v, depth+1)
+                    v = self.create_instance(v)
                     if v.typename == 'CALLABLE':
                         if SHOW_METHODS:
                             methods_dict[k] = v
@@ -320,7 +400,7 @@ class ObjectValue(Value):
             # Also, I could get a recursion error if I tried to just do
             # inspect.getmembers in certain circumstances, I have no idea why
             for k, v in inspect.getmembers(val):
-                v = Value(v, depth+1)
+                v = self.create_instance(v)
                 if SHOW_MAGIC or not self._is_magic(k):
                     if v.typename == 'CALLABLE':
                         if SHOW_METHODS:
@@ -336,7 +416,7 @@ class ObjectValue(Value):
                     # filter out anything that's in the instance dict also
                     # since that takes precedence.
                     if k not in instance_dict:
-                        v = Value(v, depth+1)
+                        v = self.create_instance(v)
                         if SHOW_MAGIC or not self._is_magic(k):
                             if v.typename == 'CALLABLE':
                                 if SHOW_METHODS:
@@ -346,92 +426,178 @@ class ObjectValue(Value):
 
         return val_class, instance_dict, class_dict, methods_dict
 
-    def string_value(self):
+    def prefix_value(self):
+        #full_name = self._get_name(val, src_file=src_file) # full classpath
+        full_name = self._get_name(self.val, src_file="") # just the classname
+        v = Value(self.val)
+        return "{} {} at 0x{:02x}".format(full_name, v.instancename, id(self.val))
+
+    def start_value(self):
+        return "<"
+
+    def stop_value(self):
+        return ">"
+
+    def body_value(self):
+        s_body = ""
+
         val = self.val
         depth = self.depth
-        indent = self.indent
 
-        OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
+#         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
         val_class, instance_dict, class_dict, methods_dict = self.info()
 
         src_file = ""
         if val_class:
             src_file = self._get_src_file(val_class, default="")
 
-        s = self.prefix_value()
-        s_body = ""
-
-        pout_method = self._getattr(val, "__pout__", None)
-        if pout_method and callable(pout_method):
-            v = Value(pout_method())
-            s_body = v.string_value()
-
-        else:
-            if depth < OBJECT_DEPTH:
-                if val_class:
-                    pclses = inspect.getmro(val_class)
-                    if pclses:
-                        s_body += "\n"
-                        for pcls in pclses:
-                            psrc_file = self._get_src_file(pcls, default="")
-                            if psrc_file:
-                                psrc_file = Path(psrc_file)
-                            pname = self._get_name(pcls, src_file=psrc_file)
-                            if psrc_file:
-                                s_body += "{} ({})".format(pname, psrc_file)
-                            else:
-                                s_body += "{}".format(pname)
-                            s_body += "\n"
-
-                if hasattr(val, '__str__'):
-                    s_body += "\n__str__:\n"
-                    s_body += self._add_indent(String(val), 1)
-
+#         pout_method = self._getattr(val, "__pout__", None)
+#         if pout_method and callable(pout_method):
+#             v = Value(pout_method())
+#             s_body = v.string_value()
+# 
+#         else:
+#             if depth < OBJECT_DEPTH:
+        if val_class:
+            pclses = inspect.getmro(val_class)
+            if pclses:
+                s_body += "\n"
+                for pcls in pclses:
+                    psrc_file = self._get_src_file(pcls, default="")
+                    if psrc_file:
+                        psrc_file = Path(psrc_file)
+                    pname = self._get_name(pcls, src_file=psrc_file)
+                    if psrc_file:
+                        s_body += "{} ({})".format(pname, psrc_file)
+                    else:
+                        s_body += "{}".format(pname)
                     s_body += "\n"
 
-                if class_dict:
-                    s_body += f"\nClass Properties ({len(class_dict)}):\n"
+        if hasattr(val, '__str__'):
+            s_body += "\n__str__:\n"
+            s_body += self._add_indent(String(val), 1)
 
-                    for k, v in OrderedItems(class_dict):
-                        s_var = '{} = '.format(k)
-                        s_var += v.string_value()
-                        s_body += self._add_indent(s_var, 1)
-                        s_body += "\n"
+            s_body += "\n"
 
-                if instance_dict:
-                    s_body += f"\nInstance Properties ({len(instance_dict)}):\n"
+        if class_dict:
+            s_body += f"\nClass Properties ({len(class_dict)}):\n"
 
-                    for k, v in OrderedItems(instance_dict):
-                        s_var = '{} = '.format(k)
-                        s_var += v.string_value()
-                        s_body += self._add_indent(s_var, 1)
-                        s_body += "\n"
+            for k, v in OrderedItems(class_dict):
+                s_var = '{} = '.format(k)
+                s_var += v.string_value()
+                s_body += self._add_indent(s_var, 1)
+                s_body += "\n"
 
-                if methods_dict:
-                    s_body += f"\nMethods ({len(methods_dict)}):\n"
+        if instance_dict:
+            s_body += f"\nInstance Properties ({len(instance_dict)}):\n"
 
-                    for k, v in OrderedItems(methods_dict):
-                        s_body += self._add_indent(v.string_value(), 1)
-                        s_body += "\n"
+            for k, v in OrderedItems(instance_dict):
+                s_var = '{} = '.format(k)
+                s_var += v.string_value()
+                s_body += self._add_indent(s_var, 1)
+                s_body += "\n"
 
-                if self.typename == 'EXCEPTION':
-                    s_body += "\n"
-                    s_body += "\n".join(traceback.format_exception(None, val, val.__traceback__))
+        if methods_dict:
+            s_body += f"\nMethods ({len(methods_dict)}):\n"
 
-        return self.finalize_value(body=s_body, prefix=s)
+            for k, v in OrderedItems(methods_dict):
+                s_body += self._add_indent(v.string_value(), 1)
+                s_body += "\n"
 
-    def finalize_value(self, body, prefix="", start_wrapper="<", stop_wrapper=">"):
-        prefix = prefix or self.prefix_value()
-        if body:
-            indent = self.indent
-            start_wrapper = self._add_indent(f"\n{start_wrapper}", indent) + "\n"
-            body = self._add_indent(body.strip(), indent + 1)
-            stop_wrapper = self._add_indent(f"\n{stop_wrapper}", indent)
-            ret = prefix + start_wrapper + body + stop_wrapper
+        if self.typename == 'EXCEPTION':
+            s_body += "\n"
+            s_body += "\n".join(
+                traceback.format_exception(None, val, val.__traceback__)
+            )
 
-        else:
-            ret = f"{start_wrapper}{prefix}{stop_wrapper}"
-        return ret
+        return s_body
+
+#     def xstring_value(self):
+#         val = self.val
+#         depth = self.depth
+#         indent = self.indent
+# 
+#         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
+#         val_class, instance_dict, class_dict, methods_dict = self.info()
+# 
+#         src_file = ""
+#         if val_class:
+#             src_file = self._get_src_file(val_class, default="")
+# 
+#         s = self.prefix_value()
+#         s_body = ""
+# 
+#         pout_method = self._getattr(val, "__pout__", None)
+#         if pout_method and callable(pout_method):
+#             v = Value(pout_method())
+#             s_body = v.string_value()
+# 
+#         else:
+#             if depth < OBJECT_DEPTH:
+#                 if val_class:
+#                     pclses = inspect.getmro(val_class)
+#                     if pclses:
+#                         s_body += "\n"
+#                         for pcls in pclses:
+#                             psrc_file = self._get_src_file(pcls, default="")
+#                             if psrc_file:
+#                                 psrc_file = Path(psrc_file)
+#                             pname = self._get_name(pcls, src_file=psrc_file)
+#                             if psrc_file:
+#                                 s_body += "{} ({})".format(pname, psrc_file)
+#                             else:
+#                                 s_body += "{}".format(pname)
+#                             s_body += "\n"
+# 
+#                 if hasattr(val, '__str__'):
+#                     s_body += "\n__str__:\n"
+#                     s_body += self._add_indent(String(val), 1)
+# 
+#                     s_body += "\n"
+# 
+#                 if class_dict:
+#                     s_body += f"\nClass Properties ({len(class_dict)}):\n"
+# 
+#                     for k, v in OrderedItems(class_dict):
+#                         s_var = '{} = '.format(k)
+#                         s_var += v.string_value()
+#                         s_body += self._add_indent(s_var, 1)
+#                         s_body += "\n"
+# 
+#                 if instance_dict:
+#                     s_body += f"\nInstance Properties ({len(instance_dict)}):\n"
+# 
+#                     for k, v in OrderedItems(instance_dict):
+#                         s_var = '{} = '.format(k)
+#                         s_var += v.string_value()
+#                         s_body += self._add_indent(s_var, 1)
+#                         s_body += "\n"
+# 
+#                 if methods_dict:
+#                     s_body += f"\nMethods ({len(methods_dict)}):\n"
+# 
+#                     for k, v in OrderedItems(methods_dict):
+#                         s_body += self._add_indent(v.string_value(), 1)
+#                         s_body += "\n"
+# 
+#                 if self.typename == 'EXCEPTION':
+#                     s_body += "\n"
+#                     s_body += "\n".join(traceback.format_exception(None, val, val.__traceback__))
+# 
+#         return self.finalize_value(body=s_body, prefix=s)
+# 
+#     def xfinalize_value(self, body, prefix="", start_wrapper="<", stop_wrapper=">"):
+#         prefix = prefix or self.prefix_value()
+#         if body:
+#             indent = self.indent
+#             start_wrapper = self._add_indent(f"\n{start_wrapper}", indent) + "\n"
+#             body = self._add_indent(body.strip(), indent + 1)
+#             stop_wrapper = self._add_indent(f"\n{stop_wrapper}", indent)
+#             ret = prefix + start_wrapper + body + stop_wrapper
+# 
+#         else:
+#             ret = f"{start_wrapper}{prefix}{stop_wrapper}"
+#         return ret
 
 
 class DescriptorValue(ObjectValue):
@@ -460,24 +626,9 @@ class DescriptorValue(ObjectValue):
         return f"<{self.prefix_value()}>"
 
 
-class PrimitiveValue(Value):
-    @classmethod
-    def is_valid(cls, val):
-        """is the value a built-in type?"""
-        return isinstance(
-            val,
-            (
-                type(None),
-                bool,
-                int,
-                float
-            )
-        )
-
-
 class DictValue(ObjectValue):
-    left_paren = "{"
-    right_paren = "}"
+#     left_paren = "{"
+#     right_paren = "}"
 
     @classmethod
     def is_valid(cls, val):
@@ -507,25 +658,24 @@ class DictValue(ObjectValue):
         full_name = self._get_name(self.val, src_file="") # just the classname
         return "{}{}instance at 0x{:02x}".format(full_name, count, id(self.val))
 
-    def _str_iterator(self):
+    def start_value(self):
+        return "{"
+
+    def stop_value(self):
+        return "}"
+
+    def body_value(self):
         '''
         turn an iteratable value into a string representation
 
         :returns: string
         '''
+        s_body = []
         depth = self.depth
-        indent = self.indent
+        indent = 1 if depth > 0 else 0
         iterator = self
         name_callback = self.name_callback
-        left_paren = self.left_paren
-        right_paren = self.right_paren
-        prefix = f"{self.prefix_value()}\n"
         ITERATE_LIMIT = self.kwargs.get("iterate_limit", environ.ITERATE_LIMIT)
-
-        s = []
-        s.append('{}{}'.format(prefix, self._add_indent(left_paren, indent)))
-
-        s_body = []
 
         try:
             count = 0
@@ -534,53 +684,78 @@ class DictValue(ObjectValue):
                 if count > ITERATE_LIMIT:
                     try:
                         total_rows = len(self.val)
+
                     except Exception:
                         s_body.append("...")
+
                     else:
-                        s_body.append("... Truncated {}/{} rows ...".format(total_rows - ITERATE_LIMIT, total_rows))
+                        s_body.append(
+                            "... Truncated {}/{} rows ...".format(
+                                total_rows - ITERATE_LIMIT,
+                                total_rows
+                            )
+                        )
 
                     break
 
-                k = k if name_callback is None else name_callback(k)
+                v = self.create_instance(v)
 
-                v = Value(v, depth+1)
+                k = k if name_callback is None else name_callback(k)
                 if k is None:
-                    s_body.append("{}".format(v))
+                    s_body.append(v.string_value())
+
                 else:
                     s_body.append("{}: {}".format(k, v))
 
         except Exception as e:
             s_body.append("... {} Error {} ...".format(e, e.__class__.__name__))
 
-        s_body = ",\n".join(s_body)
-        s_body = self._add_indent(s_body, indent + 1)
+        return ",\n".join(s_body)
 
-        s.append(s_body)
-        s.append("{}".format(self._add_indent(right_paren, indent)))
+#     def body_value(self):
+#         val = self.val
+#         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
+#         if len(val) > 0:
+#             pout_method = self._getattr(val, "__pout__", None)
+#             if pout_method and callable(pout_method):
+#                 v = Value(pout_method())
+#                 s_body = v.string_value()
+#                 s = self.finalize_value(s_body, start_wrapper=self.left_paren, stop_wrapper=self.right_paren)
+# 
+#             else:
+# 
+#                 if self.depth < OBJECT_DEPTH:
+#                     s = self._str_iterator()
+# 
+#                 else:
+#                     s = self.finalize_value(None, prefix=self.prefix_value())
+#         else:
+#             s = "{}{}".format(self.left_paren, self.right_paren)
+# 
+#         return s
 
-        return "\n".join(s)
 
-    def string_value(self):
-        val = self.val
-        OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
-        if len(val) > 0:
-            pout_method = self._getattr(val, "__pout__", None)
-            if pout_method and callable(pout_method):
-                v = Value(pout_method())
-                s_body = v.string_value()
-                s = self.finalize_value(s_body, start_wrapper=self.left_paren, stop_wrapper=self.right_paren)
-
-            else:
-
-                if self.depth < OBJECT_DEPTH:
-                    s = self._str_iterator()
-
-                else:
-                    s = self.finalize_value(None, prefix=self.prefix_value())
-        else:
-            s = "{}{}".format(self.left_paren, self.right_paren)
-
-        return s
+#     def xstring_value(self):
+#         val = self.val
+#         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
+#         if len(val) > 0:
+#             pout_method = self._getattr(val, "__pout__", None)
+#             if pout_method and callable(pout_method):
+#                 v = Value(pout_method())
+#                 s_body = v.string_value()
+#                 s = self.finalize_value(s_body, start_wrapper=self.left_paren, stop_wrapper=self.right_paren)
+# 
+#             else:
+# 
+#                 if self.depth < OBJECT_DEPTH:
+#                     s = self._str_iterator()
+# 
+#                 else:
+#                     s = self.finalize_value(None, prefix=self.prefix_value())
+#         else:
+#             s = "{}{}".format(self.left_paren, self.right_paren)
+# 
+#         return s
 
 
 class DictProxyValue(DictValue):

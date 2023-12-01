@@ -38,7 +38,37 @@ class ValuesTest(TestCase):
 
 
 class ValueTest(TestCase):
-    def test_iterator_object_depth(self):
+    def test_int(self):
+        v = Value(100)
+        self.assertEqual("100", v.string_value())
+
+    def test_object_nested(self):
+        class Foo(object):
+            pass
+
+        f = Foo()
+        f.bar = 1
+        f.foo = f
+
+        v = Value(f)
+        r = v.string_value()
+        self.assertTrue("foo = <Foo instance at" in r)
+        self.assertTrue("bar = 1" in r)
+
+    def test_object_repeated(self):
+        class Foo(object):
+            pass
+
+        f = Foo()
+        f.bar = 1
+
+        v = Value([f for _ in range(5)])
+
+        r = v.string_value()
+        self.assertTrue("0: Foo instance at" in r)
+        self.assertTrue("1: <Foo instance at" in r)
+
+    def test_iterate_object_depth(self):
         """dicts, lists, etc. should also be subject to OBJECT_DEPTH limits"""
         t = {
             "foo": 1,
@@ -178,9 +208,21 @@ class ValueTest(TestCase):
         v = Value(5)
         self.assertTrue(isinstance(v, PrimitiveValue))
 
-    def test_dict(self):
+    def test_dict_empty(self):
         v = Value({})
         self.assertTrue(isinstance(v, DictValue))
+
+        r = v.string_value()
+        self.assertTrue("dict (0) instance at" in r)
+
+    def test_dict_simple(self):
+        v = Value({"foo": 1, "bar": 2})
+        self.assertTrue(isinstance(v, DictValue))
+
+        r = v.string_value()
+        print(r)
+        self.assertTrue("dict (2)" in r)
+        self.assertTrue("'foo': 1," in r)
 
     def test_dict_unicode_keys(self):
         """Make sure unicode keys don't mess up dictionaries"""
@@ -188,7 +230,6 @@ class ValueTest(TestCase):
         v = Value(d)
         # if no exceptions then test passes
         s = v.string_value()
-        sb = v.bytes_value()
 
     def test_dictproxy(self):
         class FooDictProxy(object): pass
@@ -196,16 +237,13 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, DictProxyValue))
         #s = v.string_value()
 
-    def test_array(self):
-        a = array.array("i", range(0, 100))
-        v = Value(a)
-        s = v.string_value()
-        self.assertTrue("array.array('i'" in s)
-
-    def test_list_1(self):
+    def test_list_empty(self):
         v = Value([])
         self.assertTrue(isinstance(v, ListValue))
-        self.assertEqual("[]", repr(v))
+
+        r = v.string_value()
+        print(r)
+        self.assertEqual("[]", r)
 
     def test_list_2(self):
         v = Value([
@@ -215,6 +253,13 @@ class ValueTest(TestCase):
 
         # if no UnicodeError is raised then this was a success
         repr(v)
+
+    def test_array(self):
+        a = array.array("i", range(0, 100))
+        v = Value(a)
+        s = v.string_value()
+        print(s)
+        self.assertTrue("array.array('i'" in s)
 
     def test_set(self):
         v = Value(set())
