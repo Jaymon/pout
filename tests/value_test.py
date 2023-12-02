@@ -5,6 +5,7 @@ import hashlib
 import array
 import re
 from pathlib import Path
+import datetime
 
 from . import testdata, TestCase
 
@@ -231,19 +232,32 @@ class ValueTest(TestCase):
         # if no exceptions then test passes
         s = v.string_value()
 
+    def test_dict_keys_1(self):
+        d = {"foo": 1, "bar": 2}
+        v = Value(d.keys())
+        self.assertEqual("MAPPING_VIEW", v.typename)
+        s = v.string_value()
+        self.assertTrue("dict_keys" in s)
+
+    def test_dict_keys_bytes(self):
+        d = {
+            b'foo': b'bar'
+        }
+        v = Value(d)
+        s = v.string_value()
+        self.assertTrue("b'foo'" in s)
+
     def test_dictproxy(self):
         class FooDictProxy(object): pass
         v = Value(FooDictProxy.__dict__)
         self.assertTrue(isinstance(v, DictProxyValue))
-        #s = v.string_value()
 
     def test_list_empty(self):
         v = Value([])
         self.assertTrue(isinstance(v, ListValue))
 
         r = v.string_value()
-        print(r)
-        self.assertEqual("[]", r)
+        self.assertTrue("<list (0) instance at" in r)
 
     def test_list_2(self):
         v = Value([
@@ -251,37 +265,55 @@ class ValueTest(TestCase):
             testdata.get_unicode(),
         ])
 
-        # if no UnicodeError is raised then this was a success
-        repr(v)
+        r = v.string_value()
+        self.assertTrue("list (2) instance" in r)
 
     def test_array(self):
-        a = array.array("i", range(0, 100))
+        a = array.array("i", range(0, 10))
         v = Value(a)
         s = v.string_value()
-        print(s)
-        self.assertTrue("array.array('i'" in s)
+        self.assertTrue("array.array ('i')" in s)
 
     def test_set(self):
         v = Value(set())
         self.assertTrue(isinstance(v, SetValue))
 
+        s = set(["foo", "bar"])
+        v = Value(s)
+        r = v.string_value()
+        self.assertTrue("set (2) instance" in r)
+        self.assertTrue("\"bar\"" in r)
+
+    def test_generator(self):
+        v = Value(range(10))
+
+        r = v.string_value()
+        self.assertTrue("<range (10) generator")
+
     def test_tuple(self):
         v = Value(tuple([1, 2, 3, 4]))
         self.assertTrue(isinstance(v, TupleValue))
-        #s = v.string_value()
 
-    def test_binary(self):
+        r = v.string_value()
+        self.assertTrue("tuple (4) instance" in r)
+
+    def test_binary_1(self):
         v = Value(b"")
         self.assertTrue(isinstance(v, BinaryValue))
 
     def test_binary_2(self):
         d = hmac.new(b"this is the key", b"this is the message", hashlib.md5)
         v = Value(d.digest())
-        repr(v)
+
+        r = v.string_value()
+        self.assertTrue(r.startswith("b"))
 
     def test_string(self):
         v = Value("")
         self.assertTrue(isinstance(v, StringValue))
+
+        r = v.string_value()
+        self.assertTrue(r.startswith("\""))
 
     def test_exception(self):
         v = Value(ValueError("foo bar"))
@@ -291,14 +323,9 @@ class ValueTest(TestCase):
     def test_module(self):
         v = Value(testdata)
         self.assertTrue(isinstance(v, ModuleValue))
-        repr(v)
 
-    def test_dict_keys_1(self):
-        d = {"foo": 1, "bar": 2}
-        v = Value(d.keys())
-        self.assertEqual("MAPPING_VIEW", v.typename)
-        s = v.string_value()
-        self.assertTrue("dict_keys" in s)
+        r = v.string_value()
+        self.assertTrue(r.startswith("testdata module at"))
 
     def test_std_collections__pout__(self):
         """https://github.com/Jaymon/pout/issues/61"""
@@ -311,14 +338,6 @@ class ValueTest(TestCase):
         s = v.string_value()
         self.assertTrue("custom dict" in s)
 
-    def test_dict_keys_bytes(self):
-        d = {
-            b'foo': b'bar'
-        }
-        v = Value(d)
-        s = v.string_value()
-        self.assertTrue("b'foo'" in s)
-
     def test_object_1(self):
         class FooObject(object):
             bar = 1
@@ -328,16 +347,17 @@ class ValueTest(TestCase):
         o.baz = [3]
 
         v = Value(o)
-        s = repr(v)
-        self.assertTrue("\n<\n" in s)
+        r = v.string_value()
+        self.assertRegex(r, r"\n\s+<\n")
 
         d = {
             "che": o,
             "baz": {"foo": 1, "bar": 2}
         }
         v = Value(d)
-        s = repr(v)
-        self.assertTrue(f"\n{environ.INDENT_STRING}{environ.INDENT_STRING}<\n" in s)
+        r = v.string_value()
+        indent = environ.INDENT_STRING * 3
+        self.assertTrue(f"\n{indent}<\n" in r)
 
     def test_object_2(self):
         class To26(object):
@@ -392,14 +412,6 @@ class ValueTest(TestCase):
         t = To4()
         pout.v(t)
 
-    def test_object_regex_match(self):
-        m = re.match(r"(\d)(\d)(\d+)", "0213434")
-
-        with self.assertLogs(logger=pout.stream.logger, level="DEBUG") as c:
-            pout.v(m)
-        logs = "\n".join(c[1])
-        self.assertFalse("READ ERRORS" in logs)
-
     def test_object___pout__1(self):
         class OPU(object):
             def __pout__(self):
@@ -422,15 +434,27 @@ class ValueTest(TestCase):
 
         self.assertTrue(String(s) in String(c))
 
-    def test_path(self):
-        p = Path("/foo/bar/che")
-        v = Value(p)
+    def test_type_1(self):
+        v = Value(object)
         s = v.string_value()
-        print(s)
-        self.assertEqual(4, len(s.splitlines(False)))
+        self.assertRegex(s, r"^<object\sclass\sat\s\dx[^>]+?>$")
+
+        class Foo(object):
+            bar = 1
+
+        v = Value(Foo)
+        s = v.string_value()
+        self.assertTrue("bar = 1" in s)
+
+    def test_regex_match(self):
+        m = re.match(r"(\d)(\d)(\d+)", "0213434")
+
+        with self.assertLogs(logger=pout.stream.logger, level="DEBUG") as c:
+            pout.v(m)
+        logs = "\n".join(c[1])
+        self.assertFalse("READ ERRORS" in logs)
 
     def test_callable(self):
-
         class Klass(object):
             def instancemethod(self, *args, **kwargs): pass
             @classmethod
@@ -451,18 +475,6 @@ class ValueTest(TestCase):
         s = v.string_value()
         self.assertTrue("<function tests." in s)
 
-    def test_type_1(self):
-        v = Value(object)
-        s = v.string_value()
-        self.assertRegex(s, r"^<object\sclass\sat\s\dx[^>]+?>$")
-
-        class Foo(object):
-            bar = 1
-
-        v = Value(Foo)
-        s = v.string_value()
-        self.assertTrue("bar = 1" in s)
-
     def test_classmethod(self):
         """in python 3.10 classmethods were being categorized as properties"""
         def foo(cls):
@@ -482,4 +494,17 @@ class ValueTest(TestCase):
         self.assertEqual({}, info[1])
         self.assertEqual({}, info[2])
         self.assertTrue("foo" in info[3])
+
+    def test_datetime(self):
+        dt = datetime.datetime.now()
+        v = Value(dt)
+        r = v.string_value()
+        self.assertTrue(str(dt) in r)
+
+    def test_path(self):
+        p = Path("/foo/bar/che")
+        v = Value(p)
+        s = v.string_value()
+        self.assertEqual(4, len(s.splitlines(False)))
+        self.assertTrue("/foo/bar/che" in s)
 

@@ -210,6 +210,9 @@ class Value(object):
 
         return ret
 
+    def id_value(self):
+        return self.get_id()
+
     def prefix_value(self):
         return ""
 
@@ -265,6 +268,7 @@ class Value(object):
         '''
         return String(arg)
 
+    # TODO -- merge this with prefix_value
     @functools.cache
     def get_id(self):
         """Return .val's id in hex format"""
@@ -323,7 +327,9 @@ class ObjectValue(Value):
         '''
         module_name = ''
         if src_file:
-            module_name = '{}.'.format(self._getattr(val, '__module__', default)).lstrip('.')
+            module_name = '{}.'.format(
+                self._getattr(val, '__module__', default)
+            ).lstrip('.')
 
         class_name = self._getattr(val, '__name__', None)
         if not class_name:
@@ -426,11 +432,27 @@ class ObjectValue(Value):
 
         return val_class, instance_dict, class_dict, methods_dict
 
+    def classpath_value(self):
+        return self._get_name(self.val, src_file="") # just the classname
+
+    def instance_value(self):
+        # TODO get rid of instancename in favor of this method
+        return self.instancename
+
     def prefix_value(self):
-        #full_name = self._get_name(val, src_file=src_file) # full classpath
-        full_name = self._get_name(self.val, src_file="") # just the classname
-        v = Value(self.val)
-        return "{} {} at 0x{:02x}".format(full_name, v.instancename, id(self.val))
+        return "{} {} at {}".format(
+            self.classpath_value(),
+            self.instance_value(),
+            self.id_value(),
+        )
+
+#         full_name = self._get_name(self.val, src_file="") # just the classname
+#         v = Value(self.val)
+#         return "{} {} at 0x{:02x}".format(
+#             full_name,
+#             v.instancename,
+#             id(self.val)
+#         )
 
     def start_value(self):
         return "<"
@@ -512,93 +534,6 @@ class ObjectValue(Value):
 
         return s_body
 
-#     def xstring_value(self):
-#         val = self.val
-#         depth = self.depth
-#         indent = self.indent
-# 
-#         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
-#         val_class, instance_dict, class_dict, methods_dict = self.info()
-# 
-#         src_file = ""
-#         if val_class:
-#             src_file = self._get_src_file(val_class, default="")
-# 
-#         s = self.prefix_value()
-#         s_body = ""
-# 
-#         pout_method = self._getattr(val, "__pout__", None)
-#         if pout_method and callable(pout_method):
-#             v = Value(pout_method())
-#             s_body = v.string_value()
-# 
-#         else:
-#             if depth < OBJECT_DEPTH:
-#                 if val_class:
-#                     pclses = inspect.getmro(val_class)
-#                     if pclses:
-#                         s_body += "\n"
-#                         for pcls in pclses:
-#                             psrc_file = self._get_src_file(pcls, default="")
-#                             if psrc_file:
-#                                 psrc_file = Path(psrc_file)
-#                             pname = self._get_name(pcls, src_file=psrc_file)
-#                             if psrc_file:
-#                                 s_body += "{} ({})".format(pname, psrc_file)
-#                             else:
-#                                 s_body += "{}".format(pname)
-#                             s_body += "\n"
-# 
-#                 if hasattr(val, '__str__'):
-#                     s_body += "\n__str__:\n"
-#                     s_body += self._add_indent(String(val), 1)
-# 
-#                     s_body += "\n"
-# 
-#                 if class_dict:
-#                     s_body += f"\nClass Properties ({len(class_dict)}):\n"
-# 
-#                     for k, v in OrderedItems(class_dict):
-#                         s_var = '{} = '.format(k)
-#                         s_var += v.string_value()
-#                         s_body += self._add_indent(s_var, 1)
-#                         s_body += "\n"
-# 
-#                 if instance_dict:
-#                     s_body += f"\nInstance Properties ({len(instance_dict)}):\n"
-# 
-#                     for k, v in OrderedItems(instance_dict):
-#                         s_var = '{} = '.format(k)
-#                         s_var += v.string_value()
-#                         s_body += self._add_indent(s_var, 1)
-#                         s_body += "\n"
-# 
-#                 if methods_dict:
-#                     s_body += f"\nMethods ({len(methods_dict)}):\n"
-# 
-#                     for k, v in OrderedItems(methods_dict):
-#                         s_body += self._add_indent(v.string_value(), 1)
-#                         s_body += "\n"
-# 
-#                 if self.typename == 'EXCEPTION':
-#                     s_body += "\n"
-#                     s_body += "\n".join(traceback.format_exception(None, val, val.__traceback__))
-# 
-#         return self.finalize_value(body=s_body, prefix=s)
-# 
-#     def xfinalize_value(self, body, prefix="", start_wrapper="<", stop_wrapper=">"):
-#         prefix = prefix or self.prefix_value()
-#         if body:
-#             indent = self.indent
-#             start_wrapper = self._add_indent(f"\n{start_wrapper}", indent) + "\n"
-#             body = self._add_indent(body.strip(), indent + 1)
-#             stop_wrapper = self._add_indent(f"\n{stop_wrapper}", indent)
-#             ret = prefix + start_wrapper + body + stop_wrapper
-# 
-#         else:
-#             ret = f"{start_wrapper}{prefix}{stop_wrapper}"
-#         return ret
-
 
 class DescriptorValue(ObjectValue):
     """Handle user defined properties (things like @property)
@@ -627,9 +562,6 @@ class DescriptorValue(ObjectValue):
 
 
 class DictValue(ObjectValue):
-#     left_paren = "{"
-#     right_paren = "}"
-
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, dict)
@@ -644,19 +576,27 @@ class DictValue(ObjectValue):
         return ret
 
     def __iter__(self):
+        """This iterates a key/val tuple"""
         for v in self.val.items():
             yield v
 
-    def prefix_value(self):
+    def instance_value(self):
+        instance_value = super().instance_value()
+
         try:
-            count = f" ({len(self.val)}) "
+            count = str(len(self.val))
 
         except (TypeError, KeyError, AttributeError) as e:
             logger.debug(e, exc_info=True)
-            count = " "
 
-        full_name = self._get_name(self.val, src_file="") # just the classname
-        return "{}{}instance at 0x{:02x}".format(full_name, count, id(self.val))
+        else:
+            instance_value = f"({count}) {instance_value}"
+
+        return instance_value
+        #return f"{count} {super().instance_value()}"
+
+        #full_name = self._get_name(self.val, src_file="") # just the classname
+        #return "{}{}instance at 0x{:02x}".format(full_name, count, id(self.val))
 
     def start_value(self):
         return "{"
@@ -665,8 +605,7 @@ class DictValue(ObjectValue):
         return "}"
 
     def body_value(self):
-        '''
-        turn an iteratable value into a string representation
+        '''turn an iteratable value into a string representation
 
         :returns: string
         '''
@@ -674,7 +613,7 @@ class DictValue(ObjectValue):
         depth = self.depth
         indent = 1 if depth > 0 else 0
         iterator = self
-        name_callback = self.name_callback
+        #name_callback = self.name_callback
         ITERATE_LIMIT = self.kwargs.get("iterate_limit", environ.ITERATE_LIMIT)
 
         try:
@@ -700,7 +639,8 @@ class DictValue(ObjectValue):
 
                 v = self.create_instance(v)
 
-                k = k if name_callback is None else name_callback(k)
+                k = self.name_callback(k)
+                #k = k if name_callback is None else name_callback(k)
                 if k is None:
                     s_body.append(v.string_value())
 
@@ -711,51 +651,6 @@ class DictValue(ObjectValue):
             s_body.append("... {} Error {} ...".format(e, e.__class__.__name__))
 
         return ",\n".join(s_body)
-
-#     def body_value(self):
-#         val = self.val
-#         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
-#         if len(val) > 0:
-#             pout_method = self._getattr(val, "__pout__", None)
-#             if pout_method and callable(pout_method):
-#                 v = Value(pout_method())
-#                 s_body = v.string_value()
-#                 s = self.finalize_value(s_body, start_wrapper=self.left_paren, stop_wrapper=self.right_paren)
-# 
-#             else:
-# 
-#                 if self.depth < OBJECT_DEPTH:
-#                     s = self._str_iterator()
-# 
-#                 else:
-#                     s = self.finalize_value(None, prefix=self.prefix_value())
-#         else:
-#             s = "{}{}".format(self.left_paren, self.right_paren)
-# 
-#         return s
-
-
-#     def xstring_value(self):
-#         val = self.val
-#         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
-#         if len(val) > 0:
-#             pout_method = self._getattr(val, "__pout__", None)
-#             if pout_method and callable(pout_method):
-#                 v = Value(pout_method())
-#                 s_body = v.string_value()
-#                 s = self.finalize_value(s_body, start_wrapper=self.left_paren, stop_wrapper=self.right_paren)
-# 
-#             else:
-# 
-#                 if self.depth < OBJECT_DEPTH:
-#                     s = self._str_iterator()
-# 
-#                 else:
-#                     s = self.finalize_value(None, prefix=self.prefix_value())
-#         else:
-#             s = "{}{}".format(self.left_paren, self.right_paren)
-# 
-#         return s
 
 
 class DictProxyValue(DictValue):
@@ -775,41 +670,48 @@ class SQLiteRowValue(DictValue):
 
 
 class ListValue(DictValue):
-    left_paren = '['
-    right_paren = ']'
-    name_callback = None
-
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, list)
 
+    def name_callback(self, k):
+        """Returns just a string representation of the integer k"""
+        return str(k)
+
+    def start_value(self):
+        return "["
+
+    def stop_value(self):
+        return "]"
+
     def __iter__(self):
+        """DictValue iterators (which this extends) need to yield a key/val
+        tuple"""
         for v in enumerate(self.val):
             yield v
 
-
 class MappingViewValue(ListValue):
-    left_paren = '(['
-    right_paren = '])'
+    def start_value(self):
+        return "(["
+
+    def stop_value(self):
+        return "])"
 
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, MappingView)
 
-    def __iter__(self):
-        for v in enumerate(self.val):
-            yield v
-
 
 class ArrayValue(ListValue):
     """Handles array.array instances"""
-    @property
-    def left_paren(self):
-        return "{}.{}('{}', [".format(
+    def classpath_value(self):
+        return "{}.{}".format(
             self.val.__class__.__module__,
             self.val.__class__.__name__,
-            self.val.typecode
         )
+
+    def instance_value(self):
+        return f"('{self.val.typecode}') {super().instance_value()}"
 
     @classmethod
     def is_valid(cls, val):
@@ -817,14 +719,20 @@ class ArrayValue(ListValue):
 
 
 class SetValue(ListValue):
-    left_paren = '{'
-    right_paren = '}'
-
     @classmethod
     def is_valid(cls, val):
-        return isinstance(val, (set, frozenset, Set)) and not isinstance(val, MappingView)
+        return isinstance(val, (set, frozenset, Set)) \
+            and not isinstance(val, MappingView)
+
+    def start_value(self):
+        return "{"
+
+    def stop_value(self):
+        return "}"
 
     def name_callback(self, k):
+        """Having this return a None value means DictValue's key stuff won't
+        include a key"""
         return None
 
 
@@ -833,18 +741,24 @@ class GeneratorValue(SetValue):
     def is_valid(cls, val):
         return isinstance(val, (types.GeneratorType, range, map))
 
+    def instance_value(self):
+        return "generator"
+
     def string_value(self):
         s = self.prefix_value()
         return f"<{s}>"
 
 
 class TupleValue(ListValue):
-    left_paren = '('
-    right_paren = ')'
-
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, tuple)
+
+    def start_value(self):
+        return "("
+
+    def stop_value(self):
+        return ")"
 
 
 class StringValue(ObjectValue):
@@ -894,80 +808,76 @@ class ModuleValue(ObjectValue):
         # this has to go before the object check since a module will pass the object tests
         return isinstance(val, types.ModuleType)
 
-    def prefix_value(self):
-        full_name = self._get_name(self.val, src_file="")
-        return "{} module at 0x{:02x}".format(full_name, id(self.val))
+    def instance_value(self):
+        return "module"
 
-    def string_value(self):
+    def body_value(self):
         s = ""
-        depth = self.depth
-        OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
         SHOW_MAGIC = self.kwargs.get("show_magic", False)
 
-        if depth < OBJECT_DEPTH:
-            val = self.val
+        val = self.val
 
-            file_path = Path(self._get_src_file(val))
-            if file_path:
-                s += '{} ({})\n'.format(val.__name__, file_path)
+        file_path = Path(self._get_src_file(val))
+        if file_path:
+            s += '{} ({})\n'.format(val.__name__, file_path)
 
-            modules = {}
-            funcs = {}
-            classes = {}
-            properties = {}
+        modules = {}
+        funcs = {}
+        classes = {}
+        properties = {}
 
-            for k, v in inspect.getmembers(val):
-                if self._is_magic(k) and not SHOW_MAGIC: continue
+        for k, v in inspect.getmembers(val):
+            if self._is_magic(k) and not SHOW_MAGIC: continue
 
-                v = Value(v)
-                if v.typename == 'CALLABLE':
-                    funcs[k] = v
-                elif v.typename == 'MODULE':
-                    modules[k] = v
-                elif v.typename == 'OBJECT':
-                    classes[k] = v
-                else:
-                    properties[k] = v
+            v = Value(v)
+            if v.typename == 'CALLABLE':
+                funcs[k] = v
+            elif v.typename == 'MODULE':
+                modules[k] = v
+            elif v.typename == 'OBJECT':
+                classes[k] = v
+            else:
+                properties[k] = v
 
-                #pout2.v('%s %s: %s' % (k, vt, repr(v)))
+            #pout2.v('%s %s: %s' % (k, vt, repr(v)))
 
-            if modules:
-                s += "\nModules:\n"
-                for k, v in modules.items():
-                    module_path = Path(self._get_src_file(v.val))
-                    s += self._add_indent("{} ({})".format(k, module_path), 1)
-                    s += "\n"
+        if modules:
+            s += "\nModules:\n"
+            for k, v in modules.items():
+                module_path = Path(self._get_src_file(v.val))
+                s += self._add_indent("{} ({})".format(k, module_path), 1)
+                s += "\n"
 
-            if funcs:
-                s += "\nFunctions:\n"
+        if funcs:
+            s += "\nFunctions:\n"
 
-                for k, v in funcs.items():
-                    s += self._add_indent(v, 1)
-                    s += "\n"
+            for k, v in funcs.items():
+                s += self._add_indent(v, 1)
+                s += "\n"
 
-            if classes:
-                s += "\nClasses:\n"
+        if classes:
+            s += "\nClasses:\n"
 
-                for k, v in classes.items():
+            for k, v in classes.items():
 
-                    s += self._add_indent(k, 1)
-                    s += "\n"
+                s += self._add_indent(k, 1)
+                s += "\n"
 
-                    # add methods
-                    for m, mv in inspect.getmembers(v):
-                        mv = Value(mv)
-                        if mv.typename == 'CALLABLE':
-                            s += self._add_indent(mv, 2)
-                            s += "\n"
-                    s += "\n"
+                # add methods
+                for m, mv in inspect.getmembers(v):
+                    mv = Value(mv)
+                    if mv.typename == 'CALLABLE':
+                        s += self._add_indent(mv, 2)
+                        s += "\n"
+                s += "\n"
 
-            if properties:
-                s += "\nProperties:\n"
-                for k, v in properties.items():
-                    s += self._add_indent(k, 1)
-                    s += "\n"
+        if properties:
+            s += "\nProperties:\n"
+            for k, v in properties.items():
+                s += self._add_indent(k, 1)
+                s += "\n"
 
-        return self.finalize_value(body=s)
+        return s
 
 
 class TypeValue(ObjectValue):
@@ -981,45 +891,43 @@ class TypeValue(ObjectValue):
         Value(Foo).typename # TYPE
         Value(Foo()).typename # INSTANCE
     """
-    @property
-    def instancename(self):
-        return "class"
-
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, type)
 
-    def string_value(self):
-        depth = self.depth
-        OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
+    def instance_value(self):
+        return "class"
+
+    def body_value(self):
+        s_body = ""
         SHOW_MAGIC = self.kwargs.get("show_magic", False)
 
-        s_body = ""
+        val_class, instance_dict, class_dict, methods_dict = self.info()
+        instance_dict = {k:v for k, v in instance_dict.items() if not self._is_magic(k)}
+        if instance_dict:
+            s_body += f"Properties ({len(instance_dict)}):\n"
 
-        if depth < OBJECT_DEPTH:
-            val_class, instance_dict, class_dict, methods_dict = self.info()
-            instance_dict = {k:v for k, v in instance_dict.items() if not self._is_magic(k)}
-            if instance_dict:
-                s_body += f"Properties ({len(instance_dict)}):\n"
+            for k, v in OrderedItems(instance_dict):
+                s_var = '{} = '.format(k)
+                s_var += v.string_value()
+                s_body += self._add_indent(s_var, 1)
+                s_body += "\n"
 
-                for k, v in OrderedItems(instance_dict):
-                    s_var = '{} = '.format(k)
-                    s_var += v.string_value()
-                    s_body += self._add_indent(s_var, 1)
-                    s_body += "\n"
-
-        return self.finalize_value(body=s_body)
+        return s_body
 
 
 class RegexMatchValue(ObjectValue):
-    def _get_name(self, *args, **kwargs):
-        return "re.Match"
+#     def _get_name(self, *args, **kwargs):
+#         return "re.Match"
 
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, re.Match)
 
-    def string_value(self):
+    def instance_value(self):
+        return "re.Match"
+
+    def body_value(self):
         #print(dir(self.val))
         #match = self.val.string[self.val.start():self.val.end()]
         body = [
@@ -1036,7 +944,8 @@ class RegexMatchValue(ObjectValue):
         #for i, g in enumerate(self.val.groups(), 1):
         #    body.append(f"Group {i}: {g}")
 
-        return self.finalize_value(body="\n".join(body))
+        return "\n".join(body)
+        #return self.finalize_value(body="\n".join(body))
 
 
 class RegexValue(Value):
@@ -1079,11 +988,13 @@ class RegexValue(Value):
 class CallableValue(Value):
     @classmethod
     def is_valid(cls, val):
-        # not sure why class methods pulled from __class__ fail the callable check
+        """Not sure why class methods pulled from __class__ fail the callable
+        check
 
-        # if it has a __call__ and __func__ it's a method
-        # if it has a __call__ and __name__ it's a function
-        # if it just has a __call__ it's most likely an object instance
+        * if it has a __call__ and __func__ it's a method
+        * if it has a __call__ and __name__ it's a function
+        * if it just has a __call__ it's most likely an object instance
+        """
         ret = False
         d = dir(val)
         if "__call__" in d:
@@ -1138,7 +1049,12 @@ class CallableValue(Value):
                 if classpath:
                     classpath += "."
 
-            ret = "<{} {}{} at {}>".format(typename, classpath, signature, self.get_id())
+            ret = "<{} {}{} at {}>".format(
+                typename,
+                classpath,
+                signature,
+                self.get_id()
+            )
 
         elif isinstance(val, staticmethod):
             ret = "<staticmethod {} at {}>".format(signature, self.get_id())
@@ -1151,7 +1067,11 @@ class CallableValue(Value):
             if modpath:
                 modpath += "."
 
-            ret = "<function {}{} at {}>".format(modpath, signature, self.get_id())
+            ret = "<function {}{} at {}>".format(
+                modpath,
+                signature,
+                self.get_id()
+            )
 
         return ret
 
@@ -1164,17 +1084,17 @@ class DatetimeValue(ObjectValue):
     def is_valid(cls, val):
         return isinstance(val, (datetime.datetime, datetime.date))
 
-    def string_value(self):
-        body = "\n".join([
+    def body_value(self):
+        body = [
             String(self.val),
             "",
             f"year: {self.val.year}",
             f"month: {self.val.month}",
             f"day: {self.val.day}",
-        ])
+        ]
 
         if isinstance(self.val, datetime.datetime):
-            body += "\n".join([
+            body.extend([
                 "",
                 f"hour: {self.val.hour}",
                 f"minute: {self.val.minute}",
@@ -1183,7 +1103,7 @@ class DatetimeValue(ObjectValue):
                 f"tzinfo: {self.val.tzinfo}",
             ])
 
-        return self.finalize_value(body)
+        return "\n".join(body)
 
 
 class PathValue(ObjectValue):
@@ -1194,7 +1114,6 @@ class PathValue(ObjectValue):
     def is_valid(cls, val):
         return isinstance(val, PurePath)
 
-    def string_value(self):
-        body = String(self.val)
-        return self.finalize_value(body)
+    def body_value(self):
+        return String(self.val)
 
