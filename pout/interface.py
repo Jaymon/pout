@@ -27,7 +27,7 @@ from .compat import *
 from . import environ
 from .value import Value, ObjectValue
 from .path import Path
-from .utils import String, Bytes, FileStream
+from .utils import String, FileStream
 from .reflect import Call, Reflect
 
 

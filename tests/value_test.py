@@ -261,8 +261,8 @@ class ValueTest(TestCase):
 
     def test_list_2(self):
         v = Value([
-            testdata.get_unicode(),
-            testdata.get_unicode(),
+            testdata.get_unicode_words(),
+            testdata.get_unicode_words(),
         ])
 
         r = v.string_value()
@@ -347,6 +347,8 @@ class ValueTest(TestCase):
         o.baz = [3]
 
         v = Value(o)
+        self.assertTrue(isinstance(v, ObjectValue))
+
         r = v.string_value()
         self.assertRegex(r, r"\n\s+<\n")
 
@@ -385,16 +387,17 @@ class ValueTest(TestCase):
         self.assertNotEqual(str(c1), str(c2))
 
     def test_object_3(self):
-        """in python2 there was an issue with printing lists with unicode, this was
-        traced to using Value.__repr__ which was returning a byte string in python2
-        which was then being cast to unicode and failing the conversion to ascii"""
+        """in python2 there was an issue with printing lists with unicode, this
+        was traced to using Value.__repr__ which was returning a byte string in
+        python2 which was then being cast to unicode and failing the conversion
+        to ascii"""
         class To3(object):
             pass
 
         t = To3()
         t.foo = [
-            testdata.get_unicode(),
-            testdata.get_unicode(),
+            testdata.get_unicode_words(),
+            testdata.get_unicode_words(),
         ]
 
         # no UnicodeError raised is success
@@ -434,8 +437,20 @@ class ValueTest(TestCase):
 
         self.assertTrue(String(s) in String(c))
 
+    def test_object_str_limit(self):
+        class StrLimit(object):
+            def __str__(self):
+                return testdata.get_words(100)
+
+        s = StrLimit()
+        v = Value(s)
+        r = v.string_value()
+        self.assertTrue("... Truncated " in r)
+
     def test_type_1(self):
         v = Value(object)
+        self.assertTrue(isinstance(v, TypeValue))
+
         s = v.string_value()
         self.assertRegex(s, r"^<object\sclass\sat\s\dx[^>]+?>$")
 
@@ -453,6 +468,17 @@ class ValueTest(TestCase):
             pout.v(m)
         logs = "\n".join(c[1])
         self.assertFalse("READ ERRORS" in logs)
+
+    def test_regex_compiled(self):
+        regex = re.compile(r"^\s([a-z])", flags=re.I)
+
+        v = Value(regex)
+        self.assertTrue(isinstance(v, RegexValue))
+
+        r = v.string_value()
+        self.assertTrue("re.Pattern instance" in r)
+        self.assertTrue("groups:" in r)
+        self.assertTrue("flags:" in r)
 
     def test_callable(self):
         class Klass(object):

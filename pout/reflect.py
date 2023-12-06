@@ -7,11 +7,10 @@ import ast
 import re
 import logging
 from io import BytesIO
-from contextlib import contextmanager
 
 from .compat import *
 from . import environ
-from .path import ModuleFile, Path
+from .path import Path
 from .utils import String
 
 

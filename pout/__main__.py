@@ -3,11 +3,9 @@ from __future__ import unicode_literals, division, print_function, absolute_impo
 
 import sys
 import os
-import site
 import argparse
 import logging
 import platform
-import inspect
 
 import pout
 from pout.path import SitePackagesDir, SiteCustomizeFile

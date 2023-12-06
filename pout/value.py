@@ -5,7 +5,6 @@ into a string that can be printed out
 
 The Inspect class identifies what the object actually is
 """
-from __future__ import unicode_literals, division, print_function, absolute_import
 import types
 import inspect
 import sys
@@ -17,7 +16,7 @@ import array
 from pathlib import PurePath
 from types import MappingProxyType
 from collections.abc import MappingView
-from collections import defaultdict, Counter
+from collections import Counter
 import functools
 import sqlite3
 import datetime
@@ -25,7 +24,7 @@ import datetime
 from .compat import *
 from . import environ
 from .path import Path
-from .utils import String, Bytes, OrderedItems
+from .utils import String, OrderedItems
 
 
 logger = logging.getLogger(__name__)
@@ -33,8 +32,9 @@ logger = logging.getLogger(__name__)
 
 class Values(list):
     """We want to keep a particular order of the Value subclasses to make sure
-    that certain classes are checked before others, this is because certain values
-    might actually resolve into 2 different sub values, so order becomes important
+    that certain classes are checked before others, this is because certain
+    values might actually resolve into 2 different sub values, so order becomes
+    important
 
     this class maintains that order, basically, it makes sure all subclasses get
     checked before the parent class, so if you want your CustomValue to evaluate
@@ -73,9 +73,9 @@ class Values(list):
 
 
 class Value(object):
-    """Pout is mainly used to print values of different objects, and that printing
-    of objects happens in subclasses of this parent class. See the .interface.V
-    class for how this is hooked into pout.v
+    """Pout is mainly used to print values of different objects, and that
+    printing of objects happens in subclasses of this parent class. See the
+    .interface.V class for how this is hooked into pout.v
     """
     values_class = Values
     """Holds the class this will use to find the right Value class to return"""
@@ -87,15 +87,6 @@ class Value(object):
     def typename(self):
         s = self.__class__.__name__.replace("Value", "")
         return String(s).snakecase().upper()
-
-    @property
-    def instancename(self):
-        return self.typename.lower()
-
-    @property
-    def raw(self):
-        return self.val
-    value = raw
 
     @classmethod
     def find_class(cls, val):
@@ -122,34 +113,36 @@ class Value(object):
     def __init__(self, val, depth=0, **kwargs):
         self.val = val
         self.depth = depth
-        self.indent = 1 if depth > 0 else 0
         self.kwargs = kwargs
 
         # tracks which instances have been seen so they are only fully expanded
-        # one time, you'll see seen is cloned and passed to other Value
-        # instances created further down the stack in .create_instance()
+        # the first time they're seen for this call
         self.seen = self.kwargs.pop("seen", Counter())
-        vid = self.get_id()
+        vid = self.id_value()
         self.seen[vid] += 1
         self.seen_first = self.seen[vid] == 1
 
     def create_instance(self, val, **kwargs):
+        """Sometimes while generating the .string_value for .val sub Value
+        instances need to be created, they should be created using this method
+
+        :param val: Any, the value to be wrapped in a Value instance
+        :param **kwargs:
+        :returns: Value, the val wrapped in a Value instance
+        """
         kwargs.setdefault("depth", self.depth + 1)
         kwargs.setdefault("seen", self.seen)
         instance = Value(val, **kwargs)
         return instance
 
     def _is_magic(self, name):
-        '''
-        return true if the name is __name__
+        """Return true if the name is __name__
 
         since -- 7-10-12
 
-        name -- string -- the name to check
-
-        return -- boolean
-        '''
-        #return (name[:2] == u'__' and name[-2:] == u'__')
+        :param name: str, the name to check
+        :returns: bool
+        """
         return name.startswith('__') and name.endswith('__')
 
     def _getattr(self, val, key, default_val):
@@ -165,10 +158,26 @@ class Value(object):
         return ret
 
     def string_value(self):
-        prefix = self.prefix_value()
+        """This is the main "value" generation method, this is the method that
+        should be called from external sources
 
-        #vid = self.get_id()
-        #seen_before = vid in self.seen
+        If a value has no body, then it returns a value like this:
+
+            <START_VALUE><PREFIX_VALUE><STOP_VALUE>
+
+        If there is a body, then the value will look more or less like this:
+
+            <PREFIX_VALUE>
+                <START_VALUE>
+                    <BODY_VALUE>
+                <STOP_VALUE>
+
+        If the value doesn't have a <PREFIX_VALUE> (eg, a primitive like int)
+        then it will return basically the string version of that primitive value
+
+        :returns: str, a string suitable to be printed or whatever
+        """
+        prefix = self.prefix_value()
 
         depth = self.depth
         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
@@ -179,7 +188,7 @@ class Value(object):
                 body = self.create_instance(pout_method()).string_value()
 
             else:
-                body = self.body_value().strip()
+                body = self.body_value()
 
         else:
             body = ""
@@ -203,29 +212,82 @@ class Value(object):
 
             else:
                 ret = self.empty_value()
-                #ret = f"{start_wrapper}{prefix}{stop_wrapper}"
 
         else:
             ret = body
 
         return ret
 
-    def id_value(self):
-        return self.get_id()
-
     def prefix_value(self):
-        return ""
+        """Returns the prefix value
+
+        The prefix value will usually look like this:
+
+            <CLASSPATH> <INSTANCE_VALUE> at <ID_VALUE>
+
+        :returns: str
+        """
+        return "{} {} at {}".format(
+            self.classpath_value(),
+            self.instance_value(),
+            self.id_value(),
+        )
+
+    def classpath_value(self):
+        """The full class name (eg module.submodule.ClassName)
+
+        This is a key component of <PREFIX_VALUE>
+
+        :returns: str
+        """
+        return self._get_name(self.val, src_file="") # just the classname
+
+    def instance_value(self):
+        """Returns the instance name that's usually used in setting up the 
+        prefix value
+
+        :returns: str
+        """
+        return self.typename.lower()
+
+    def id_value(self):
+        """Returns the Python memory object id as a nicely formatted string
+
+        :returns: str, .val's id in hex format
+        """
+        return "0x{:02x}".format(id(self.val))
 
     def start_value(self):
+        """this is the start wrapper value, it will usually be defined in child
+        classes that support it
+
+        :returns: str
+        """
         return ""
 
     def stop_value(self):
+        """this is the stop wrapper value, it will usually be defined in child
+        classes that support it
+
+        :returns: str
+        """
         return ""
 
     def body_value(self, **kwargs):
+        """This is the method that will be most important to subclasses since
+        the meat of generating the value of whatever value being represented
+        will be generated
+
+        :returns: str
+        """
         return "{}".format(repr(self.val))
 
     def empty_value(self):
+        """If there is a prefix but no body then this will be called to generate
+        the appropriate value for that case
+
+        :returns: str
+        """
         prefix = self.prefix_value()
         return f"<{prefix}>"
 
@@ -235,44 +297,25 @@ class Value(object):
         return name
 
     def __repr__(self):
-        s = self.string_value()
-        return s
+        return self.string_value()
 
     def __format__(self, format_str):
         return self.string_value()
 
     def _add_indent(self, val, indent_count):
-        '''
-        add whitespace to the beginning of each line of val
+        """add whitespace to the beginning of each line of val
 
-        link -- http://code.activestate.com/recipes/66055-changing-the-indentation-of-a-multi-line-string/
-
-        val -- string
-        indent -- integer -- how much whitespace we want in front of each line of val
-
-        return -- string -- val with more whitespace
-        '''
+        :param val: Any, will be converted to string
+        :param indent_count: int, how many times to apply indent to each line
+        :returns: string, string with indent_count indents at the beginning of
+            each line
+        """
         INDENT_STRING = self.kwargs.get("indent_string", environ.INDENT_STRING)
 
         if isinstance(val, Value):
             val = val.string_value()
 
         return String(val).indent(indent_count, INDENT_STRING)
-
-    def _get_unicode(self, arg):
-        '''
-        make sure arg is a unicode string
-
-        arg -- mixed -- arg can be anything
-        return -- unicode -- a u'' string will always be returned
-        '''
-        return String(arg)
-
-    # TODO -- merge this with prefix_value
-    @functools.cache
-    def get_id(self):
-        """Return .val's id in hex format"""
-        return "0x{:02x}".format(id(self.val))
 
 
 class PrimitiveValue(Value):
@@ -289,21 +332,25 @@ class PrimitiveValue(Value):
             )
         )
 
+    def string_value(self):
+        return self.body_value()
+
 
 class ObjectValue(Value):
-    @property
-    def instancename(self):
-        return "instance"
-
     @classmethod
     def is_valid(cls, val):
-        if inspect.ismethod(val) or inspect.isfunction(val) or inspect.ismethoddescriptor(val):
+        is_method = inspect.ismethod(val) \
+            or inspect.isfunction(val) \
+            or inspect.ismethoddescriptor(val)
+
+        if is_method:
             return False
 
         ret = False
         if isinstance(val, getattr(types, "InstanceType", object)):
             # this is an old-school non object inherited class
             ret = True
+
         else:
             if self.has_attr("__dict__"):
                 ret = True
@@ -315,16 +362,16 @@ class ObjectValue(Value):
         return ret
 
     def _get_name(self, val, src_file, default='Unknown'):
-        '''
-        get the full namespaced (module + class) name of the val object
+        """get the full namespaced (module + class) name of the val object
 
         since -- 6-28-12
 
-        val -- mixed -- the value (everything is an object) object
-        default -- string -- the default name if a decent name can't be found programmatically
-
-        return -- string -- the full.module.Name
-        '''
+        :param val: Any, the value (everything is an object) object
+        :param src_file: str, if this is passed in then modpath will be added
+        :param default: str, the default name if a decent name can't be found
+        programmatically
+        :returns: str, the full.module.Name
+        """
         module_name = ''
         if src_file:
             module_name = '{}.'.format(
@@ -343,15 +390,15 @@ class ObjectValue(Value):
         return full_name
 
     def _get_src_file(self, val, default='Unknown'):
-        '''
-        return the source file path
+        """return the source file path
 
         since -- 7-19-12
 
-        val -- mixed -- the value whose path you want
-
-        return -- string -- the path, or something like 'Unknown' if you can't find the path
-        '''
+        :param val: Any, the value whose path you want
+        :param default: str, what to return if src file can't be found
+        :returns: str, the path, or something like 'Unknown' if you can't find
+        the path
+        """
         path = default
 
         try:
@@ -359,7 +406,8 @@ class ObjectValue(Value):
             # first try and get the actual source file
             source_file = inspect.getsourcefile(val)
             if not source_file:
-                # get the raw file since val doesn't have a source file (could be a .pyc or .so file)
+                # get the raw file since val doesn't have a source file
+                # (could be a .pyc or .so file)
                 source_file = inspect.getfile(val)
 
             if source_file:
@@ -398,11 +446,9 @@ class ObjectValue(Value):
                     else:
                         instance_dict[k] = v
 
-            #instance_dict = {k: Value(v, depth+1) for k, v in vars(val).items()}
-
         except TypeError as e:
-            # Since vars() failed we are going to try and make inspect.getmembers
-            # act like vars()
+            # Since vars() failed we are going to try and make
+            # inspect.getmembers act like vars()
             # Also, I could get a recursion error if I tried to just do
             # inspect.getmembers in certain circumstances, I have no idea why
             for k, v in inspect.getmembers(val):
@@ -432,27 +478,8 @@ class ObjectValue(Value):
 
         return val_class, instance_dict, class_dict, methods_dict
 
-    def classpath_value(self):
-        return self._get_name(self.val, src_file="") # just the classname
-
     def instance_value(self):
-        # TODO get rid of instancename in favor of this method
-        return self.instancename
-
-    def prefix_value(self):
-        return "{} {} at {}".format(
-            self.classpath_value(),
-            self.instance_value(),
-            self.id_value(),
-        )
-
-#         full_name = self._get_name(self.val, src_file="") # just the classname
-#         v = Value(self.val)
-#         return "{} {} at 0x{:02x}".format(
-#             full_name,
-#             v.instancename,
-#             id(self.val)
-#         )
+        return "instance"
 
     def start_value(self):
         return "<"
@@ -466,20 +493,12 @@ class ObjectValue(Value):
         val = self.val
         depth = self.depth
 
-#         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
         val_class, instance_dict, class_dict, methods_dict = self.info()
 
         src_file = ""
         if val_class:
             src_file = self._get_src_file(val_class, default="")
 
-#         pout_method = self._getattr(val, "__pout__", None)
-#         if pout_method and callable(pout_method):
-#             v = Value(pout_method())
-#             s_body = v.string_value()
-# 
-#         else:
-#             if depth < OBJECT_DEPTH:
         if val_class:
             pclses = inspect.getmro(val_class)
             if pclses:
@@ -495,10 +514,23 @@ class ObjectValue(Value):
                         s_body += "{}".format(pname)
                     s_body += "\n"
 
-        if hasattr(val, '__str__'):
-            s_body += "\n__str__:\n"
-            s_body += self._add_indent(String(val), 1)
+        if hasattr(val, "__str__"):
+            s_str = String(val)
+            strlen = len(s_str)
+            OBJECT_STR_LIMIT = self.kwargs.get(
+                "object_str_limit",
+                environ.OBJECT_STR_LIMIT
+            )
 
+            if strlen > OBJECT_STR_LIMIT:
+                s_str = s_str.truncate(OBJECT_STR_LIMIT)
+                s_str += "... Truncated {}/{} chars ...".format(
+                    strlen - OBJECT_STR_LIMIT,
+                    strlen
+                )
+
+            s_body += "\n__str__ ({}):\n".format(strlen)
+            s_body += self._add_indent(s_str, 1)
             s_body += "\n"
 
         if class_dict:
@@ -532,7 +564,7 @@ class ObjectValue(Value):
                 traceback.format_exception(None, val, val.__traceback__)
             )
 
-        return s_body
+        return s_body.strip()
 
 
 class DescriptorValue(ObjectValue):
@@ -568,11 +600,11 @@ class DictValue(ObjectValue):
 
     def name_callback(self, k):
         if isinstance(k, (bytes, bytearray)):
-            ret = "b'{}'".format(self._get_unicode(k))
+            ret = "b'{}'".format(String(k))
         elif isinstance(k, basestring):
-            ret = "'{}'".format(self._get_unicode(k))
+            ret = "'{}'".format(String(k))
         else:
-            ret = self._get_unicode(k)
+            ret = String(k)
         return ret
 
     def __iter__(self):
@@ -593,10 +625,6 @@ class DictValue(ObjectValue):
             instance_value = f"({count}) {instance_value}"
 
         return instance_value
-        #return f"{count} {super().instance_value()}"
-
-        #full_name = self._get_name(self.val, src_file="") # just the classname
-        #return "{}{}instance at 0x{:02x}".format(full_name, count, id(self.val))
 
     def start_value(self):
         return "{"
@@ -611,9 +639,7 @@ class DictValue(ObjectValue):
         '''
         s_body = []
         depth = self.depth
-        indent = 1 if depth > 0 else 0
         iterator = self
-        #name_callback = self.name_callback
         ITERATE_LIMIT = self.kwargs.get("iterate_limit", environ.ITERATE_LIMIT)
 
         try:
@@ -917,9 +943,6 @@ class TypeValue(ObjectValue):
 
 
 class RegexMatchValue(ObjectValue):
-#     def _get_name(self, *args, **kwargs):
-#         return "re.Match"
-
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, re.Match)
@@ -928,12 +951,9 @@ class RegexMatchValue(ObjectValue):
         return "re.Match"
 
     def body_value(self):
-        #print(dir(self.val))
-        #match = self.val.string[self.val.start():self.val.end()]
         body = [
             f"Pattern: {self.val.re.pattern}",
             "",
-            #f"group 0: {match}",
         ]
 
         for i, gs in enumerate(self.val.regs, 0):
@@ -941,19 +961,21 @@ class RegexMatchValue(ObjectValue):
             match = self.val.string[start:stop]
             body.append(f"Group {i} from {start} to {stop}: {match}")
 
-        #for i, g in enumerate(self.val.groups(), 1):
-        #    body.append(f"Group {i}: {g}")
-
         return "\n".join(body)
-        #return self.finalize_value(body="\n".join(body))
 
 
-class RegexValue(Value):
+class RegexValue(ObjectValue):
     @classmethod
     def is_valid(cls, val):
-        return "SRE_Pattern" in repr(val)
+        s = repr(val)
+        # SRE_Pattern check might be <py3 only
+        return "SRE_Pattern" in repr(val) \
+            or "re.compile" in s
 
-    def string_value(self):
+    def classpath_value(self):
+        return "re.Pattern"
+
+    def body_value(self):
         # https://docs.python.org/2/library/re.html#regular-expression-objects
         val = self.val
 
@@ -964,25 +986,20 @@ class RegexValue(Value):
                 if len(m) > len(flags[mv]):
                     flags[mv] = m
 
-        s = ["Compiled Regex"]
-        s.append("<")
+        s = []
 
-        s.append(self._add_indent("pattern: {}".format(val.pattern), 1))
-        s.append(self._add_indent("groups: {}".format(val.groups), 1))
+        s.append("pattern: {}".format(val.pattern))
+        s.append("groups: {}".format(val.groups))
         # TODO -- we could parse out the groups and put them here, that
         # would be kind of cool
 
         fv = val.flags
-        #s.append(self._add_indent("flags", 1))
-        s.append(self._add_indent("flags: {}".format(fv), 1))
+        s.append("flags: {}".format(fv))
         for flag_val, flag_name in flags.items():
             enabled = 1 if fv & flag_val else 0
-            s.append(self._add_indent("{}: {}".format(flag_name, enabled), 2))
+            s.append(self._add_indent("{}: {}".format(flag_name, enabled), 1))
 
-        s.append(">")
-
-        s = "\n".join(s)
-        return s
+        return "\n".join(s)
 
 
 class CallableValue(Value):
@@ -1053,11 +1070,11 @@ class CallableValue(Value):
                 typename,
                 classpath,
                 signature,
-                self.get_id()
+                self.id_value()
             )
 
         elif isinstance(val, staticmethod):
-            ret = "<staticmethod {} at {}>".format(signature, self.get_id())
+            ret = "<staticmethod {} at {}>".format(signature, self.id_value())
 
         else:
             modpath = getattr(val, "__module__", "")
@@ -1070,7 +1087,7 @@ class CallableValue(Value):
             ret = "<function {}{} at {}>".format(
                 modpath,
                 signature,
-                self.get_id()
+                self.id_value()
             )
 
         return ret

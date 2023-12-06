@@ -13,8 +13,7 @@ import json
 # this is the local pout that is going to be tested
 import pout
 from pout.compat import *
-from pout import environ
-from pout.interface import Interface, V
+from pout.interface import V
 
 from . import testdata, TestCase
 

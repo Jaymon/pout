@@ -5,7 +5,7 @@ from . import testdata, TestCase
 
 import pout
 from pout.compat import *
-from pout.reflect import Call, CallString, Reflect
+from pout.reflect import CallString
 
 
 class ReflectTest(TestCase):
