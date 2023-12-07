@@ -420,11 +420,15 @@ class X(V):
 
 class I(V):
     """Print out all class information (properties and methods) of the values"""
-    def __call__(self, *args, **kwargs):
-        kwargs.setdefault("show_methods", True)
-        kwargs.setdefault("show_magic", True)
-        kwargs.setdefault("value_class", ObjectValue)
-        return super().__call__(*args, **kwargs)
+    def body_value(self, body, **kwargs):
+        value = self.create_value(body, **kwargs)
+        return value.info_value() + "\n"
+
+#     def __call__(self, *args, **kwargs):
+#         #kwargs.setdefault("show_methods", True)
+#         #kwargs.setdefault("show_magic", True)
+#         #kwargs.setdefault("value_class", ObjectValue)
+#         return super().__call__(*args, **kwargs)
 
 
 class VI(I):
@@ -1029,6 +1033,7 @@ class T(Interface):
         '''
         call_info = call.info
         inspect_regex = re.compile(r'[\\\\/]python\d(?:\.\d+)?', re.I)
+        INDENT_STRING = environ.INDENT_STRING
 
         # truncate the filepath if it is super long
         f = call_info['file']
@@ -1040,7 +1045,7 @@ class T(Interface):
             s = "{}:{}\n\n{}\n\n".format(
                 f,
                 call_info['line'],
-                String(call_info['call']).indent(1)
+                String(call_info['call']).indent(INDENT_STRING, 1)
             )
 
         else:

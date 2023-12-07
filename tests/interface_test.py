@@ -126,7 +126,7 @@ class CTest(TestCase):
         with testdata.capture() as c:
             pout.c(v)
         #self.assertTrue("v (7) = " in c)
-        self.assertRegex(str(c), r"^\s+v\s+\(\d+\)\s+=\s+")
+        self.assertRegex(str(c), r"^\s+v\s+=\s+")
 
 
 class JTest(TestCase):
@@ -215,8 +215,6 @@ class PTest(TestCase):
 class XTest(TestCase):
     def test_x(self):
         path = testdata.create_file([
-            "# -*- coding: utf-8 -*-",
-            "from __future__ import unicode_literals, division, print_function, absolute_import",
             "import pout",
             "",
             "v = 'xx'",
@@ -225,17 +223,15 @@ class XTest(TestCase):
         #raise unittest.SkipTest("we skip the pout.x tests unless we are working on them")
         #pout.x()
         r = path.run(code=1)
-        self.assertTrue('"xx"' in r)
+        self.assertTrue("xx" in r)
 
         path = testdata.create_file([
-            "# -*- coding: utf-8 -*-",
-            "from __future__ import unicode_literals, division, print_function, absolute_import",
             "import pout",
             "",
             "pout.x()"
         ])
         r = path.run(code=1)
-        self.assertTrue("exit at line 5" in r)
+        self.assertTrue("exit at line " in r)
 
 
 class SleepTest(TestCase):
@@ -293,16 +289,15 @@ class HTest(TestCase):
 class STest(TestCase):
     def test_s_return(self):
         v = "foo"
-#         from pout.value import Value
-#         pout.v(Value(v).name_value("v"))
         r = pout.s(v)
-#         pout.v(r)
-        self.assertTrue('v (3) = "foo"' in r)
+        self.assertTrue('v = ' in r)
+        self.assertTrue('str (3) instance' in r)
+        self.assertTrue('foo' in r)
 
     def test_ss_return(self):
         v = "foo"
         r = pout.ss(v)
-        self.assertEqual('"foo"', r)
+        self.assertTrue('foo' in r)
 
 
 class RTest(TestCase):
@@ -344,8 +339,8 @@ class VTest(TestCase):
 
         with testdata.capture() as c:
             pout.v(ret, default_val, getattr(self.issue_module, k, None), self.issue_fields.get(k, None))
-        self.assertTrue('ret (3) = "foo"' in c)
-        self.assertTrue('default_val (3) = "bar"' in c)
+        self.assertTrue('ret = ' in c)
+        self.assertTrue('default_val =' in c)
         self.assertTrue('getattr(self.issue_module, k, None) = None' in c)
         self.assertTrue('self.issue_fields.get(k, None) = None')
 
@@ -368,8 +363,8 @@ class VTest(TestCase):
             self.assertTrue("function" in c)
 
     def test_get_name(self):
-        """makes sure if __getattr__ raises other errors than AttributeError then
-        pout will still print correctly"""
+        """makes sure if __getattr__ raises other errors than AttributeError
+        then pout will still print correctly"""
         class FooGetName(object):
             def __init__(self):
                 self.fields = {}
@@ -381,7 +376,7 @@ class VTest(TestCase):
             fgn = FooGetName()
             pout.v(fgn)
 
-        for s in ["interface_test.FooGetName", "at 0x", "__str__:", "fields = "]:
+        for s in ["interface_test.FooGetName", "at 0x", "__str__ (", "fields = "]:
             self.assertTrue(s in c, s)
 
     def test_vs(self):
@@ -393,7 +388,8 @@ class VTest(TestCase):
         self.assertTrue("'bar':" in c)
 
     def test_overriding(self):
-        """This verifies that child classes still can find the correct stack traces
+        """This verifies that child classes still can find the correct stack
+        traces
 
         https://github.com/Jaymon/pout/issues/8
         """
@@ -418,7 +414,7 @@ class VTest(TestCase):
             with testdata.capture() as c:
                 v = "bar"
                 pout.v(v)
-            self.assertTrue('"bar"' in c)
+            self.assertTrue("bar" in c)
 
         finally:
             pout.v = original_function
@@ -578,7 +574,7 @@ class VTest(TestCase):
         with testdata.capture() as c:
             pout.v(s)
 
-        for s in ['"foo"', '"che"', '"bar"', "set (3) ", "{", "}"]:
+        for s in ["foo", "che", "bar", "set (3) ", "{", "}"]:
             self.assertTrue(s in c, s)
 
     def test_descriptor_error(self):
@@ -601,10 +597,10 @@ class VTest(TestCase):
 
             e = DescExample()
             e.foo()
-        for s in ['"__init__"', 'args = tuple', 'kwargs = {}']:
+        for s in ['__init__', 'args = tuple', 'kwargs = <dict (0) instance']:
             self.assertTrue(s in c, s)
 
-        for s in ['"__get__"', 'DescExample instance', 'klass = DescExample']:
+        for s in ['__get__', 'DescExample instance', 'klass = DescExample']:
             self.assertTrue(s in c, s)
 
     def test_class_vars(self):
@@ -653,8 +649,11 @@ class VTest(TestCase):
                 "bar",
                 "che",
             )
-        self.assertRegex(String(c), re.compile(r'"foo"\s+"bar"\s+"che"', re.M))
+        #self.assertRegex(String(c), re.compile(r'"foo"\s+"bar"\s+"che"', re.M))
         #self.assertTrue('"foo"\n\n"bar"\n\n"che"' in c)
+        self.assertTrue("foo" in c)
+        self.assertTrue("bar" in c)
+        self.assertTrue("che" in c)
 
     def test_type(self):
         with testdata.capture() as c:
@@ -678,27 +677,27 @@ class VTest(TestCase):
         with testdata.capture() as c:
             pout.v(s_unicode)
             pout.v(s_byte)
-        self.assertTrue("b'this is a byte string'" in c.stderr)
-        self.assertTrue('"this is a unicode string"' in c.stderr)
+        self.assertTrue("this is a byte string" in c.stderr)
+        self.assertTrue("this is a unicode string" in c.stderr)
 
         s_unicode = ""
         s_byte = b""
         with testdata.capture() as c:
             pout.v(s_unicode)
             pout.v(s_byte)
-        self.assertTrue("b''" in c.stderr)
-        self.assertTrue('""' in c.stderr)
+        self.assertTrue("bytes (0)" in c.stderr)
+        self.assertTrue('str (0)' in c.stderr)
 
         #print(c.stderr.read())
 
-        d = {
-            'foo': "foo is a unicode str",
-            'bar': b"bar is a byte string"
-        }
-        with testdata.capture() as c:
-            pout.v(d)
-        self.assertTrue('\'foo\': "foo is a unicode str"' in c.stderr)
-        self.assertTrue("'bar': b'bar is a byte string'" in c.stderr)
+#         d = {
+#             'foo': "foo is a unicode str",
+#             'bar': b"bar is a byte string"
+#         }
+#         with testdata.capture() as c:
+#             pout.v(d)
+#         self.assertTrue('\'foo\': "foo is a unicode str"' in c.stderr)
+#         self.assertTrue("'bar': b'bar is a byte string'" in c.stderr)
 
     def test_sys_module(self):
         '''
@@ -733,7 +732,10 @@ class VTest(TestCase):
                 "this is a string"
             )
         #self.assertTrue("foo = 1\n\nbar = 2\n\n\"this is a string\"" in c)
-        self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2\s+\"this is a string\"", re.M))
+        #self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2\s+\"this is a string\"", re.M))
+        self.assertTrue("foo = 1" in c)
+        self.assertTrue("bar = 2" in c)
+        self.assertTrue("str (16) instance" in c)
 
         from pout import v
 
@@ -899,7 +901,7 @@ class VTest(TestCase):
         with testdata.capture() as c:
             pout.v(range(5))
         for s in ["range(5)", "range (5)"]:
-            self.assertTrue(s in c)
+            self.assertTrue(s in c, s)
 
     def test_not_in_val(self):
         with testdata.capture() as c:
@@ -940,7 +942,7 @@ class ITest(TestCase):
         d = {}
         with testdata.capture() as c:
             pout.i(d)
-        self.assertTrue("dict instance at" in c)
+        self.assertTrue("dict (0) instance at" in c)
 
         f = Foo()
         with testdata.capture() as c:

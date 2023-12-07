@@ -282,7 +282,7 @@ class ValueTest(TestCase):
         v = Value(s)
         r = v.string_value()
         self.assertTrue("set (2) instance" in r)
-        self.assertTrue("\"bar\"" in r)
+        self.assertTrue("bar" in r)
 
     def test_generator(self):
         v = Value(range(10))
@@ -313,7 +313,13 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, StringValue))
 
         r = v.string_value()
-        self.assertTrue(r.startswith("\""))
+        self.assertTrue("<str (0) instance" in r)
+        #self.assertTrue(r.startswith("\""))
+
+        v = Value("foo bar")
+        r = v.string_value()
+        self.assertTrue("str (7) instance" in r)
+        self.assertTrue("foo bar" in r)
 
     def test_exception(self):
         v = Value(ValueError("foo bar"))
@@ -515,8 +521,8 @@ class ValueTest(TestCase):
             def foo(cls):
                 pass
 
-        v = Value(ToProp, show_methods=True)
-        info = v.info()
+        v = Value(ToProp)
+        info = v.info(show_methods=True)
         self.assertEqual({}, info[1])
         self.assertEqual({}, info[2])
         self.assertTrue("foo" in info[3])

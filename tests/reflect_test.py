@@ -25,7 +25,9 @@ class ReflectTest(TestCase):
         val = 1
         with testdata.capture() as c:
             if not hasattr(self, name): pout.v(name); hasattr(self, name)
-        self.assertTrue('name (3) = "foo"' in c)
+        self.assertTrue("name = " in c)
+        self.assertTrue("(3)" in c)
+        self.assertTrue("foo" in c)
 
 
 class CallStringTest(TestCase):

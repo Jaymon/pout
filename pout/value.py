@@ -157,210 +157,6 @@ class Value(object):
 
         return ret
 
-    def string_value(self):
-        """This is the main "value" generation method, this is the method that
-        should be called from external sources
-
-        If a value has no body, then it returns a value like this:
-
-            <START_VALUE><PREFIX_VALUE><STOP_VALUE>
-
-        If there is a body, then the value will look more or less like this:
-
-            <PREFIX_VALUE>
-                <START_VALUE>
-                    <BODY_VALUE>
-                <STOP_VALUE>
-
-        If the value doesn't have a <PREFIX_VALUE> (eg, a primitive like int)
-        then it will return basically the string version of that primitive value
-
-        :returns: str, a string suitable to be printed or whatever
-        """
-        prefix = self.prefix_value()
-
-        depth = self.depth
-        OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
-        if depth < OBJECT_DEPTH:
-            pout_method = self._getattr(self.val, "__pout__", None)
-
-            if pout_method and callable(pout_method):
-                body = self.create_instance(pout_method()).string_value()
-
-            else:
-                body = self.body_value()
-
-        else:
-            body = ""
-
-        if prefix:
-            start_wrapper = self.start_value()
-            stop_wrapper = self.stop_value()
-
-            if body and self.seen_first:
-
-                start_wrapper = self._add_indent(start_wrapper, 1)
-
-                body = self._add_indent(body, 2)
-
-                stop_wrapper = self._add_indent(stop_wrapper, 1)
-
-                ret = prefix + "\n" \
-                    + start_wrapper + "\n" \
-                    + body + "\n" \
-                    + stop_wrapper
-
-            else:
-                ret = self.empty_value()
-
-        else:
-            ret = body
-
-        return ret
-
-    def prefix_value(self):
-        """Returns the prefix value
-
-        The prefix value will usually look like this:
-
-            <CLASSPATH> <INSTANCE_VALUE> at <ID_VALUE>
-
-        :returns: str
-        """
-        return "{} {} at {}".format(
-            self.classpath_value(),
-            self.instance_value(),
-            self.id_value(),
-        )
-
-    def classpath_value(self):
-        """The full class name (eg module.submodule.ClassName)
-
-        This is a key component of <PREFIX_VALUE>
-
-        :returns: str
-        """
-        return self._get_name(self.val, src_file="") # just the classname
-
-    def instance_value(self):
-        """Returns the instance name that's usually used in setting up the 
-        prefix value
-
-        :returns: str
-        """
-        return self.typename.lower()
-
-    def id_value(self):
-        """Returns the Python memory object id as a nicely formatted string
-
-        :returns: str, .val's id in hex format
-        """
-        return "0x{:02x}".format(id(self.val))
-
-    def start_value(self):
-        """this is the start wrapper value, it will usually be defined in child
-        classes that support it
-
-        :returns: str
-        """
-        return ""
-
-    def stop_value(self):
-        """this is the stop wrapper value, it will usually be defined in child
-        classes that support it
-
-        :returns: str
-        """
-        return ""
-
-    def body_value(self, **kwargs):
-        """This is the method that will be most important to subclasses since
-        the meat of generating the value of whatever value being represented
-        will be generated
-
-        :returns: str
-        """
-        return "{}".format(repr(self.val))
-
-    def empty_value(self):
-        """If there is a prefix but no body then this will be called to generate
-        the appropriate value for that case
-
-        :returns: str
-        """
-        prefix = self.prefix_value()
-        return f"<{prefix}>"
-
-    def name_value(self, name):
-        """wrapper method that the interface can use to customize the name for a
-        given Value instance"""
-        return name
-
-    def __repr__(self):
-        return self.string_value()
-
-    def __format__(self, format_str):
-        return self.string_value()
-
-    def _add_indent(self, val, indent_count):
-        """add whitespace to the beginning of each line of val
-
-        :param val: Any, will be converted to string
-        :param indent_count: int, how many times to apply indent to each line
-        :returns: string, string with indent_count indents at the beginning of
-            each line
-        """
-        INDENT_STRING = self.kwargs.get("indent_string", environ.INDENT_STRING)
-
-        if isinstance(val, Value):
-            val = val.string_value()
-
-        return String(val).indent(indent_count, INDENT_STRING)
-
-
-class PrimitiveValue(Value):
-    @classmethod
-    def is_valid(cls, val):
-        """is the value a built-in type?"""
-        return isinstance(
-            val,
-            (
-                type(None),
-                bool,
-                int,
-                float
-            )
-        )
-
-    def string_value(self):
-        return self.body_value()
-
-
-class ObjectValue(Value):
-    @classmethod
-    def is_valid(cls, val):
-        is_method = inspect.ismethod(val) \
-            or inspect.isfunction(val) \
-            or inspect.ismethoddescriptor(val)
-
-        if is_method:
-            return False
-
-        ret = False
-        if isinstance(val, getattr(types, "InstanceType", object)):
-            # this is an old-school non object inherited class
-            ret = True
-
-        else:
-            if self.has_attr("__dict__"):
-                ret = True
-                for a in ["func_name", "im_func"]:
-                    if self.has_attr(a):
-                        ret = False
-                        break
-
-        return ret
-
     def _get_name(self, val, src_file, default='Unknown'):
         """get the full namespaced (module + class) name of the val object
 
@@ -418,7 +214,7 @@ class ObjectValue(Value):
 
         return path
 
-    def info(self):
+    def info(self, **kwargs):
         """Gathers all the information about this object
 
         each dict's key is the name of the property and the value is the actual
@@ -433,8 +229,8 @@ class ObjectValue(Value):
         methods_dict = {}
         instance_dict = {}
 
-        SHOW_METHODS = self.kwargs.get("show_methods", False)
-        SHOW_MAGIC = self.kwargs.get("show_magic", False)
+        SHOW_METHODS = kwargs.get("show_methods", False)
+        SHOW_MAGIC = kwargs.get("show_magic", False)
 
         try:
             for k, v in vars(val).items():
@@ -478,22 +274,36 @@ class ObjectValue(Value):
 
         return val_class, instance_dict, class_dict, methods_dict
 
-    def instance_value(self):
-        return "instance"
+    def object_value(self, **kwargs):
+        """This generates all the information about the Value as an object, it
+        is used in .info_value() and is broken out so it can be more easily
+        used in subclasses
 
-    def start_value(self):
-        return "<"
-
-    def stop_value(self):
-        return ">"
-
-    def body_value(self):
+        :param **kwargs:
+            - show_magic: bool, True if you want to generate method information,
+                default is False
+            - show_magic: bool, True if you want to generate magic properties
+                and methods values, default is False
+        :returns: str, the object information body
+        """
         s_body = ""
 
         val = self.val
         depth = self.depth
 
-        val_class, instance_dict, class_dict, methods_dict = self.info()
+        SHOW_METHODS = kwargs.get(
+            "show_methods",
+            self.kwargs.get("show_methods", False)
+        )
+        SHOW_MAGIC = kwargs.get(
+            "show_magic",
+            self.kwargs.get("show_magic", False)
+        )
+
+        val_class, instance_dict, class_dict, methods_dict = self.info(
+            show_methods=SHOW_METHODS,
+            show_magic=SHOW_MAGIC
+        )
 
         src_file = ""
         if val_class:
@@ -566,6 +376,243 @@ class ObjectValue(Value):
 
         return s_body.strip()
 
+    def info_value(self):
+        """If you want to get all the information about the value as an object
+        then you can use this method
+
+        :returns: str, the full object information string
+        """
+        prefix = self.prefix_value()
+        start_wrapper = self._add_indent("<", 1)
+        body = self._add_indent(
+            self.object_value(show_methods=True, show_magic=True),
+            2
+        )
+        stop_wrapper = self._add_indent(">", 1)
+
+        return prefix + "\n" \
+            + start_wrapper + "\n" \
+            + body + "\n" \
+            + stop_wrapper
+
+    def string_value(self):
+        """This is the main "value" generation method, this is the method that
+        should be called from external sources
+
+        If a value has no body, then it returns a value like this:
+
+            <START_VALUE><PREFIX_VALUE><STOP_VALUE>
+
+        If there is a body, then the value will look more or less like this:
+
+            <PREFIX_VALUE>
+                <START_VALUE>
+                    <BODY_VALUE>
+                <STOP_VALUE>
+
+        If the value doesn't have a <PREFIX_VALUE> (eg, a primitive like int)
+        then it will return basically the string version of that primitive value
+
+        :returns: str, a string suitable to be printed or whatever
+        """
+        prefix = self.prefix_value()
+
+        depth = self.depth
+        OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
+        if depth < OBJECT_DEPTH:
+            pout_method = self._getattr(self.val, "__pout__", None)
+
+            if pout_method and callable(pout_method):
+                body = self.create_instance(pout_method()).body_value()
+
+            else:
+                body = self.body_value()
+
+        else:
+            body = ""
+
+        if prefix:
+            start_wrapper = self.start_value()
+            stop_wrapper = self.stop_value()
+
+            if body and self.seen_first:
+
+                start_wrapper = self._add_indent(start_wrapper, 1)
+
+                body = self._add_indent(body, 2)
+
+                stop_wrapper = self._add_indent(stop_wrapper, 1)
+
+                ret = prefix + "\n" \
+                    + start_wrapper + "\n" \
+                    + body + "\n" \
+                    + stop_wrapper
+
+            else:
+                ret = self.empty_value()
+
+        else:
+            ret = body
+
+        return ret
+
+    def prefix_value(self):
+        """Returns the prefix value
+
+        The prefix value will usually look like this:
+
+            <CLASSPATH> <INSTANCE_VALUE> at <ID_VALUE>
+
+        :returns: str
+        """
+        return "{} {} at {}".format(
+            self.classpath_value(),
+            self.instance_value(),
+            self.id_value(),
+        )
+
+    def classpath_value(self):
+        """The full class name (eg module.submodule.ClassName)
+
+        This is a key component of <PREFIX_VALUE>
+
+        :returns: str
+        """
+        return self._get_name(self.val, src_file="") # just the classname
+
+    def count_value(self):
+        """Returns the count if it exists, this is handy for subclasses that
+        want to show their count, things like dict, list, set, etc.
+
+        :returns: int, the count, if None then it will be assumed the count
+            doesn't exist. If int, then it assumes the count does exist and
+            that's the count (which could be zero)
+        """
+        return None
+
+    def instance_value(self, **kwargs):
+        """Returns the instance name that's usually used in setting up the 
+        prefix value
+
+        :param **kwargs:
+            - value: str, the instance value if you want it to be something
+                other than the default value
+        :returns: str
+        """
+        instance_value = kwargs.get("value", self.typename.lower())
+        count_value = self.count_value()
+
+        if count_value is not None:
+            instance_value = f"({count_value}) {instance_value}"
+
+        return instance_value
+
+    def id_value(self):
+        """Returns the Python memory object id as a nicely formatted string
+
+        :returns: str, .val's id in hex format
+        """
+        return "0x{:02x}".format(id(self.val))
+
+    def start_value(self):
+        """this is the start wrapper value, it will usually be defined in child
+        classes that support it
+
+        :returns: str
+        """
+        return ""
+
+    def stop_value(self):
+        """this is the stop wrapper value, it will usually be defined in child
+        classes that support it
+
+        :returns: str
+        """
+        return ""
+
+    def body_value(self, **kwargs):
+        """This is the method that will be most important to subclasses since
+        the meat of generating the value of whatever value being represented
+        will be generated
+
+        :returns: str
+        """
+        return "{}".format(repr(self.val))
+
+    def empty_value(self):
+        """If there is a prefix but no body then this will be called to generate
+        the appropriate value for that case
+
+        :returns: str
+        """
+        prefix = self.prefix_value()
+        return f"<{prefix}>"
+
+    def name_value(self, name):
+        """wrapper method that the interface can use to customize the name for a
+        given Value instance"""
+        return name
+
+    def __repr__(self):
+        return self.string_value()
+
+    def __format__(self, format_str):
+        return self.string_value()
+
+    def _add_indent(self, val, indent_count):
+        """add whitespace to the beginning of each line of val
+
+        :param val: Any, will be converted to string
+        :param indent_count: int, how many times to apply indent to each line
+        :returns: string, string with indent_count indents at the beginning of
+            each line
+        """
+        INDENT_STRING = self.kwargs.get("indent_string", environ.INDENT_STRING)
+
+        if isinstance(val, Value):
+            val = val.string_value()
+
+        return String(val).indent(indent_count, INDENT_STRING)
+
+
+class ObjectValue(Value):
+    @classmethod
+    def is_valid(cls, val):
+        is_method = inspect.ismethod(val) \
+            or inspect.isfunction(val) \
+            or inspect.ismethoddescriptor(val)
+
+        if is_method:
+            return False
+
+        ret = False
+        if isinstance(val, getattr(types, "InstanceType", object)):
+            # this is an old-school non object inherited class
+            ret = True
+
+        else:
+            if self.has_attr("__dict__"):
+                ret = True
+                for a in ["func_name", "im_func"]:
+                    if self.has_attr(a):
+                        ret = False
+                        break
+
+        return ret
+
+    def instance_value(self, **kwargs):
+        kwargs.setdefault("value", "instance")
+        return super().instance_value(**kwargs)
+
+    def start_value(self):
+        return "<"
+
+    def stop_value(self):
+        return ">"
+
+    def body_value(self):
+        return self.object_value()
+
 
 class DescriptorValue(ObjectValue):
     """Handle user defined properties (things like @property)
@@ -612,19 +659,27 @@ class DictValue(ObjectValue):
         for v in self.val.items():
             yield v
 
-    def instance_value(self):
-        instance_value = super().instance_value()
-
+    def count_value(self):
         try:
-            count = str(len(self.val))
+            return len(self.val)
 
         except (TypeError, KeyError, AttributeError) as e:
             logger.debug(e, exc_info=True)
+            return 0
 
-        else:
-            instance_value = f"({count}) {instance_value}"
-
-        return instance_value
+#     def instance_value(self, **kwargs):
+#         instance_value = super().instance_value(**kwargs)
+# 
+#         try:
+#             count = str(len(self.val))
+# 
+#         except (TypeError, KeyError, AttributeError) as e:
+#             logger.debug(e, exc_info=True)
+# 
+#         else:
+#             instance_value = f"({count}) {instance_value}"
+# 
+#         return instance_value
 
     def start_value(self):
         return "{"
@@ -663,17 +718,17 @@ class DictValue(ObjectValue):
 
                     break
 
-                v = self.create_instance(v)
-
-                k = self.name_callback(k)
-                #k = k if name_callback is None else name_callback(k)
-                if k is None:
-                    s_body.append(v.string_value())
-
                 else:
-                    s_body.append("{}: {}".format(k, v))
+                    v = self.create_instance(v)
+                    k = self.name_callback(k)
+                    if k is None:
+                        s_body.append(v.string_value())
+
+                    else:
+                        s_body.append("{}: {}".format(k, v))
 
         except Exception as e:
+            logger.exception(e)
             s_body.append("... {} Error {} ...".format(e, e.__class__.__name__))
 
         return ",\n".join(s_body)
@@ -767,8 +822,9 @@ class GeneratorValue(SetValue):
     def is_valid(cls, val):
         return isinstance(val, (types.GeneratorType, range, map))
 
-    def instance_value(self):
-        return "generator"
+    def instance_value(self, **kwargs):
+        kwargs.setdefault("value", "generator")
+        return super().instance_value(**kwargs)
 
     def string_value(self):
         s = self.prefix_value()
@@ -787,23 +843,59 @@ class TupleValue(ListValue):
         return ")"
 
 
+class PrimitiveValue(Value):
+    @classmethod
+    def is_valid(cls, val):
+        """is the value a built-in type?"""
+        return isinstance(
+            val,
+            (
+                type(None),
+                bool,
+                int,
+                float
+            )
+        )
+
+    def string_value(self):
+        return self.body_value()
+
+
 class StringValue(ObjectValue):
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, basestring)
 
-    def string_value(self):
-        val = self.val
+    def count_value(self):
+        return len(self.val)
+
+    def start_value(self):
+        return "\""
+
+    def stop_value(self):
+        return "\""
+
+    def body_value(self):
         try:
-            s = '"{}"'.format(String(val))
+            s = String(self.val)
 
         except (TypeError, UnicodeError) as e:
             s = "<UNICODE ERROR>"
 
         return s
 
-    def name_value(self, name):
-        return f"{name} ({len(self.val)})" if name else name
+#     def string_value(self):
+#         val = self.val
+#         try:
+#             s = '"{}"'.format(String(val))
+# 
+#         except (TypeError, UnicodeError) as e:
+#             s = "<UNICODE ERROR>"
+# 
+#         return s
+# 
+#     def name_value(self, name):
+#         return f"{name} ({len(self.val)})" if name else name
 
 
 class BinaryValue(StringValue):
@@ -811,10 +903,12 @@ class BinaryValue(StringValue):
     def is_valid(cls, val):
         return isinstance(val, (bytes, bytearray, memoryview))
 
-    def string_value(self):
-        val = self.val
+    def start_value(self):
+        return "b\""
+
+    def body_value(self):
         try:
-            s = repr(bytes(val))
+            s = repr(bytes(self.val))
 
         except (TypeError, UnicodeError) as e:
             s = "<UNICODE ERROR>"
@@ -921,15 +1015,18 @@ class TypeValue(ObjectValue):
     def is_valid(cls, val):
         return isinstance(val, type)
 
-    def instance_value(self):
-        return "class"
+    def instance_value(self, **kwargs):
+        kwargs.setdefault("value", "class")
+        return super().instance_value(**kwargs)
 
     def body_value(self):
         s_body = ""
         SHOW_MAGIC = self.kwargs.get("show_magic", False)
 
         val_class, instance_dict, class_dict, methods_dict = self.info()
-        instance_dict = {k:v for k, v in instance_dict.items() if not self._is_magic(k)}
+        instance_dict = {
+            k:v for k, v in instance_dict.items() if not self._is_magic(k)
+        }
         if instance_dict:
             s_body += f"Properties ({len(instance_dict)}):\n"
 
@@ -947,7 +1044,7 @@ class RegexMatchValue(ObjectValue):
     def is_valid(cls, val):
         return isinstance(val, re.Match)
 
-    def instance_value(self):
+    def classpath_value(self):
         return "re.Match"
 
     def body_value(self):
