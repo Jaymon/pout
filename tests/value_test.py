@@ -101,6 +101,30 @@ class ValueTest(TestCase):
                 pout.v(t)
             self.assertTrue("..." in c)
 
+    def test_info(self):
+        class Foo(object):
+            one = "one"
+
+        class Bar(Foo):
+            two = "two"
+
+        v = Value(Bar)
+        info_dict = v.info()
+        self.assertTrue("one" in info_dict["class_properties"])
+        self.assertTrue("two" in info_dict["class_properties"])
+
+        v = Value(Bar())
+        info_dict = v.info()
+        self.assertTrue("one" in info_dict["class_properties"])
+        self.assertTrue("two" in info_dict["class_properties"])
+
+        b = Bar()
+        b.two = "three"
+        v = Value(b)
+        info_dict = v.info()
+        r = info_dict["instance_properties"]["two"].body_value()
+        self.assertEqual("three", r)
+
     def test_descriptor(self):
         class Foo(object):
             @property
@@ -110,6 +134,7 @@ class ValueTest(TestCase):
         f = Foo()
         v = Value(f)
         s = v.string_value()
+        print(s)
         self.assertTrue("<property instance" in s)
 
     def test_is_set(self):
@@ -523,9 +548,9 @@ class ValueTest(TestCase):
 
         v = Value(ToProp)
         info = v.info(show_methods=True)
-        self.assertEqual({}, info[1])
-        self.assertEqual({}, info[2])
-        self.assertTrue("foo" in info[3])
+        self.assertEqual({}, info["class_properties"])
+        self.assertEqual({}, info["instance_properties"])
+        self.assertTrue("foo" in info["methods"])
 
     def test_datetime(self):
         dt = datetime.datetime.now()

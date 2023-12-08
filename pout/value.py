@@ -220,11 +220,22 @@ class Value(object):
         each dict's key is the name of the property and the value is the actual
         property
 
-        :returns: tuple, (class_name, instance_dict, class_dict, methods_dict
+        :param **kwargs:
+            - show_methods: bool, return method information
+            - show_magic: bool, don't filter out magic methods and properties,
+                magic is determined through ._is_magic() method
+        :returns: dict, keys are:
+            - val_class: type, the class for .val
+            - instance_properties: dict, all the instance properties of .val
+            - clas_properties: dict, the class properties of .val
+            - methods: dict, all the methods of .val
         """
         val = self.val
-        depth = self.depth
+
         val_class = self._getattr(val, "__class__", None)
+        if val_class is type:
+            val_class = val
+
         class_dict = {}
         methods_dict = {}
         instance_dict = {}
@@ -240,7 +251,11 @@ class Value(object):
                         if SHOW_METHODS:
                             methods_dict[k] = v
                     else:
-                        instance_dict[k] = v
+                        if val is val_class:
+                            class_dict[k] = v
+
+                        else:
+                            instance_dict[k] = v
 
         except TypeError as e:
             # Since vars() failed we are going to try and make
@@ -269,10 +284,17 @@ class Value(object):
                             if v.typename == 'CALLABLE':
                                 if SHOW_METHODS:
                                     methods_dict[k] = v
-                            else:
-                                class_dict[k] = v
 
-        return val_class, instance_dict, class_dict, methods_dict
+                            else:
+                                if k not in class_dict:
+                                    class_dict[k] = v
+
+        return {
+            "val_class": val_class,
+            "instance_properties": instance_dict,
+            "class_properties": class_dict,
+            "methods": methods_dict,
+        }
 
     def object_value(self, **kwargs):
         """This generates all the information about the Value as an object, it
@@ -287,6 +309,7 @@ class Value(object):
         :returns: str, the object information body
         """
         s_body = ""
+        src_file = ""
 
         val = self.val
         depth = self.depth
@@ -300,16 +323,13 @@ class Value(object):
             self.kwargs.get("show_magic", False)
         )
 
-        val_class, instance_dict, class_dict, methods_dict = self.info(
+        info_dict = self.info(
             show_methods=SHOW_METHODS,
             show_magic=SHOW_MAGIC
         )
 
-        src_file = ""
-        if val_class:
+        if val_class := info_dict["val_class"]:
             src_file = self._get_src_file(val_class, default="")
-
-        if val_class:
             pclses = inspect.getmro(val_class)
             if pclses:
                 s_body += "\n"
@@ -343,7 +363,7 @@ class Value(object):
             s_body += self._add_indent(s_str, 1)
             s_body += "\n"
 
-        if class_dict:
+        if class_dict := info_dict["class_properties"]:
             s_body += f"\nClass Properties ({len(class_dict)}):\n"
 
             for k, v in OrderedItems(class_dict):
@@ -352,7 +372,7 @@ class Value(object):
                 s_body += self._add_indent(s_var, 1)
                 s_body += "\n"
 
-        if instance_dict:
+        if instance_dict := info_dict["instance_properties"]:
             s_body += f"\nInstance Properties ({len(instance_dict)}):\n"
 
             for k, v in OrderedItems(instance_dict):
@@ -361,7 +381,7 @@ class Value(object):
                 s_body += self._add_indent(s_var, 1)
                 s_body += "\n"
 
-        if methods_dict:
+        if methods_dict := info_dict["methods"]:
             s_body += f"\nMethods ({len(methods_dict)}):\n"
 
             for k, v in OrderedItems(methods_dict):
@@ -667,20 +687,6 @@ class DictValue(ObjectValue):
             logger.debug(e, exc_info=True)
             return 0
 
-#     def instance_value(self, **kwargs):
-#         instance_value = super().instance_value(**kwargs)
-# 
-#         try:
-#             count = str(len(self.val))
-# 
-#         except (TypeError, KeyError, AttributeError) as e:
-#             logger.debug(e, exc_info=True)
-# 
-#         else:
-#             instance_value = f"({count}) {instance_value}"
-# 
-#         return instance_value
-
     def start_value(self):
         return "{"
 
@@ -884,19 +890,6 @@ class StringValue(ObjectValue):
 
         return s
 
-#     def string_value(self):
-#         val = self.val
-#         try:
-#             s = '"{}"'.format(String(val))
-# 
-#         except (TypeError, UnicodeError) as e:
-#             s = "<UNICODE ERROR>"
-# 
-#         return s
-# 
-#     def name_value(self, name):
-#         return f"{name} ({len(self.val)})" if name else name
-
 
 class BinaryValue(StringValue):
     @classmethod
@@ -1021,18 +1014,17 @@ class TypeValue(ObjectValue):
 
     def body_value(self):
         s_body = ""
+
         SHOW_MAGIC = self.kwargs.get("show_magic", False)
+        info_dict = self.info(show_magic=SHOW_MAGIC)
 
-        val_class, instance_dict, class_dict, methods_dict = self.info()
-        instance_dict = {
-            k:v for k, v in instance_dict.items() if not self._is_magic(k)
-        }
-        if instance_dict:
-            s_body += f"Properties ({len(instance_dict)}):\n"
+        if class_dict := info_dict["class_properties"]:
+            s_body += f"Class Properties ({len(class_dict)}):\n"
 
-            for k, v in OrderedItems(instance_dict):
+            for k, v in OrderedItems(class_dict):
                 s_var = '{} = '.format(k)
                 s_var += v.string_value()
+
                 s_body += self._add_indent(s_var, 1)
                 s_body += "\n"
 
