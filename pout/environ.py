@@ -35,7 +35,7 @@ ENCODING_REPLACE_CHAR = String(os.environ.get(
 period but figured I should use the actual replacement character"""
 
 
-OBJECT_DEPTH = int(os.environ.get("POUT_OBJECT_DEPTH", 3))
+OBJECT_DEPTH = int(os.environ.get("POUT_OBJECT_DEPTH", 5))
 """Change this to set how far down in depth pout will print instances with full
 ObjectValue output while it is compiling the value for the passed in instance.
 

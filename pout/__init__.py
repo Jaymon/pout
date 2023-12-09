@@ -28,7 +28,7 @@ from .interface import Interface
 from .value import Value
 
 
-__version__ = '2.3.1'
+__version__ = '2.4.0'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
