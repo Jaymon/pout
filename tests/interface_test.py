@@ -376,7 +376,7 @@ class VTest(TestCase):
             fgn = FooGetName()
             pout.v(fgn)
 
-        for s in ["interface_test.FooGetName", "at 0x", "__str__ (", "fields = "]:
+        for s in ["FooGetName (", "at 0x", "__str__ (", "fields = "]:
             self.assertTrue(s in c, s)
 
     def test_vs(self):
@@ -600,11 +600,10 @@ class VTest(TestCase):
         for s in ['__init__', 'args = tuple', 'kwargs = <dict (0) instance']:
             self.assertTrue(s in c, s)
 
-        for s in ['__get__', 'DescExample instance', 'klass = DescExample']:
+        for s in ['__get__', 'DescExample instance', 'DescExample class']:
             self.assertTrue(s in c, s)
 
     def test_class_vars(self):
-
         class VarParent(object):
             foo = 1
 
@@ -961,7 +960,7 @@ class ITest(TestCase):
         bar = 1
         with testdata.capture() as c:
             pout.i(bar)
-        for s in ["<function"]:
+        for s in ["<method"]:
             self.assertTrue(s in c, s)
 
         class Foo(object):
@@ -982,7 +981,10 @@ class ITest(TestCase):
 
         with testdata.capture() as c:
             pout.i(instance)
-            self.assertRegex(str(c), re.compile(r"a\(.*b\(.*c\(.*x\(.*y\(", re.S))
+            self.assertRegex(
+                str(c),
+                re.compile(r"a\(.*b\(.*c\(.*x\(.*y\(", re.S)
+            )
 
 
 class LTest(TestCase):

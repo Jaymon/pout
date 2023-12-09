@@ -158,6 +158,12 @@ class Value(object):
         return ret
 
     def _get_modpath(self, val):
+        """Gets the modulepath where val is defined, used primarily in 
+        ._get_name()
+
+        :param val: Any
+        :returns: str, the full modulepath where val is defined
+        """
         module_name = ""
         if isinstance(val, types.ModuleType):
             module_name = self._getattr(val, "__name__", "")
@@ -301,7 +307,8 @@ class Value(object):
 
         if val_class:
             # build a full class variables dict with the variables of 
-            # the full class hierarchy
+            # the full class hierarchy.
+            # The reversing makes us go from parent -> child
             for pcls in reversed(inspect.getmro(val_class)):
                 for k, v in vars(pcls).items():
                     # filter out anything that's in the instance dict also
@@ -314,8 +321,7 @@ class Value(object):
                                     methods_dict[k] = v
 
                             else:
-                                if k not in class_dict:
-                                    class_dict[k] = v
+                                class_dict[k] = v
 
         return {
             "val_class": val_class,
@@ -1147,12 +1153,6 @@ class CallableValue(Value):
 
         return ret
 
-#     def xstring_value(self):
-#         name = self._get_name(self.val)
-#         print(name)
-#         return name
-# 
-
     def string_value(self):
         val = self.val
         typename = "function"
@@ -1184,28 +1184,8 @@ class CallableValue(Value):
                 if classname:
                     typename = "classmethod"
 
-#                 modpath = getattr(klass, "__module__", "")
-#                 classname = getattr(klass, "__name__", "")
-#                 if not classname:
-#                     classpath = f"{modpath}.{klass.__class__.__name__}"
-# 
-#                 else:
-#                     typename = "classmethod"
-#                     classpath = f"{modpath}.{klass.__name__}"
-
-#                 if classpath:
-#                     classpath += "."
-
-#             ret = "<{} {}{} at {}>".format(
-#                 typename,
-#                 classpath,
-#                 signature,
-#                 self.id_value()
-#             )
-
         elif isinstance(val, staticmethod):
             typename = "staticmethod"
-            #ret = "<staticmethod {} at {}>".format(signature, self.id_value())
 
         else:
             cp = classpath
@@ -1217,30 +1197,12 @@ class CallableValue(Value):
                 # this could also be something like builtin-method, this is for
                 # things like object.__new__ that are technically static methods
                 # but look like functions
-                typename = "staticmethod"
+                if signature.startswith("(self,"):
+                    typename = "method"
 
-#             if "." in cp:
-#                 # this could also be something like builtin-method, this is for
-#                 # things like object.__new__ that are technically static methods
-#                 # but look like functions
-#                 typename = "staticmethod"
+                else:
+                    typename = "staticmethod"
 
-#         else:
-#             typename = "function"
-#             modpath = getattr(val, "__module__", "")
-#             if modpath and not isinstance(modpath, str):
-#                 modpath = modpath.__name__
-# 
-#             if modpath:
-#                 modpath += "."
-# 
-#             ret = "<function {}{} at {}>".format(
-#                 modpath,
-#                 signature,
-#                 self.id_value()
-#             )
-
-#         return ret
         return "<{} {}{} at {}>".format(
             typename,
             classpath,
