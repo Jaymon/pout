@@ -157,31 +157,59 @@ class Value(object):
 
         return ret
 
-    def _get_name(self, val, src_file, default='Unknown'):
+    def _get_modpath(self, val):
+        module_name = ""
+        if isinstance(val, types.ModuleType):
+            module_name = self._getattr(val, "__name__", "")
+
+        else:
+            module_name = self._getattr(val, "__module__", "")
+
+        return module_name or ""
+
+    def _get_name(self, val, modpath=True, default='Unknown'):
         """get the full namespaced (module + class) name of the val object
 
         since -- 6-28-12
 
         :param val: Any, the value (everything is an object) object
-        :param src_file: str, if this is passed in then modpath will be added
+        :param modpath: bool, True if the full module path should be part of
+            the name also
         :param default: str, the default name if a decent name can't be found
         programmatically
         :returns: str, the full.module.Name
         """
-        module_name = ''
-        if src_file:
-            module_name = '{}.'.format(
-                self._getattr(val, '__module__', default)
-            ).lstrip('.')
 
-        class_name = self._getattr(val, '__name__', None)
-        if not class_name:
-            class_name = default
-            cls = self._getattr(val, '__class__', None)
-            if cls:
-                class_name = self._getattr(cls, '__name__', default)
+        if isinstance(val, types.ModuleType):
+            full_name = self._get_modpath(val)
 
-        full_name = "{}{}".format(module_name, class_name)
+        else:
+            module_name = ""
+            class_name = None
+            for k in ["__qualname__", "__name__"]:
+
+                if modpath and not module_name:
+                    module_name = self._get_modpath(val)
+
+                class_name = self._getattr(val, k, None)
+                if not class_name:
+                    cls = self._getattr(val, "__class__", None)
+                    if cls:
+                        class_name = self._getattr(cls, k, None)
+
+                        if modpath and not module_name:
+                            module_name = self._get_modpath(val)
+
+                if class_name:
+                    break
+
+            if not class_name:
+                class_name = default
+
+            if module_name:
+                module_name = f"{module_name}:"
+
+            full_name = "{}{}".format(module_name, class_name)
 
         return full_name
 
@@ -337,9 +365,10 @@ class Value(object):
                     psrc_file = self._get_src_file(pcls, default="")
                     if psrc_file:
                         psrc_file = Path(psrc_file)
-                    pname = self._get_name(pcls, src_file=psrc_file)
+                    pname = self._get_name(pcls)
                     if psrc_file:
                         s_body += "{} ({})".format(pname, psrc_file)
+
                     else:
                         s_body += "{}".format(pname)
                     s_body += "\n"
@@ -498,7 +527,7 @@ class Value(object):
 
         :returns: str
         """
-        return self._get_name(self.val, src_file="") # just the classname
+        return self._get_name(self.val, modpath=False) # just the classname
 
     def count_value(self):
         """Returns the count if it exists, this is handy for subclasses that
@@ -918,7 +947,8 @@ class ExceptionValue(ObjectValue):
 class ModuleValue(ObjectValue):
     @classmethod
     def is_valid(cls, val):
-        # this has to go before the object check since a module will pass the object tests
+        # this has to go before the object check since a module will pass the
+        # object tests
         return isinstance(val, types.ModuleType)
 
     def instance_value(self):
@@ -1031,28 +1061,6 @@ class TypeValue(ObjectValue):
         return s_body
 
 
-class RegexMatchValue(ObjectValue):
-    @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, re.Match)
-
-    def classpath_value(self):
-        return "re.Match"
-
-    def body_value(self):
-        body = [
-            f"Pattern: {self.val.re.pattern}",
-            "",
-        ]
-
-        for i, gs in enumerate(self.val.regs, 0):
-            start, stop = gs
-            match = self.val.string[start:stop]
-            body.append(f"Group {i} from {start} to {stop}: {match}")
-
-        return "\n".join(body)
-
-
 class RegexValue(ObjectValue):
     @classmethod
     def is_valid(cls, val):
@@ -1062,7 +1070,7 @@ class RegexValue(ObjectValue):
             or "re.compile" in s
 
     def classpath_value(self):
-        return "re.Pattern"
+        return self._get_name(self.val)
 
     def body_value(self):
         # https://docs.python.org/2/library/re.html#regular-expression-objects
@@ -1089,6 +1097,25 @@ class RegexValue(ObjectValue):
             s.append(self._add_indent("{}: {}".format(flag_name, enabled), 1))
 
         return "\n".join(s)
+
+
+class RegexMatchValue(RegexValue):
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, re.Match)
+
+    def body_value(self):
+        body = [
+            f"Pattern: {self.val.re.pattern}",
+            "",
+        ]
+
+        for i, gs in enumerate(self.val.regs, 0):
+            start, stop = gs
+            match = self.val.string[start:stop]
+            body.append(f"Group {i} from {start} to {stop}: {match}")
+
+        return "\n".join(body)
 
 
 class CallableValue(Value):
@@ -1120,66 +1147,106 @@ class CallableValue(Value):
 
         return ret
 
+#     def xstring_value(self):
+#         name = self._get_name(self.val)
+#         print(name)
+#         return name
+# 
+
     def string_value(self):
         val = self.val
+        typename = "function"
+        classpath = ""
+
         try:
-            func_args = "{}".format(inspect.signature(val))
+            signature = "{}".format(inspect.signature(val))
 
         except (TypeError, ValueError):
-            func_args = "(...)"
+            signature = "(...)"
 
         try:
-            signature = "{}{}".format(val.__name__, func_args)
+            classpath = self._get_name(val)
 
         except AttributeError:
             if isinstance(val, staticmethod):
-                signature = "{}{}".format(val.__func__.__name__, func_args)
+                classpath = self._get_name(val)
 
             else:
-                signature = "UNKNOWN{}".format(func_args)
+                classpath = "UNKNOWN"
 
         if isinstance(val, types.MethodType):
             typename = "method"
             classpath = ""
             klass = getattr(val, "__self__", None)
             if klass:
-                modpath = getattr(klass, "__module__", "")
+                classpath = self._get_name(klass)
                 classname = getattr(klass, "__name__", "")
-                if not classname:
-                    classpath = f"{modpath}.{klass.__class__.__name__}"
-
-                else:
+                if classname:
                     typename = "classmethod"
-                    classpath = f"{modpath}.{klass.__name__}"
 
-                if classpath:
-                    classpath += "."
+#                 modpath = getattr(klass, "__module__", "")
+#                 classname = getattr(klass, "__name__", "")
+#                 if not classname:
+#                     classpath = f"{modpath}.{klass.__class__.__name__}"
+# 
+#                 else:
+#                     typename = "classmethod"
+#                     classpath = f"{modpath}.{klass.__name__}"
 
-            ret = "<{} {}{} at {}>".format(
-                typename,
-                classpath,
-                signature,
-                self.id_value()
-            )
+#                 if classpath:
+#                     classpath += "."
+
+#             ret = "<{} {}{} at {}>".format(
+#                 typename,
+#                 classpath,
+#                 signature,
+#                 self.id_value()
+#             )
 
         elif isinstance(val, staticmethod):
-            ret = "<staticmethod {} at {}>".format(signature, self.id_value())
+            typename = "staticmethod"
+            #ret = "<staticmethod {} at {}>".format(signature, self.id_value())
 
         else:
-            modpath = getattr(val, "__module__", "")
-            if modpath and not isinstance(modpath, str):
-                modpath = modpath.__name__
+            cp = classpath
+            parts = classpath.split(":")
+            if len(parts) > 1:
+                cp = parts[1]
 
-            if modpath:
-                modpath += "."
+            if "." in cp and not re.search(r">\.[^\.]+$", cp):
+                # this could also be something like builtin-method, this is for
+                # things like object.__new__ that are technically static methods
+                # but look like functions
+                typename = "staticmethod"
 
-            ret = "<function {}{} at {}>".format(
-                modpath,
-                signature,
-                self.id_value()
-            )
+#             if "." in cp:
+#                 # this could also be something like builtin-method, this is for
+#                 # things like object.__new__ that are technically static methods
+#                 # but look like functions
+#                 typename = "staticmethod"
 
-        return ret
+#         else:
+#             typename = "function"
+#             modpath = getattr(val, "__module__", "")
+#             if modpath and not isinstance(modpath, str):
+#                 modpath = modpath.__name__
+# 
+#             if modpath:
+#                 modpath += "."
+# 
+#             ret = "<function {}{} at {}>".format(
+#                 modpath,
+#                 signature,
+#                 self.id_value()
+#             )
+
+#         return ret
+        return "<{} {}{} at {}>".format(
+            typename,
+            classpath,
+            signature,
+            self.id_value()
+        )
 
 
 class DatetimeValue(ObjectValue):

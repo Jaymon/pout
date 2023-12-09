@@ -26,7 +26,9 @@ from pout.value import (
     ModuleValue,
     TypeValue,
     RegexValue,
+    RegexMatchValue,
     GeneratorValue,
+    CallableValue,
     Values,
     Value,
 )
@@ -53,8 +55,8 @@ class ValueTest(TestCase):
 
         v = Value(f)
         r = v.string_value()
-        self.assertTrue("foo = <Foo instance at" in r)
-        self.assertTrue("bar = 1" in r)
+        self.assertTrue("foo = <" in r, r)
+        self.assertTrue("bar = 1" in r, r)
 
     def test_object_repeated(self):
         class Foo(object):
@@ -66,8 +68,8 @@ class ValueTest(TestCase):
         v = Value([f for _ in range(5)])
 
         r = v.string_value()
-        self.assertTrue("0: Foo instance at" in r)
-        self.assertTrue("1: <Foo instance at" in r)
+        self.assertTrue("0: ValueTest" in r, r)
+        self.assertTrue("1: <ValueTest" in r, r)
 
     def test_iterate_object_depth(self):
         """dicts, lists, etc. should also be subject to OBJECT_DEPTH limits"""
@@ -124,6 +126,22 @@ class ValueTest(TestCase):
         info_dict = v.info()
         r = info_dict["instance_properties"]["two"].body_value()
         self.assertEqual("three", r)
+
+    def test__get_name(self):
+        class Foo(object):
+            pass
+
+        r = Value(Foo.__new__)._get_name(Foo.__new__)
+        self.assertTrue("object.__new__" in r)
+
+        r = Value(Foo)._get_name(Foo)
+        self.assertTrue("<locals>.Foo" in r)
+
+        def bar(one, two):
+            pass
+
+        r = Value(bar)._get_name(bar)
+        self.assertTrue("<locals>.bar" in r)
 
     def test_descriptor(self):
         class Foo(object):
@@ -356,6 +374,7 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, ModuleValue))
 
         r = v.string_value()
+        print(r)
         self.assertTrue(r.startswith("testdata module at"))
 
     def test_std_collections__pout__(self):
@@ -494,24 +513,24 @@ class ValueTest(TestCase):
 
     def test_regex_match(self):
         m = re.match(r"(\d)(\d)(\d+)", "0213434")
+        v = Value(m)
+        self.assertTrue(isinstance(v, RegexMatchValue))
 
-        with self.assertLogs(logger=pout.stream.logger, level="DEBUG") as c:
-            pout.v(m)
-        logs = "\n".join(c[1])
-        self.assertFalse("READ ERRORS" in logs)
+        r = v.string_value()
+        self.assertTrue("Pattern:" in r)
+        self.assertTrue("Group 3" in r)
 
     def test_regex_compiled(self):
         regex = re.compile(r"^\s([a-z])", flags=re.I)
-
         v = Value(regex)
         self.assertTrue(isinstance(v, RegexValue))
 
         r = v.string_value()
-        self.assertTrue("re.Pattern instance" in r)
+        self.assertTrue("re:Pattern instance" in r)
         self.assertTrue("groups:" in r)
         self.assertTrue("flags:" in r)
 
-    def test_callable(self):
+    def test_callable_1(self):
         class Klass(object):
             def instancemethod(self, *args, **kwargs): pass
             @classmethod
@@ -531,6 +550,13 @@ class ValueTest(TestCase):
         v = Value(func)
         s = v.string_value()
         self.assertTrue("<function tests." in s)
+
+    def test_callable_2(self):
+        v = Value(object.__new__)
+        self.assertTrue(isinstance(v, CallableValue))
+
+        r = v.string_value()
+        self.assertTrue("staticmethod" in r)
 
     def test_classmethod(self):
         """in python 3.10 classmethods were being categorized as properties"""
