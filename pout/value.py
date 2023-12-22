@@ -321,7 +321,8 @@ class Value(object):
                                     methods_dict[k] = v
 
                             else:
-                                class_dict[k] = v
+                                class_dict.setdefault(k, v)
+                                #class_dict[k] = v
 
         return {
             "val_class": val_class,
@@ -471,6 +472,7 @@ class Value(object):
         :returns: str, a string suitable to be printed or whatever
         """
         prefix = self.prefix_value()
+        body = ""
 
         depth = self.depth
         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
@@ -478,36 +480,67 @@ class Value(object):
             pout_method = self._getattr(self.val, "__pout__", None)
 
             if pout_method and callable(pout_method):
-                body = self.create_instance(pout_method()).body_value()
+                object_body = self.create_instance(pout_method()).body_value()
+                value_body = ""
 
             else:
-                body = self.body_value()
+                object_body = self.object_value()
+                value_body = self.body_value()
 
         else:
-            body = ""
+            object_body = ""
+            value_body = ""
 
-        if prefix:
-            start_wrapper = self.start_value()
-            stop_wrapper = self.stop_value()
+#         if prefix:
+#             start_wrapper = self.start_value()
+#             stop_wrapper = self.stop_value()
 
-            if body and self.seen_first:
+        if self.seen_first:
+            if object_body:
+                start_wrapper = self.start_object_value()
+                stop_wrapper = self.stop_object_value()
+                body = self._add_indent(start_wrapper, 1) + "\n" \
+                    + self._add_indent(object_body, 2) + "\n" \
+                    + self._add_indent(stop_wrapper, 1)
 
-                start_wrapper = self._add_indent(start_wrapper, 1)
+            if value_body:
+                start_wrapper = self.start_value()
+                stop_wrapper = self.stop_value()
 
-                body = self._add_indent(body, 2)
+                if body:
+                    body += "\n"
 
-                stop_wrapper = self._add_indent(stop_wrapper, 1)
+                body += self._add_indent(start_wrapper, 1) + "\n" \
+                    + self._add_indent(value_body, 2) + "\n" \
+                    + self._add_indent(stop_wrapper, 1)
 
-                ret = prefix + "\n" \
-                    + start_wrapper + "\n" \
-                    + body + "\n" \
-                    + stop_wrapper
+#         if not body:
+#             ret = self.empty_value()
 
-            else:
-                ret = self.empty_value()
+        if body:
+            ret = prefix + "\n" + body
 
         else:
-            ret = body
+            ret = self.summary_value()
+
+#             if body and self.seen_first:
+# 
+#                 start_wrapper = self._add_indent(start_wrapper, 1)
+# 
+#                 body = self._add_indent(body, 2)
+# 
+#                 stop_wrapper = self._add_indent(stop_wrapper, 1)
+# 
+#                 ret = prefix + "\n" \
+#                     + start_wrapper + "\n" \
+#                     + body + "\n" \
+#                     + stop_wrapper
+# 
+#             else:
+#                 ret = self.empty_value()
+# 
+#         else:
+#             ret = body
 
         return ret
 
@@ -569,21 +602,34 @@ class Value(object):
         """
         return "0x{:02x}".format(id(self.val))
 
-    def start_value(self):
-        """this is the start wrapper value, it will usually be defined in child
+    def start_object_value(self):
+        """this is the start wrapper value for .object_value
         classes that support it
 
         :returns: str
         """
-        return ""
+        return "<"
+
+    def stop_object_value(self):
+        """this is the stop wrapper value for .object_value
+
+        :returns: str
+        """
+        return ">"
+
+    def start_value(self):
+        """this is the start wrapper value for .body_value
+
+        :returns: str
+        """
+        return "<"
 
     def stop_value(self):
-        """this is the stop wrapper value, it will usually be defined in child
-        classes that support it
+        """this is the stop wrapper value for .body_value
 
         :returns: str
         """
-        return ""
+        return ">"
 
     def body_value(self, **kwargs):
         """This is the method that will be most important to subclasses since
@@ -594,14 +640,18 @@ class Value(object):
         """
         return "{}".format(repr(self.val))
 
-    def empty_value(self):
-        """If there is a prefix but no body then this will be called to generate
-        the appropriate value for that case
+    def summary_value(self):
+        """If there is no body then this will be called to generate an
+        appropriate summary value
+
+        This was previously called .empty_value
 
         :returns: str
         """
         prefix = self.prefix_value()
-        return f"<{prefix}>"
+        start_wrapper = self.start_object_value()
+        stop_wrapper = self.stop_object_value()
+        return f"{start_wrapper}{prefix}{stop_wrapper}"
 
     def name_value(self, name):
         """wrapper method that the interface can use to customize the name for a
@@ -659,14 +709,15 @@ class ObjectValue(Value):
         kwargs.setdefault("value", "instance")
         return super().instance_value(**kwargs)
 
-    def start_value(self):
-        return "<"
-
-    def stop_value(self):
-        return ">"
+#     def start_value(self):
+#         return "<"
+# 
+#     def stop_value(self):
+#         return ">"
 
     def body_value(self):
-        return self.object_value()
+        return ""
+        #return self.object_value()
 
 
 class DescriptorValue(ObjectValue):
@@ -695,10 +746,45 @@ class DescriptorValue(ObjectValue):
         return f"<{self.prefix_value()}>"
 
 
-class DictValue(ObjectValue):
+class BuiltinValue(ObjectValue):
     @classmethod
     def is_valid(cls, val):
-        return isinstance(val, dict)
+        try:
+            return isinstance(val, cls.get_types())
+
+        except TypeError:
+            return False
+
+    @classmethod
+    def get_types(cls):
+        """Returns a tuple of the types this Value class represents
+
+        :returns: tuple[Any]
+        """
+        return NotImplementedError()
+
+    def object_value(self):
+        has_body = False
+        for t in self.get_types():
+            try:
+                if isinstance(self.val, t) and type(self.val) is not t:
+                    return super().object_value()
+
+            except TypeError:
+                pass
+
+        return ""
+
+
+class DictValue(BuiltinValue):
+
+    @classmethod
+    def get_types(cls):
+        return (dict,)
+
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, dict)
 
     def name_callback(self, k):
         if isinstance(k, (bytes, bytearray)):
@@ -777,8 +863,12 @@ class DictValue(ObjectValue):
 
 class DictProxyValue(DictValue):
     @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, MappingProxyType)
+    def get_types(cls):
+        return (MappingProxyType,)
+
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, MappingProxyType)
 
 
 class SQLiteRowValue(DictValue):
@@ -793,8 +883,12 @@ class SQLiteRowValue(DictValue):
 
 class ListValue(DictValue):
     @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, list)
+    def get_types(cls):
+        return (list,)
+
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, list)
 
     def name_callback(self, k):
         """Returns just a string representation of the integer k"""
@@ -812,20 +906,13 @@ class ListValue(DictValue):
         for v in enumerate(self.val):
             yield v
 
-class MappingViewValue(ListValue):
-    def start_value(self):
-        return "(["
-
-    def stop_value(self):
-        return "])"
-
-    @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, MappingView)
-
 
 class ArrayValue(ListValue):
     """Handles array.array instances"""
+    @classmethod
+    def get_types(cls):
+        return (array.array,)
+
     def classpath_value(self):
         return "{}.{}".format(
             self.val.__class__.__module__,
@@ -835,16 +922,24 @@ class ArrayValue(ListValue):
     def instance_value(self):
         return f"('{self.val.typecode}') {super().instance_value()}"
 
-    @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, array.array)
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, array.array)
 
 
 class SetValue(ListValue):
     @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, (set, frozenset, Set)) \
-            and not isinstance(val, MappingView)
+    def get_types(cls):
+        return (set, frozenset, Set)
+
+#     @classmethod
+#     def is_valid(cls, val):
+#         return not isinstance(val, MappingView) and super().is_valid(val)
+
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, (set, frozenset, Set)) \
+#             and not isinstance(val, MappingView)
 
     def start_value(self):
         return "{"
@@ -858,10 +953,30 @@ class SetValue(ListValue):
         return None
 
 
+class MappingViewValue(SetValue):
+    @classmethod
+    def get_types(cls):
+        return (MappingView,)
+
+    def start_value(self):
+        return "(["
+
+    def stop_value(self):
+        return "])"
+
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, MappingView)
+
+
 class GeneratorValue(SetValue):
     @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, (types.GeneratorType, range, map))
+    def get_types(cls):
+        return (types.GeneratorType, range, map)
+
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, (types.GeneratorType, range, map))
 
     def instance_value(self, **kwargs):
         kwargs.setdefault("value", "generator")
@@ -874,8 +989,12 @@ class GeneratorValue(SetValue):
 
 class TupleValue(ListValue):
     @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, tuple)
+    def get_types(cls):
+        return (tuple,)
+
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, tuple)
 
     def start_value(self):
         return "("
@@ -884,28 +1003,60 @@ class TupleValue(ListValue):
         return ")"
 
 
-class PrimitiveValue(Value):
+class PrimitiveValue(BuiltinValue):
+    """is the value a built-in primitive type?"""
     @classmethod
-    def is_valid(cls, val):
-        """is the value a built-in type?"""
-        return isinstance(
-            val,
-            (
-                type(None),
-                bool,
-                int,
-                float
-            )
+    def get_types(cls):
+        return (
+            type(None),
+            bool,
+            int,
+            float
         )
 
-    def string_value(self):
-        return self.body_value()
+#     @classmethod
+#     def is_valid(cls, val):
+#         """is the value a built-in type?"""
+#         return isinstance(
+#             val,
+#             (
+#                 type(None),
+#                 bool,
+#                 int,
+#                 float
+#             )
+#         )
+# 
+#     def object_value(self):
+#         return ""
+
+    def body_value(self):
+        return str(self.val)
+
+#     def string_value(self):
+#         return self.body_value()
 
 
-class StringValue(ObjectValue):
+# class NoneValue(PrimitiveValue):
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, type(None))
+# 
+#     def object_value(self):
+#         return ""
+# 
+#     def body_value(self):
+#         return ""
+
+
+class StringValue(BuiltinValue):
     @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, basestring)
+    def get_types(cls):
+        return basestring
+
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, basestring)
 
     def count_value(self):
         return len(self.val)
@@ -928,8 +1079,12 @@ class StringValue(ObjectValue):
 
 class BinaryValue(StringValue):
     @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, (bytes, bytearray, memoryview))
+    def get_types(cls):
+        return (bytes, bytearray, memoryview)
+
+#     @classmethod
+#     def is_valid(cls, val):
+#         return isinstance(val, (bytes, bytearray, memoryview))
 
     def start_value(self):
         return "b\""
@@ -960,7 +1115,7 @@ class ModuleValue(ObjectValue):
     def instance_value(self):
         return "module"
 
-    def body_value(self):
+    def object_value(self, **kwargs):
         s = ""
         SHOW_MAGIC = self.kwargs.get("show_magic", False)
 
@@ -987,8 +1142,6 @@ class ModuleValue(ObjectValue):
                 classes[k] = v
             else:
                 properties[k] = v
-
-            #pout2.v('%s %s: %s' % (k, vt, repr(v)))
 
         if modules:
             s += "\nModules:\n"
@@ -1048,7 +1201,7 @@ class TypeValue(ObjectValue):
         kwargs.setdefault("value", "class")
         return super().instance_value(**kwargs)
 
-    def body_value(self):
+    def object_value(self):
         s_body = ""
 
         SHOW_MAGIC = self.kwargs.get("show_magic", False)
@@ -1078,7 +1231,7 @@ class RegexValue(ObjectValue):
     def classpath_value(self):
         return self._get_name(self.val)
 
-    def body_value(self):
+    def object_value(self):
         # https://docs.python.org/2/library/re.html#regular-expression-objects
         val = self.val
 
@@ -1110,7 +1263,7 @@ class RegexMatchValue(RegexValue):
     def is_valid(cls, val):
         return isinstance(val, re.Match)
 
-    def body_value(self):
+    def object_value(self):
         body = [
             f"Pattern: {self.val.re.pattern}",
             "",
@@ -1219,7 +1372,7 @@ class DatetimeValue(ObjectValue):
     def is_valid(cls, val):
         return isinstance(val, (datetime.datetime, datetime.date))
 
-    def body_value(self):
+    def object_value(self):
         body = [
             String(self.val),
             "",
@@ -1249,6 +1402,6 @@ class PathValue(ObjectValue):
     def is_valid(cls, val):
         return isinstance(val, PurePath)
 
-    def body_value(self):
+    def object_value(self):
         return String(self.val)
 

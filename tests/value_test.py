@@ -41,9 +41,32 @@ class ValuesTest(TestCase):
 
 
 class ValueTest(TestCase):
-    def test_int(self):
+    def test_primitive_int(self):
         v = Value(100)
-        self.assertEqual("100", v.string_value())
+        r = v.string_value()
+        self.assertTrue("int instance" in r)
+        self.assertTrue("100" in r)
+        self.assertTrue("<" in r)
+
+    def test_primitive_bool(self):
+        v = Value(True)
+        r = v.string_value()
+        self.assertTrue("bool instance" in r)
+        self.assertTrue("True" in r)
+        self.assertTrue("<" in r)
+
+    def test_primitive_float(self):
+        v = Value(123456.789)
+        r = v.string_value()
+        self.assertTrue("float instance" in r)
+        self.assertTrue("123456.789" in r)
+        self.assertTrue("<" in r)
+
+    def test_primitive_none(self):
+        v = Value(None)
+        r = v.string_value()
+        self.assertTrue("NoneType instance" in r)
+        self.assertTrue("<" in r)
 
     def test_object_nested(self):
         class Foo(object):
@@ -56,7 +79,7 @@ class ValueTest(TestCase):
         v = Value(f)
         r = v.string_value()
         self.assertTrue("foo = <" in r, r)
-        self.assertTrue("bar = 1" in r, r)
+        self.assertTrue("bar = int instance" in r, r)
 
     def test_object_repeated(self):
         class Foo(object):
@@ -264,9 +287,8 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, DictValue))
 
         r = v.string_value()
-        print(r)
-        self.assertTrue("dict (2)" in r)
-        self.assertTrue("'foo': 1," in r)
+        self.assertTrue("dict (2)" in r, r)
+        self.assertTrue("'foo': int instance" in r, r)
 
     def test_dict_unicode_keys(self):
         """Make sure unicode keys don't mess up dictionaries"""
@@ -356,13 +378,12 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, StringValue))
 
         r = v.string_value()
-        self.assertTrue("<str (0) instance" in r)
-        #self.assertTrue(r.startswith("\""))
+        self.assertTrue("<str (0) instance" in r, r)
 
         v = Value("foo bar")
         r = v.string_value()
-        self.assertTrue("str (7) instance" in r)
-        self.assertTrue("foo bar" in r)
+        self.assertTrue("str (7) instance" in r, r)
+        self.assertTrue("foo bar" in r, r)
 
     def test_exception(self):
         v = Value(ValueError("foo bar"))
@@ -370,12 +391,18 @@ class ValueTest(TestCase):
         repr(v)
 
     def test_module(self):
-        v = Value(testdata)
+        m = testdata.create_module([
+            "bar = 1",
+            "def foo(one, two): return 3",
+            "class Che(object):",
+            "    boo = 1",
+            "    def bam(self): pass",
+        ]).module()
+        v = Value(m)
         self.assertTrue(isinstance(v, ModuleValue))
 
         r = v.string_value()
-        print(r)
-        self.assertTrue(r.startswith("testdata module at"))
+        self.assertTrue(r.startswith(f"{m.__name__} module at"))
 
     def test_std_collections__pout__(self):
         """https://github.com/Jaymon/pout/issues/61"""
@@ -465,7 +492,7 @@ class ValueTest(TestCase):
         t = To4()
         pout.v(t)
 
-    def test_object___pout__1(self):
+    def test_object___pout___1(self):
         class OPU(object):
             def __pout__(self):
                 return "foo"
@@ -498,18 +525,19 @@ class ValueTest(TestCase):
         self.assertTrue("... Truncated " in r)
 
     def test_type_1(self):
-        v = Value(object)
-        self.assertTrue(isinstance(v, TypeValue))
-
-        s = v.string_value()
-        self.assertRegex(s, r"^<object\sclass\sat\s\dx[^>]+?>$")
-
         class Foo(object):
             bar = 1
 
         v = Value(Foo)
         s = v.string_value()
-        self.assertTrue("bar = 1" in s)
+        self.assertTrue("bar = int instance" in s, s)
+        self.assertRegex(s, r"\s1\s", s)
+
+        v = Value(object)
+        self.assertTrue(isinstance(v, TypeValue))
+
+        s = v.string_value()
+        self.assertRegex(s, r"^<object\sclass\sat\s\dx[^>]+?>$", s)
 
     def test_regex_match(self):
         m = re.match(r"(\d)(\d)(\d+)", "0213434")
