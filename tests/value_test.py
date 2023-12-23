@@ -619,3 +619,21 @@ class ValueTest(TestCase):
         self.assertEqual(4, len(s.splitlines(False)))
         self.assertTrue("/foo/bar/che" in s)
 
+    def test_class_vars_inheritance(self):
+        class VarParent(object):
+            foo = 1
+
+        class VarChild2(VarParent):
+            foo = 2
+
+        class VarChild1(VarParent):
+            pass
+
+        v = Value(VarChild2())
+        r = v.string_value()
+        self.assertRegex(r, r"\s2\s", r)
+
+        v = Value(VarChild1())
+        r = v.string_value()
+        self.assertRegex(r, r"\s1\s", r)
+

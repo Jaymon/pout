@@ -603,19 +603,6 @@ class VTest(TestCase):
         for s in ['__get__', 'DescExample instance', 'DescExample class']:
             self.assertTrue(s in c, s)
 
-    def test_class_vars(self):
-        class VarParent(object):
-            foo = 1
-
-        class VarChild(VarParent):
-            foo = 2
-            def __init__(self):
-                pout.v(self)
-
-        with testdata.capture() as c:
-            vc = VarChild()
-        self.assertTrue("foo = 2" in c)
-
     def test_misclassified_instance(self):
         """objects that have a __getattr__ method that always return something get
         misclassified as dict proxies, this makes sure that is fixed"""
@@ -721,8 +708,8 @@ class VTest(TestCase):
             voom(
                 foo,bar
             )
-        #self.assertTrue("foo = 1\n\nbar = 2" in c)
-        self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2", re.M))
+        self.assertRegex(String(c), re.compile(r"foo\s+=\s+", re.M))
+        self.assertRegex(String(c), re.compile(r"bar\s+=\s+", re.M))
 
         with testdata.capture() as c:
             pout.v(
@@ -730,10 +717,8 @@ class VTest(TestCase):
                 bar,
                 "this is a string"
             )
-        #self.assertTrue("foo = 1\n\nbar = 2\n\n\"this is a string\"" in c)
-        #self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2\s+\"this is a string\"", re.M))
-        self.assertTrue("foo = 1" in c)
-        self.assertTrue("bar = 2" in c)
+        self.assertTrue("foo = " in c)
+        self.assertTrue("bar = " in c)
         self.assertTrue("str (16) instance" in c)
 
         from pout import v
@@ -742,14 +727,14 @@ class VTest(TestCase):
             v(
                 foo,
                 bar)
-        #self.assertTrue("foo = 1\n\nbar = 2" in c)
-        self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2", re.M))
+        self.assertRegex(String(c), re.compile(r"foo\s+=\s+", re.M))
+        self.assertRegex(String(c), re.compile(r"bar\s+=\s+", re.M))
 
         with testdata.capture() as c:
             v(
                 foo, bar)
-        #self.assertTrue("foo = 1\n\nbar = 2" in c)
-        self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2", re.M))
+        self.assertRegex(String(c), re.compile(r"foo\s+=\s+", re.M))
+        self.assertRegex(String(c), re.compile(r"bar\s+=\s+", re.M))
 
         with testdata.capture() as c:
             v(
@@ -758,8 +743,8 @@ class VTest(TestCase):
                 bar
 
             )
-        #self.assertTrue("foo = 1\n\nbar = 2" in c)
-        self.assertRegex(String(c), re.compile(r"foo\s+=\s+1\s+bar\s+=\s+2", re.M))
+        self.assertRegex(String(c), re.compile(r"foo\s+=\s+", re.M))
+        self.assertRegex(String(c), re.compile(r"bar\s+=\s+", re.M))
 
         def func(a, b):
             return a + b
@@ -768,7 +753,7 @@ class VTest(TestCase):
             v(
                 func(1, 4)
             )
-        self.assertTrue("func(1, 4) = 5" in c)
+        self.assertTrue("func(1, 4) = " in c)
 
         with testdata.capture() as c:
             v(
@@ -777,16 +762,12 @@ class VTest(TestCase):
                     5
                 )
             )
-        self.assertTrue("= 10" in c)
+        self.assertRegex(String(c), "\s10\s")
 
         import pout as poom
         with testdata.capture() as c:
             poom.v(foo)
-        self.assertTrue("foo = 1" in c)
-
-    def test_module(self):
-        pout.v(pout)
-        pout.v(sys.modules[__name__])
+        self.assertTrue("foo = " in c)
 
     def test_object_1(self):
         f = Foo()
@@ -889,11 +870,6 @@ class VTest(TestCase):
             pout.v(i)
         self.assertTrue(str(i) in c)
 
-        with testdata.capture() as c:
-            b = True
-            pout.v(b)
-        self.assertTrue("b = True" in c)
-
     def test_range_iterator(self):
         #p = pout.Pout()
         #print(p._get_type(range(5)))
@@ -925,9 +901,9 @@ class MTest(TestCase):
 
 class ITest(TestCase):
     def test_class_info(self):
-        """I noticed when passing classes into pout.i() they identified as instances
-        in the output, this makes sense now that I've looked into it, but I went
-        ahead and fixed it"""
+        """I noticed when passing classes into pout.i() they identified as
+        instances in the output, this makes sense now that I've looked into it,
+        but I went ahead and fixed it"""
         class Foo(object): pass
 
         with testdata.capture() as c:

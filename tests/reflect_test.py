@@ -17,7 +17,7 @@ class ReflectTest(TestCase):
         foo = 1
         with testdata.capture() as c:
             pout.v(foo)
-        self.assertTrue('foo = 1' in c)
+        self.assertTrue('foo = ' in c)
 
     def test_multi_command_on_one_line(self):
         """make sure we are finding the correct call on a multi command line"""

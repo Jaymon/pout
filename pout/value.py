@@ -133,6 +133,7 @@ class Value(object):
         kwargs.setdefault("depth", self.depth + 1)
         kwargs.setdefault("seen", self.seen)
         instance = Value(val, **kwargs)
+
         return instance
 
     def _is_magic(self, name):
@@ -314,15 +315,18 @@ class Value(object):
                     # filter out anything that's in the instance dict also
                     # since that takes precedence.
                     if k not in instance_dict:
-                        v = self.create_instance(v)
+                        v = self.create_instance(v, key=k)
                         if SHOW_MAGIC or not self._is_magic(k):
                             if v.typename == 'CALLABLE':
                                 if SHOW_METHODS:
                                     methods_dict[k] = v
 
                             else:
-                                class_dict.setdefault(k, v)
-                                #class_dict[k] = v
+                                #class_dict.setdefault(k, v)
+                                if k in class_dict:
+                                    v.seen_first = class_dict[k].seen_first
+
+                                class_dict[k] = v
 
         return {
             "val_class": val_class,
@@ -331,8 +335,13 @@ class Value(object):
             "methods": methods_dict,
         }
 
-    def object_value(self, **kwargs):
-        """This generates all the information about the Value as an object, it
+    def object_value(self):
+        return self._object_value()
+
+    def _object_value(self, **kwargs):
+        """Internal method
+
+        This generates all the information about the Value as an object, it
         is used in .info_value() and is broken out so it can be more easily
         used in subclasses
 
@@ -439,12 +448,12 @@ class Value(object):
         :returns: str, the full object information string
         """
         prefix = self.prefix_value()
-        start_wrapper = self._add_indent("<", 1)
+        start_wrapper = self._add_indent(self.start_object_value(), 1)
         body = self._add_indent(
-            self.object_value(show_methods=True, show_magic=True),
+            self._object_value(show_methods=True, show_magic=True),
             2
         )
-        stop_wrapper = self._add_indent(">", 1)
+        stop_wrapper = self._add_indent(self.stop_object_value(), 1)
 
         return prefix + "\n" \
             + start_wrapper + "\n" \
@@ -491,10 +500,6 @@ class Value(object):
             object_body = ""
             value_body = ""
 
-#         if prefix:
-#             start_wrapper = self.start_value()
-#             stop_wrapper = self.stop_value()
-
         if self.seen_first:
             if object_body:
                 start_wrapper = self.start_object_value()
@@ -514,33 +519,11 @@ class Value(object):
                     + self._add_indent(value_body, 2) + "\n" \
                     + self._add_indent(stop_wrapper, 1)
 
-#         if not body:
-#             ret = self.empty_value()
-
         if body:
             ret = prefix + "\n" + body
 
         else:
             ret = self.summary_value()
-
-#             if body and self.seen_first:
-# 
-#                 start_wrapper = self._add_indent(start_wrapper, 1)
-# 
-#                 body = self._add_indent(body, 2)
-# 
-#                 stop_wrapper = self._add_indent(stop_wrapper, 1)
-# 
-#                 ret = prefix + "\n" \
-#                     + start_wrapper + "\n" \
-#                     + body + "\n" \
-#                     + stop_wrapper
-# 
-#             else:
-#                 ret = self.empty_value()
-# 
-#         else:
-#             ret = body
 
         return ret
 
@@ -709,15 +692,8 @@ class ObjectValue(Value):
         kwargs.setdefault("value", "instance")
         return super().instance_value(**kwargs)
 
-#     def start_value(self):
-#         return "<"
-# 
-#     def stop_value(self):
-#         return ">"
-
     def body_value(self):
         return ""
-        #return self.object_value()
 
 
 class DescriptorValue(ObjectValue):
@@ -747,6 +723,8 @@ class DescriptorValue(ObjectValue):
 
 
 class BuiltinValue(ObjectValue):
+    """Handles python's builtin types and makes it so object value won't be
+    printed out unless it's a child of a built-in type"""
     @classmethod
     def is_valid(cls, val):
         try:
@@ -781,10 +759,6 @@ class DictValue(BuiltinValue):
     @classmethod
     def get_types(cls):
         return (dict,)
-
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, dict)
 
     def name_callback(self, k):
         if isinstance(k, (bytes, bytearray)):
@@ -866,10 +840,6 @@ class DictProxyValue(DictValue):
     def get_types(cls):
         return (MappingProxyType,)
 
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, MappingProxyType)
-
 
 class SQLiteRowValue(DictValue):
     @classmethod
@@ -885,10 +855,6 @@ class ListValue(DictValue):
     @classmethod
     def get_types(cls):
         return (list,)
-
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, list)
 
     def name_callback(self, k):
         """Returns just a string representation of the integer k"""
@@ -922,24 +888,11 @@ class ArrayValue(ListValue):
     def instance_value(self):
         return f"('{self.val.typecode}') {super().instance_value()}"
 
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, array.array)
-
 
 class SetValue(ListValue):
     @classmethod
     def get_types(cls):
         return (set, frozenset, Set)
-
-#     @classmethod
-#     def is_valid(cls, val):
-#         return not isinstance(val, MappingView) and super().is_valid(val)
-
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, (set, frozenset, Set)) \
-#             and not isinstance(val, MappingView)
 
     def start_value(self):
         return "{"
@@ -964,19 +917,11 @@ class MappingViewValue(SetValue):
     def stop_value(self):
         return "])"
 
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, MappingView)
-
 
 class GeneratorValue(SetValue):
     @classmethod
     def get_types(cls):
         return (types.GeneratorType, range, map)
-
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, (types.GeneratorType, range, map))
 
     def instance_value(self, **kwargs):
         kwargs.setdefault("value", "generator")
@@ -991,10 +936,6 @@ class TupleValue(ListValue):
     @classmethod
     def get_types(cls):
         return (tuple,)
-
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, tuple)
 
     def start_value(self):
         return "("
@@ -1014,49 +955,14 @@ class PrimitiveValue(BuiltinValue):
             float
         )
 
-#     @classmethod
-#     def is_valid(cls, val):
-#         """is the value a built-in type?"""
-#         return isinstance(
-#             val,
-#             (
-#                 type(None),
-#                 bool,
-#                 int,
-#                 float
-#             )
-#         )
-# 
-#     def object_value(self):
-#         return ""
-
     def body_value(self):
         return str(self.val)
-
-#     def string_value(self):
-#         return self.body_value()
-
-
-# class NoneValue(PrimitiveValue):
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, type(None))
-# 
-#     def object_value(self):
-#         return ""
-# 
-#     def body_value(self):
-#         return ""
 
 
 class StringValue(BuiltinValue):
     @classmethod
     def get_types(cls):
         return basestring
-
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, basestring)
 
     def count_value(self):
         return len(self.val)
@@ -1081,10 +987,6 @@ class BinaryValue(StringValue):
     @classmethod
     def get_types(cls):
         return (bytes, bytearray, memoryview)
-
-#     @classmethod
-#     def is_valid(cls, val):
-#         return isinstance(val, (bytes, bytearray, memoryview))
 
     def start_value(self):
         return "b\""
@@ -1115,7 +1017,7 @@ class ModuleValue(ObjectValue):
     def instance_value(self):
         return "module"
 
-    def object_value(self, **kwargs):
+    def object_value(self):
         s = ""
         SHOW_MAGIC = self.kwargs.get("show_magic", False)
 
