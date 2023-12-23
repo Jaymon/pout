@@ -83,6 +83,16 @@ class Value(object):
     values_instance = None
     """Holds a cached instance of values_class for faster searches"""
 
+
+    SHOW_METHODS = False
+    """Whether object info includes methods by default"""
+
+    SHOW_MAGIC = False
+    """Whether object info includes magic variables/methods by default"""
+
+    SHOW_STR = True
+    """Whether object info includes __str__ method output by default"""
+
     @property
     def typename(self):
         s = self.__class__.__name__.replace("Value", "")
@@ -360,16 +370,20 @@ class Value(object):
 
         SHOW_METHODS = kwargs.get(
             "show_methods",
-            self.kwargs.get("show_methods", False)
+            self.kwargs.get("show_methods", self.SHOW_METHODS)
         )
         SHOW_MAGIC = kwargs.get(
             "show_magic",
-            self.kwargs.get("show_magic", False)
+            self.kwargs.get("show_magic", self.SHOW_MAGIC)
+        )
+        SHOW_STR = kwargs.get(
+            "show_str",
+            self.kwargs.get("show_str", self.SHOW_STR)
         )
 
         info_dict = self.info(
             show_methods=SHOW_METHODS,
-            show_magic=SHOW_MAGIC
+            show_magic=SHOW_MAGIC,
         )
 
         if val_class := info_dict["val_class"]:
@@ -389,7 +403,7 @@ class Value(object):
                         s_body += "{}".format(pname)
                     s_body += "\n"
 
-        if hasattr(val, "__str__"):
+        if SHOW_STR and hasattr(val, "__str__"):
             s_str = String(val)
             strlen = len(s_str)
             OBJECT_STR_LIMIT = self.kwargs.get(
@@ -724,7 +738,10 @@ class DescriptorValue(ObjectValue):
 
 class BuiltinValue(ObjectValue):
     """Handles python's builtin types and makes it so object value won't be
-    printed out unless it's a child of a built-in type"""
+    printed out unless it's a child of a built-in type
+    """
+    SHOW_STR = False
+
     @classmethod
     def is_valid(cls, val):
         try:
