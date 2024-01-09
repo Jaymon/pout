@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, division, print_function, absolute_import
 import hmac
 import hashlib
 import array
@@ -432,6 +431,7 @@ class ValueTest(TestCase):
         d = PoutDict(foo=1, bar=2)
         v = Value(d)
         s = v.string_value()
+        print(s)
         self.assertTrue("custom dict" in s)
 
     def test_object_1(self):

@@ -2,8 +2,6 @@
 """
 The Value classes in this file manage taking any python object and converting it
 into a string that can be printed out
-
-The Inspect class identifies what the object actually is
 """
 import types
 import inspect
@@ -501,6 +499,7 @@ class Value(object):
         """
         prefix = self.prefix_value()
         body = ""
+        pout_method = None
 
         depth = self.depth
         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
@@ -512,6 +511,7 @@ class Value(object):
                 value_body = ""
 
             else:
+                pout_method = None
                 object_body = self.object_value()
                 value_body = self.body_value()
 
@@ -520,23 +520,11 @@ class Value(object):
             value_body = ""
 
         if self.seen_first:
-            if object_body:
-                start_wrapper = self.start_object_value()
-                stop_wrapper = self.stop_object_value()
-                body = self._add_indent(start_wrapper, 1) + "\n" \
-                    + self._add_indent(object_body, 2) + "\n" \
-                    + self._add_indent(stop_wrapper, 1)
-
-            if value_body:
-                start_wrapper = self.start_value()
-                stop_wrapper = self.stop_value()
-
-                if body:
-                    body += "\n"
-
-                body += self._add_indent(start_wrapper, 1) + "\n" \
-                    + self._add_indent(value_body, 2) + "\n" \
-                    + self._add_indent(stop_wrapper, 1)
+            body = self.bodies_value(
+                object_body,
+                value_body,
+                pout_method=pout_method
+            )
 
         if body:
             ret = prefix + "\n" + body
@@ -633,7 +621,39 @@ class Value(object):
         """
         return ">"
 
-    def body_value(self, **kwargs):
+    def bodies_value(self, object_body, value_body, **kwargs):
+        """Internal method to combine the object and value bodies, called from
+        .string_value
+
+        :param object_body: str, the value returned from .object_value
+        :param value_body: str, the value returned from .body_value
+        :param **kwargs:
+            - pout_method: callable, the pout method used to generate
+                object_body
+        :returns: str, the combined bodies
+        """
+        body = ""
+        if object_body:
+            start_wrapper = self.start_object_value()
+            stop_wrapper = self.stop_object_value()
+            body = self._add_indent(start_wrapper, 1) + "\n" \
+                + self._add_indent(object_body, 2) + "\n" \
+                + self._add_indent(stop_wrapper, 1)
+
+        if value_body:
+            start_wrapper = self.start_value()
+            stop_wrapper = self.stop_value()
+
+            if body:
+                body += "\n"
+
+            body += self._add_indent(start_wrapper, 1) + "\n" \
+                + self._add_indent(value_body, 2) + "\n" \
+                + self._add_indent(stop_wrapper, 1)
+
+        return body
+
+    def body_value(self):
         """This is the method that will be most important to subclasses since
         the meat of generating the value of whatever value being represented
         will be generated
@@ -764,7 +784,6 @@ class BuiltinValue(ObjectValue):
         return NotImplementedError()
 
     def object_value(self):
-        has_body = False
         types = set(self.get_types())
         val_type = type(self.val)
         for t in types:
@@ -776,6 +795,12 @@ class BuiltinValue(ObjectValue):
                 pass
 
         return ""
+
+    def bodies_value(self, object_body, value_body, **kwargs):
+        body = ""
+        if value_body or kwargs.get("pout_method", None):
+            body = super().bodies_value(object_body, value_body)
+        return body
 
 
 class DictValue(BuiltinValue):

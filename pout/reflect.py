@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, division, print_function, absolute_import
 import inspect
 import os
 import codecs
@@ -18,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class CallString(String):
-    """Contains the actual pout.* call, this is needed to find the argument names
-    and stuff"""
+    """Contains the actual pout.* call, this is needed to find the argument
+    names and stuff"""
     @property
     def tokens(self):
         # https://github.com/python/cpython/blob/3.7/Lib/token.py
@@ -27,8 +26,8 @@ class CallString(String):
         return tokenizer(BytesIO(self.encode(environ.ENCODING)).readline)
 
     def is_complete(self):
-        """Return True if this call string is complete, meaning it has a function
-        name and balanced parens"""
+        """Return True if this call string is complete, meaning it has a
+        function name and balanced parens"""
         try:
             [t for t in self.tokens]
             ret = True
@@ -150,8 +149,8 @@ class CallString(String):
 
 
 class Call(object):
-    """Wraps a generic frame_tuple returned from like inspect.stack() and makes the
-    information containded in that FrameInfo tuple a little easier to digest
+    """Wraps a generic frame_tuple returned from like inspect.stack() and makes
+    the information containded in that FrameInfo tuple a little easier to digest
 
     https://docs.python.org/3/library/inspect.html
     """
@@ -163,12 +162,14 @@ class Call(object):
 
         since -- 7-2-12 -- Jay
 
-        frame_tuple -- tuple -- one row of the inspect.getouterframes return list
+        frame_tuple -- tuple -- one row of the inspect.getouterframes return
+        list
 
         return -- dict -- a bunch of information about the call:
             line -- what line the call originated on
             file -- the full filepath the call was made from
-            call -- the full text of the call (currently, this might be missing a closing paren)
+            call -- the full text of the call (currently, this might be missing
+                a closing paren)
         '''
         try:
             frames = inspect.getouterframes(frame_tuple[0])
@@ -184,7 +185,9 @@ class Call(object):
         call_info = {}
         #call_info['frame'] = frame_tuple
         call_info['line'] = frame_tuple[2]
-        call_info['file'] = self._get_path(os.path.abspath(inspect.getfile(frame_tuple[0])))
+        call_info['file'] = self._get_path(
+            os.path.abspath(inspect.getfile(frame_tuple[0]))
+        )
         call_info['call'] = ''
         call_info['arg_names'] = []
 
@@ -198,7 +201,11 @@ class Call(object):
             if called_func and called_func != '__call__':
                 # get the call block
                 try:
-                    open_kwargs = dict(mode='r', errors='replace', encoding=environ.ENCODING)
+                    open_kwargs = dict(
+                        mode='r',
+                        errors='replace',
+                        encoding=environ.ENCODING
+                    )
                     with codecs.open(call_info['file'], **open_kwargs) as fp:
                         caller_src = fp.read()
 
@@ -209,22 +216,31 @@ class Call(object):
                         ast.PyCF_ONLY_AST
                     )
 
-                    func_calls = self._find_calls(ast_tree, called_module, called_func)
+                    func_calls = self._find_calls(
+                        ast_tree,
+                        called_module,
+                        called_func
+                    )
 
                     # now get the actual calling codeblock
-                    regex = r"\s*(?:{})\s*\(".format("|".join([str(v) for v in func_calls]))
+                    regex = r"\s*(?:{})\s*\(".format(
+                        "|".join([str(v) for v in func_calls])
+                    )
                     r = re.compile(regex) 
                     caller_src_lines = caller_src.splitlines(False)
                     total_lines = len(caller_src_lines)
 
-                    # we need to move up one line until we get to the beginning of the call
+                    # we need to move up one line until we get to the beginning
+                    # of the call
                     while start_lineno >= 0:
 
                         # TODO -- would it be better to use the
                         # inspect.getframeinfo() context argument to get more
                         # lines of code? Instead of reading the file directly?
 
-                        call = "\n".join(caller_src_lines[start_lineno:stop_lineno])
+                        call = "\n".join(
+                            caller_src_lines[start_lineno:stop_lineno]
+                        )
                         match = r.search(call)
                         if(match):
                             call = call[match.start():]
@@ -234,13 +250,16 @@ class Call(object):
                             start_lineno -= 1
 
                     if start_lineno > -1:
-                        # now we need to make sure we have the end of the call also
+                        # now we need to make sure we have the end of the call
+                        # also
                         while stop_lineno < total_lines:
                             c = CallString(call)
                             if c.is_complete():
                                 break
                             else:
-                                call += "\n{}".format(caller_src_lines[stop_lineno])
+                                call += "\n{}".format(
+                                    caller_src_lines[stop_lineno]
+                                )
                                 stop_lineno += 1
 
                     else:
@@ -254,8 +273,9 @@ class Call(object):
                 arg_names = CallString(call).arg_names()
 
             else:
-                # we couldn't find the call, so let's just use what python gave us, this can
-                # happen when something like: method = func; method() is done and we were looking for func() 
+                # we couldn't find the call, so let's just use what python gave
+                # us, this can happen when something like: method = func;
+                # method() is done and we were looking for func() 
                 call = frame_tuple[4][0]
                 start_lineno = frame_tuple[2]
 
@@ -272,13 +292,13 @@ class Call(object):
         return Path(path)
 
     def _find_calls(self, ast_tree, called_module, called_func):
-        '''
-        scan the abstract source tree looking for possible ways to call the called_module
-        and called_func
+        """
+        scan the abstract source tree looking for possible ways to call the
+        called_module and called_func
 
         since -- 7-2-12 -- Jay
 
-        example -- 
+        :example:
             # import the module a couple ways:
             import pout
             from pout import v
@@ -291,16 +311,19 @@ class Call(object):
         link -- http://docs.python.org/library/modulefinder.html
         link -- http://stackoverflow.com/questions/2572582/return-a-list-of-imported-python-modules-used-in-a-script
 
-        ast_tree -- _ast.* instance -- the internal ast object that is being checked, returned from compile()
-            with ast.PyCF_ONLY_AST flag
-        called_module -- string -- we are checking the ast for imports of this module
-        called_func -- string -- we are checking the ast for aliases of this function
-
-        return -- set -- the list of possible calls the ast_tree could make to call the called_func
-        ''' 
+        :param ast_tree: _ast.* instance, the internal ast object that is being
+            checked, returned from compile() with ast.PyCF_ONLY_AST flag
+        :param called_module: str, we are checking the ast for imports of this
+            module
+        :param called_func: str, we are checking the ast for aliases of this
+            function
+        :returns: set, the list of possible calls the ast_tree could make to
+            call the called_func
+        """
         s = set()
 
-        # always add the default call, the set will make sure there are no dupes...
+        # always add the default call, the set will make sure there are no
+        # dupes...
         s.add("{}.{}".format(called_module, called_func))
 
         if hasattr(ast_tree, 'name'):
@@ -312,7 +335,9 @@ class Call(object):
             # further down the rabbit hole we go
             if isinstance(ast_tree.body, Iterable):
                 for ast_body in ast_tree.body:
-                    s.update(self._find_calls(ast_body, called_module, called_func))
+                    s.update(
+                        self._find_calls(ast_body, called_module, called_func)
+                    )
 
         elif hasattr(ast_tree, 'names'):
             # base case
@@ -321,14 +346,30 @@ class Call(object):
                 if ast_tree.module == called_module:
                     for ast_name in ast_tree.names:
                         if ast_name.name == called_func:
-                            s.add(unicode(ast_name.asname if ast_name.asname is not None else ast_name.name))
+                            if ast_name.asname is None:
+                                s.add(ast_name.name)
+
+                            else:
+                                s.add(str(ast_name.asname))
+
+                            #s.add(unicode(ast_name.asname if ast_name.asname is not None else ast_name.name))
 
             else:
                 # we are in a import ... statement
                 for ast_name in ast_tree.names:
-                    if hasattr(ast_name, 'name') and (ast_name.name == called_module):
+                    if (
+                        hasattr(ast_name, 'name')
+                        and (ast_name.name == called_module)
+                    ):
+                        if ast_name.asname is None:
+                            name = ast_name.name
+
+                        else:
+                            name = ast_name.asname
+
                         call = "{}.{}".format(
-                            ast_name.asname if ast_name.asname is not None else ast_name.name,
+                            name,
+                            #ast_name.asname if ast_name.asname is not None else ast_name.name,
                             called_func
                         )
                         s.add(call)
@@ -337,7 +378,9 @@ class Call(object):
 
 
 class Reflect(object):
-    """This provides the meta information (file, line number) for the actual pout call"""
+    """This provides the meta information (file, line number) for the actual
+    pout call
+    """
     def __init__(self, module, module_function_name, function_arg_vals):
         self.module = module
         self.module_function_name = module_function_name
@@ -350,13 +393,18 @@ class Reflect(object):
             # we want to get the frame of the current pout.* call
             frames = inspect.stack()
             frame = frames[1]
-            self.call = Call(self.module.__name__, self.module_function_name, frame)
+            self.call = Call(
+                self.module.__name__,
+                self.module_function_name,
+                frame
+            )
 
         except IndexError as e:
-            # There was a very specific bug that would cause inspect.getouterframes(frame)
-            # to fail when pout was called from an object's method that was called from
-            # within a Jinja template, it seemed like it was going to be annoying to
-            # reproduce and so I now catch the IndexError that inspect was throwing
+            # There was a very specific bug that would cause
+            # inspect.getouterframes(frame) to fail when pout was called from an
+            # object's method that was called from within a Jinja template, it
+            # seemed like it was going to be annoying to reproduce and so I now
+            # catch the IndexError that inspect was throwing
             #logger.exception(e)
             self.call = None
 
@@ -408,7 +456,9 @@ class Reflect(object):
                 # we can't autodiscover the names, in an interactive shell
                 # session?
                 for i, arg_val in enumerate(arg_vals):
-                    args.append({'name': 'Unknown {}'.format(i), 'val': arg_val})
+                    args.append(
+                        {'name': 'Unknown {}'.format(i), 'val': arg_val}
+                    )
 
             ret_dict['args'] = args
 
