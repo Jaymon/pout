@@ -44,6 +44,7 @@ class ValueTest(TestCase):
     def test_primitive_int(self):
         v = Value(100)
         r = v.string_value()
+        self.assertFalse("Instance Properties" in r, r)
         self.assertTrue("int instance" in r)
         self.assertTrue("100" in r)
         self.assertTrue("<" in r)
@@ -51,6 +52,7 @@ class ValueTest(TestCase):
     def test_primitive_bool(self):
         v = Value(True)
         r = v.string_value()
+        self.assertFalse("Instance Properties" in r, r)
         self.assertTrue("bool instance" in r)
         self.assertTrue("True" in r)
         self.assertTrue("<" in r)
@@ -58,6 +60,7 @@ class ValueTest(TestCase):
     def test_primitive_float(self):
         v = Value(123456.789)
         r = v.string_value()
+        self.assertFalse("Instance Properties" in r, r)
         self.assertTrue("float instance" in r)
         self.assertTrue("123456.789" in r)
         self.assertTrue("<" in r)
@@ -65,6 +68,7 @@ class ValueTest(TestCase):
     def test_primitive_none(self):
         v = Value(None)
         r = v.string_value()
+        self.assertFalse("Instance Properties" in r, r)
         self.assertTrue("NoneType instance" in r)
         self.assertTrue("<" in r)
 
@@ -384,6 +388,21 @@ class ValueTest(TestCase):
         r = v.string_value()
         self.assertTrue("str (7) instance" in r, r)
         self.assertTrue("foo bar" in r, r)
+
+    def test_bytestring(self):
+        v = Value(bytearray([65, 66, 67, 68]))
+        r = v.string_value()
+        self.assertTrue("b\"" in r, r)
+        self.assertTrue("ABCD" in r, r)
+
+        v = Value(b"foo bar")
+        r = v.string_value()
+        self.assertTrue("b\"" in r, r)
+        self.assertTrue("foo bar" in r, r)
+
+        v = Value(b"")
+        r = v.string_value()
+        self.assertTrue("<bytes (0) instance" in r, r)
 
     def test_exception(self):
         v = Value(ValueError("foo bar"))

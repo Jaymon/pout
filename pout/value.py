@@ -76,13 +76,15 @@ class Value(object):
     """Pout is mainly used to print values of different objects, and that
     printing of objects happens in subclasses of this parent class. See the
     .interface.V class for how this is hooked into pout.v
+
+    The most important method in this class is .string_value, check out that
+    docblock for the order all the other *_value methods are called
     """
     values_class = Values
     """Holds the class this will use to find the right Value class to return"""
 
     values_instance = None
     """Holds a cached instance of values_class for faster searches"""
-
 
     SHOW_METHODS = False
     """Whether object info includes methods by default"""
@@ -480,11 +482,14 @@ class Value(object):
 
         If a value has no body, then it returns a value like this:
 
-            <START_VALUE><PREFIX_VALUE><STOP_VALUE>
+            <OBJECT_START_VALUE><PREFIX_VALUE><OBJECT_STOP_VALUE>
 
         If there is a body, then the value will look more or less like this:
 
             <PREFIX_VALUE>
+                <OBJECT_START_VALUE>
+                    <OBJECT_VALUE>
+                <OBJECT_STOP_VALUE>
                 <START_VALUE>
                     <BODY_VALUE>
                 <STOP_VALUE>
@@ -760,9 +765,11 @@ class BuiltinValue(ObjectValue):
 
     def object_value(self):
         has_body = False
-        for t in self.get_types():
+        types = set(self.get_types())
+        val_type = type(self.val)
+        for t in types:
             try:
-                if isinstance(self.val, t) and type(self.val) is not t:
+                if isinstance(self.val, t) and val_type not in types:
                     return super().object_value()
 
             except TypeError:
@@ -1009,11 +1016,15 @@ class BinaryValue(StringValue):
         return "b\""
 
     def body_value(self):
-        try:
-            s = repr(bytes(self.val))
+        if isinstance(self.val, bytes):
+            s = super().body_value()
 
-        except (TypeError, UnicodeError) as e:
-            s = "<UNICODE ERROR>"
+        else:
+            try:
+                s = String(bytes(self.val))
+
+            except (TypeError, UnicodeError) as e:
+                s = "<UNICODE ERROR>"
 
         return s
 
