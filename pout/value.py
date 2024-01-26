@@ -93,6 +93,11 @@ class Value(object):
     SHOW_STR = True
     """Whether object info includes __str__ method output by default"""
 
+    SHOW_ALWAYS = False
+    """Whether the object should always be expanded, if False then the first
+    time an object is seen it will be expanded, if True then everytime the
+    object is seen it will be expanded"""
+
     @property
     def typename(self):
         s = self.__class__.__name__.replace("Value", "")
@@ -519,7 +524,7 @@ class Value(object):
             object_body = ""
             value_body = ""
 
-        if self.seen_first:
+        if self.seen_first or self.SHOW_ALWAYS:
             body = self.bodies_value(
                 object_body,
                 value_body,
@@ -767,6 +772,11 @@ class BuiltinValue(ObjectValue):
     """
     SHOW_STR = False
 
+    SHOW_OBJECT = False
+    """turns out, it's actually really annoying to me having extended built-in
+    classes print their object value, it's 95% noise to the 5% I would find it
+    handy"""
+
     @classmethod
     def is_valid(cls, val):
         try:
@@ -784,15 +794,16 @@ class BuiltinValue(ObjectValue):
         return NotImplementedError()
 
     def object_value(self):
-        types = set(self.get_types())
-        val_type = type(self.val)
-        for t in types:
-            try:
-                if isinstance(self.val, t) and val_type not in types:
-                    return super().object_value()
+        if self.kwargs.get("show_object", self.SHOW_OBJECT):
+            types = set(self.get_types())
+            val_type = type(self.val)
+            for t in types:
+                try:
+                    if isinstance(self.val, t) and val_type not in types:
+                        return super().object_value()
 
-            except TypeError:
-                pass
+                except TypeError:
+                    pass
 
         return ""
 
@@ -851,7 +862,7 @@ class DictValue(BuiltinValue):
             count = 0
             for k, v in iterator:
                 count += 1
-                if count > ITERATE_LIMIT:
+                if ITERATE_LIMIT > 0 and count > ITERATE_LIMIT:
                     try:
                         total_rows = len(self.val)
 
@@ -995,6 +1006,8 @@ class TupleValue(ListValue):
 
 class PrimitiveValue(BuiltinValue):
     """is the value a built-in primitive type?"""
+    SHOW_ALWAYS = True
+
     @classmethod
     def get_types(cls):
         return (
@@ -1009,6 +1022,8 @@ class PrimitiveValue(BuiltinValue):
 
 
 class StringValue(BuiltinValue):
+    SHOW_ALWAYS = True
+
     @classmethod
     def get_types(cls):
         return basestring
@@ -1041,15 +1056,13 @@ class BinaryValue(StringValue):
         return "b\""
 
     def body_value(self):
-        if isinstance(self.val, bytes):
-            s = super().body_value()
+        try:
+            s = repr(bytes(self.val))
+            if s.startswith("b'"):
+                s = s[2:-1] # strip preceding b' and trailing '
 
-        else:
-            try:
-                s = String(bytes(self.val))
-
-            except (TypeError, UnicodeError) as e:
-                s = "<UNICODE ERROR>"
+        except (TypeError, UnicodeError) as e:
+            s = "<UNICODE ERROR>"
 
         return s
 
@@ -1284,10 +1297,11 @@ class CallableValue(Value):
 
         if isinstance(val, types.MethodType):
             typename = "method"
-            classpath = ""
+            classpath = self._get_name(val)
+
             klass = getattr(val, "__self__", None)
             if klass:
-                classpath = self._get_name(klass)
+                #classpath = self._get_name(klass)
                 classname = getattr(klass, "__name__", "")
                 if classname:
                     typename = "classmethod"

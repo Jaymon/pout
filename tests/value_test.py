@@ -431,7 +431,6 @@ class ValueTest(TestCase):
         d = PoutDict(foo=1, bar=2)
         v = Value(d)
         s = v.string_value()
-        print(s)
         self.assertTrue("custom dict" in s)
 
     def test_object_1(self):
@@ -586,24 +585,36 @@ class ValueTest(TestCase):
         v = Value(Klass.clsmethod)
         s = v.string_value()
         self.assertTrue("<classmethod tests." in s)
+        self.assertTrue(".clsmethod(" in s, s)
 
         k = Klass()
         v = Value(k.instancemethod)
         s = v.string_value()
         self.assertTrue("<method tests." in s)
+        self.assertTrue(".instancemethod(" in s, s)
 
         def func(*args, **kwargs): pass
-
         v = Value(func)
         s = v.string_value()
         self.assertTrue("<function tests." in s)
+        self.assertTrue(".func(" in s, s)
 
     def test_callable_2(self):
         v = Value(object.__new__)
         self.assertTrue(isinstance(v, CallableValue))
 
         r = v.string_value()
-        self.assertTrue("staticmethod" in r)
+        self.assertTrue("staticmethod" in r, r)
+        self.assertTrue(".__new__" in r, r)
+
+    def test_callable_3(self):
+        class Foo(object):
+            def get_foo(self, **kwargs):
+                pass
+
+        v = Value(Foo().get_foo)
+        r = v.string_value()
+        self.assertTrue(".get_foo" in r)
 
     def test_classmethod(self):
         """in python 3.10 classmethods were being categorized as properties"""
