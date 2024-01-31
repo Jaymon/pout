@@ -1363,6 +1363,26 @@ class DatetimeValue(ObjectValue):
         return "\n".join(body)
 
 
+class TimedeltaValue(ObjectValue):
+    """
+    https://docs.python.org/3/library/datetime.html#timedelta-objects
+    """
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, datetime.timedelta)
+
+    def object_value(self):
+        body = [
+            String(self.val),
+            "",
+            f"days: {self.val.days}",
+            f"seconds: {self.val.seconds}",
+            f"microseconds: {self.val.microseconds}",
+        ]
+
+        return "\n".join(body)
+
+
 class PathValue(ObjectValue):
     """
     https://docs.python.org/3/library/pathlib.html
