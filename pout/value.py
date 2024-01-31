@@ -18,6 +18,7 @@ from collections import Counter
 import functools
 import sqlite3
 import datetime
+import uuid
 
 from .compat import *
 from . import environ
@@ -1393,4 +1394,28 @@ class PathValue(ObjectValue):
 
     def object_value(self):
         return String(self.val)
+
+
+class UUIDValue(ObjectValue):
+    """
+    https://docs.python.org/3/library/uuid.html#uuid.UUID
+    """
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, uuid.UUID)
+
+    def object_value(self):
+        return "\n".join([
+            String(self.val),
+            "",
+            f"version: {self.val.version}",
+            f"hex: {self.val.hex}",
+            f"int: {self.val.int}",
+            "bytes (big endian): {}".format(
+                BinaryValue(self.val.bytes).body_value()
+            ),
+            "bytes (little endian): {}".format(
+                BinaryValue(self.val.bytes_le).body_value()
+            ),
+        ])
 
