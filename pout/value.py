@@ -509,7 +509,7 @@ class Value(object):
 
         depth = self.depth
         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
-        if depth < OBJECT_DEPTH:
+        if depth < OBJECT_DEPTH or self.SHOW_ALWAYS:
             pout_method = self._getattr(self.val, "__pout__", None)
 
             if pout_method and callable(pout_method):
