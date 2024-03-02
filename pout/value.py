@@ -480,6 +480,9 @@ class Value(object):
             + body + "\n" \
             + stop_wrapper
 
+    def method_value(self):
+        return self._getattr(self.val, "__pout__", None)
+
     def string_value(self):
         """This is the main "value" generation method, this is the method that
         should be called from external sources
@@ -510,7 +513,7 @@ class Value(object):
         depth = self.depth
         OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
         if depth < OBJECT_DEPTH or self.SHOW_ALWAYS:
-            pout_method = self._getattr(self.val, "__pout__", None)
+            pout_method = self.method_value()
 
             if pout_method and callable(pout_method):
                 object_body = self.create_instance(pout_method()).body_value()
@@ -1165,6 +1168,9 @@ class TypeValue(ObjectValue):
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, type)
+
+    def method_value(self):
+        return self._getattr(self.val, "__pout_class__", None)
 
     def instance_value(self, **kwargs):
         kwargs.setdefault("value", "class")
