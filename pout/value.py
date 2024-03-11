@@ -38,6 +38,9 @@ class Values(list):
     this class maintains that order, basically, it makes sure all subclasses
     get checked before the parent class, so if you want your CustomValue to
     evaluate before DictValue, you would just have CustomValue extend DictValue
+
+    This was the inspiration for datatypes.OrderedSubclasses but since pout
+    has no dependencies pout can't use the much more robust datatypes version
     """
     def __init__(self):
         super().__init__()

@@ -2,9 +2,10 @@
 """
 prints out variables and other handy things to help with debugging
 
-print was too hard to read, pprint wasn't much better. I was getting sick of typing: 
-print "var name: {}".format(var). This tries to print out variables with their name, 
-and where the print statement was called (so you can easily find it and delete it later).
+print was too hard to read, pprint wasn't much better. I was getting sick of
+typing: print "var name: {}".format(var). This tries to print out variables
+with their name, and where the print statement was called (so you can easily
+find it and delete it later).
 
 link -- http://stackoverflow.com/questions/3229419/pretty-printing-nested-dictionaries-in-python
 link -- http://docs.python.org/library/pprint.html
@@ -16,7 +17,6 @@ link -- http://docs.python.org/2.7/library/repr.html
 
 since -- 6-26-12
 """
-from __future__ import unicode_literals, division, print_function, absolute_import
 import sys
 import logging
 
