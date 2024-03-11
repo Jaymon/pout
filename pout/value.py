@@ -705,6 +705,11 @@ class Value(object):
         return ">"
 
     def simple_value(self, object_body, value_body, **kwargs):
+        """Internal method called instead of .bodies_value when .SHOW_SIMPLE
+        is True.
+
+        see .bodies_value
+        """
         if value_body:
             start_wrapper = self.start_value()
             stop_wrapper = self.stop_value()
@@ -767,10 +772,16 @@ class Value(object):
 
         :returns: str
         """
-        prefix = self.prefix_value()
-        start_wrapper = self.start_object_value()
-        stop_wrapper = self.stop_object_value()
-        return f"{start_wrapper}{prefix}{stop_wrapper}"
+        if self.SHOW_SIMPLE:
+            start_wrapper = self.start_value()
+            stop_wrapper = self.stop_value()
+            return f"{start_wrapper}{stop_wrapper}"
+
+        else:
+            start_wrapper = self.start_object_value()
+            stop_wrapper = self.stop_object_value()
+            prefix = self.prefix_value()
+            return f"{start_wrapper}{prefix}{stop_wrapper}"
 
     def name_value(self, name):
         """wrapper method that the interface can use to customize the name for a
