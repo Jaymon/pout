@@ -3,7 +3,7 @@ import sys
 import logging
 import re
 
-from .compat import String as BaseString, Bytes as BaseBytes
+from .compat import String as BaseString, Bytes
 from . import environ
 
 
@@ -20,7 +20,7 @@ class String(BaseString):
         :returns: unicode, a u"" string will always be returned
         """
         try:
-            if isinstance(arg, BaseBytes):
+            if isinstance(arg, Bytes):
                 arg = arg.decode(
                     environ.ENCODING,
                     errors=environ.ENCODING_REPLACE_METHOD

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-The Value classes in this file manage taking any python object and converting it
-into a string that can be printed out
+The Value classes in this file manage taking any python object and converting
+it into a string that can be printed out
 """
 import types
 import inspect
@@ -35,9 +35,9 @@ class Values(list):
     values might actually resolve into 2 different sub values, so order becomes
     important
 
-    this class maintains that order, basically, it makes sure all subclasses get
-    checked before the parent class, so if you want your CustomValue to evaluate
-    before DictValue, you would just have CustomValue extend DictValue
+    this class maintains that order, basically, it makes sure all subclasses
+    get checked before the parent class, so if you want your CustomValue to
+    evaluate before DictValue, you would just have CustomValue extend DictValue
     """
     def __init__(self):
         super().__init__()
@@ -99,6 +99,8 @@ class Value(object):
     time an object is seen it will be expanded, if True then everytime the
     object is seen it will be expanded"""
 
+    SHOW_SIMPLE = False
+
     @property
     def typename(self):
         s = self.__class__.__name__.replace("Value", "")
@@ -110,7 +112,9 @@ class Value(object):
         if cls is Value:
             if not cls.values_instance:
                 cls.values_instance = cls.values_class()
+
             return cls.values_instance.find_class(val)
+
         else:
             return cls
 
@@ -120,7 +124,8 @@ class Value(object):
 
     def __new__(cls, val, depth=0, **kwargs):
         """through magic, instantiating an instance will actually create
-        subclasses of the different *Value classes, once again, through magic"""
+        subclasses of the different *Value classes, once again, through magic
+        """
 
         # we don't pass in (val, depth) because this just returns the instance
         # and then __init__ is called with those values also
@@ -129,14 +134,50 @@ class Value(object):
     def __init__(self, val, depth=0, **kwargs):
         self.val = val
         self.depth = depth
-        self.kwargs = kwargs
 
         # tracks which instances have been seen so they are only fully expanded
         # the first time they're seen for this call
-        self.seen = self.kwargs.pop("seen", Counter())
+        self.seen = kwargs.pop("seen", Counter())
         vid = self.id_value()
         self.seen[vid] += 1
         self.seen_first = self.seen[vid] == 1
+
+        self.set_instance_attributes(**kwargs)
+
+    def set_instance_attributes(self, **kwargs):
+        # we want to be able to update values based on what was passed in, so
+        # if show_methods=True was passed in we want to update .SHOW_METHODS
+        # for this instance
+        for k, v in kwargs.items():
+            for ik in [k, k.upper()]:
+                if hasattr(self, ik):
+                    setattr(self, ik, v)
+                    break
+
+        self.OBJECT_STR_LIMIT = kwargs.get(
+            "object_str_limit",
+            environ.OBJECT_STR_LIMIT
+        )
+
+        self.ITERATE_LIMIT = kwargs.get(
+            "iterate_limit",
+            environ.ITERATE_LIMIT
+        )
+
+        self.INDENT_STRING = kwargs.get(
+            "indent_string",
+            environ.INDENT_STRING
+        )
+
+        self.OBJECT_DEPTH = kwargs.get(
+            "object_depth",
+            environ.OBJECT_DEPTH
+        )
+
+        if self.SHOW_SIMPLE:
+            self.SHOW_ALWAYS = True
+
+        self.kwargs = kwargs
 
     def create_instance(self, val, **kwargs):
         """Sometimes while generating the .string_value for .val sub Value
@@ -146,6 +187,8 @@ class Value(object):
         :param **kwargs:
         :returns: Value, the val wrapped in a Value instance
         """
+        kwargs.setdefault("show_simple", self.SHOW_SIMPLE)
+
         kwargs.setdefault("depth", self.depth + 1)
         kwargs.setdefault("seen", self.seen)
         instance = Value(val, **kwargs)
@@ -374,18 +417,22 @@ class Value(object):
         val = self.val
         depth = self.depth
 
-        SHOW_METHODS = kwargs.get(
-            "show_methods",
-            self.kwargs.get("show_methods", self.SHOW_METHODS)
-        )
-        SHOW_MAGIC = kwargs.get(
-            "show_magic",
-            self.kwargs.get("show_magic", self.SHOW_MAGIC)
-        )
-        SHOW_STR = kwargs.get(
-            "show_str",
-            self.kwargs.get("show_str", self.SHOW_STR)
-        )
+        SHOW_METHODS = kwargs.get("show_methods",self.SHOW_METHODS)
+        SHOW_MAGIC = kwargs.get("show_magic", self.SHOW_MAGIC)
+        SHOW_STR = kwargs.get("show_str", self.SHOW_STR)
+
+#         SHOW_METHODS = kwargs.get(
+#             "show_methods",
+#             self.kwargs.get("show_methods", self.SHOW_METHODS)
+#         )
+#         SHOW_MAGIC = kwargs.get(
+#             "show_magic",
+#             self.kwargs.get("show_magic", self.SHOW_MAGIC)
+#         )
+#         SHOW_STR = kwargs.get(
+#             "show_str",
+#             self.kwargs.get("show_str", self.SHOW_STR)
+#         )
 
         info_dict = self.info(
             show_methods=SHOW_METHODS,
@@ -412,10 +459,7 @@ class Value(object):
         if SHOW_STR and hasattr(val, "__str__"):
             s_str = String(val)
             strlen = len(s_str)
-            OBJECT_STR_LIMIT = self.kwargs.get(
-                "object_str_limit",
-                environ.OBJECT_STR_LIMIT
-            )
+            OBJECT_STR_LIMIT = self.OBJECT_STR_LIMIT
 
             if strlen > OBJECT_STR_LIMIT:
                 s_str = s_str.truncate(OBJECT_STR_LIMIT)
@@ -506,13 +550,17 @@ class Value(object):
 
         :returns: str, a string suitable to be printed or whatever
         """
-        prefix = self.prefix_value()
+        if self.SHOW_SIMPLE:
+            prefix = ""
+
+        else:
+            prefix = self.prefix_value()
+
         body = ""
         pout_method = None
 
         depth = self.depth
-        OBJECT_DEPTH = self.kwargs.get("object_depth", environ.OBJECT_DEPTH)
-        if depth < OBJECT_DEPTH or self.SHOW_ALWAYS:
+        if depth < self.OBJECT_DEPTH or self.SHOW_ALWAYS:
             pout_method = self.method_value()
 
             if pout_method and callable(pout_method):
@@ -529,14 +577,26 @@ class Value(object):
             value_body = ""
 
         if self.seen_first or self.SHOW_ALWAYS:
-            body = self.bodies_value(
-                object_body,
-                value_body,
-                pout_method=pout_method
-            )
+            if self.SHOW_SIMPLE:
+                body = self.simple_value(
+                    object_body,
+                    value_body,
+                    pout_method=pout_method
+                )
+
+            else:
+                body = self.bodies_value(
+                    object_body,
+                    value_body,
+                    pout_method=pout_method
+                )
 
         if body:
-            ret = prefix + "\n" + body
+            if prefix:
+                ret = prefix + "\n" + body
+
+            else:
+                ret = body
 
         else:
             ret = self.summary_value()
@@ -630,6 +690,20 @@ class Value(object):
         """
         return ">"
 
+    def simple_value(self, object_body, value_body, **kwargs):
+        if value_body:
+            start_wrapper = self.start_value()
+            stop_wrapper = self.stop_value()
+
+            body = start_wrapper + "\n" \
+                + self._add_indent(value_body, 1) + "\n" \
+                + stop_wrapper
+
+        else:
+            body = object_body
+
+        return body
+
     def bodies_value(self, object_body, value_body, **kwargs):
         """Internal method to combine the object and value bodies, called from
         .string_value
@@ -661,6 +735,40 @@ class Value(object):
                 + self._add_indent(stop_wrapper, 1)
 
         return body
+
+
+#         if self.SHOW_SIMPLE:
+#             indent = 0
+#             vindent = 0
+#             eol = ""
+# 
+#         else:
+#             indent = 1
+#             vindent = 2
+#             eol = "\n"
+# 
+#         indent = 0 if self.SHOW_SIMPLE else 1
+# 
+#         body = ""
+#         if object_body:
+#             start_wrapper = self.start_object_value()
+#             stop_wrapper = self.stop_object_value()
+#             body = self._add_indent(start_wrapper, indent) + eol \
+#                 + self._add_indent(object_body, vindent) + eol \
+#                 + self._add_indent(stop_wrapper, indent)
+# 
+#         if value_body:
+#             start_wrapper = self.start_value()
+#             stop_wrapper = self.stop_value()
+# 
+#             if body:
+#                 body += "\n"
+# 
+#             body += self._add_indent(start_wrapper, indent) + eol \
+#                 + self._add_indent(value_body, vindent) + eol \
+#                 + self._add_indent(stop_wrapper, indent)
+# 
+#         return body
 
     def body_value(self):
         """This is the method that will be most important to subclasses since
@@ -703,12 +811,11 @@ class Value(object):
         :returns: string, string with indent_count indents at the beginning of
             each line
         """
-        INDENT_STRING = self.kwargs.get("indent_string", environ.INDENT_STRING)
-
         if isinstance(val, Value):
             val = val.string_value()
 
-        return String(val).indent(indent_count, INDENT_STRING)
+        return String(val).indent(self.INDENT_STRING, indent_count)
+#         return String(val).indent(indent_count, self.INDENT_STRING)
 
 
 class ObjectValue(Value):
@@ -798,7 +905,7 @@ class BuiltinValue(ObjectValue):
         return NotImplementedError()
 
     def object_value(self):
-        if self.kwargs.get("show_object", self.SHOW_OBJECT):
+        if self.SHOW_OBJECT:
             types = set(self.get_types())
             val_type = type(self.val)
             for t in types:
@@ -827,10 +934,13 @@ class DictValue(BuiltinValue):
     def name_callback(self, k):
         if isinstance(k, (bytes, bytearray)):
             ret = "b'{}'".format(String(k))
+
         elif isinstance(k, basestring):
             ret = "'{}'".format(String(k))
+
         else:
             ret = String(k)
+
         return ret
 
     def __iter__(self):
@@ -859,12 +969,21 @@ class DictValue(BuiltinValue):
         '''
         s_body = []
         depth = self.depth
-        iterator = self
-        ITERATE_LIMIT = self.kwargs.get("iterate_limit", environ.ITERATE_LIMIT)
+
+        if self.SHOW_SIMPLE:
+            ITERATE_LIMIT = 0
+
+        else:
+#             ITERATE_LIMIT = self.kwargs.get(
+#                 "iterate_limit",
+#                 environ.ITERATE_LIMIT
+#             )
+
+            ITERATE_LIMIT = self.ITERATE_LIMIT
 
         try:
             count = 0
-            for k, v in iterator:
+            for k, v in self:
                 count += 1
                 if ITERATE_LIMIT > 0 and count > ITERATE_LIMIT:
                     try:
@@ -894,7 +1013,9 @@ class DictValue(BuiltinValue):
 
         except Exception as e:
             logger.exception(e)
-            s_body.append("... {} Error {} ...".format(e, e.__class__.__name__))
+            s_body.append(
+                "... {} Error {} ...".format(e, e.__class__.__name__)
+            )
 
         return ",\n".join(s_body)
 
@@ -922,7 +1043,10 @@ class ListValue(DictValue):
 
     def name_callback(self, k):
         """Returns just a string representation of the integer k"""
-        return str(k)
+        if not self.SHOW_SIMPLE:
+            return str(k)
+
+        #return str(k)
 
     def start_value(self):
         return "["
@@ -1021,6 +1145,13 @@ class PrimitiveValue(BuiltinValue):
             float
         )
 
+    def simple_value(self, object_body, value_body, **kwargs):
+        if value_body:
+            return value_body
+
+        else:
+            return object_body
+
     def body_value(self):
         return str(self.val)
 
@@ -1049,6 +1180,17 @@ class StringValue(BuiltinValue):
             s = "<UNICODE ERROR>"
 
         return s
+
+    def simple_value(self, object_body, value_body, **kwargs):
+        if value_body:
+            start_wrapper = self.start_value()
+            stop_wrapper = self.stop_value()
+            body = start_wrapper + value_body + stop_wrapper
+
+        else:
+            body = super().simple_value(object_body, value_body, **kwargs)
+
+        return body
 
 
 class BinaryValue(StringValue):
@@ -1089,7 +1231,7 @@ class ModuleValue(ObjectValue):
 
     def object_value(self):
         s = ""
-        SHOW_MAGIC = self.kwargs.get("show_magic", False)
+        SHOW_MAGIC = self.SHOW_MAGIC
 
         val = self.val
 
@@ -1179,7 +1321,7 @@ class TypeValue(ObjectValue):
     def object_value(self):
         s_body = ""
 
-        SHOW_MAGIC = self.kwargs.get("show_magic", False)
+        SHOW_MAGIC = self.SHOW_MAGIC
         info_dict = self.info(show_magic=SHOW_MAGIC)
 
         if class_dict := info_dict["class_properties"]:
