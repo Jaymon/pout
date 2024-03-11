@@ -200,13 +200,9 @@ class Value(object):
         :param **kwargs:
         :returns: Value, the val wrapped in a Value instance
         """
-        kwargs.setdefault("short_prefix", self.SHORT_PREFIX)
-        kwargs.setdefault("show_simple", self.SHOW_SIMPLE)
         kwargs.setdefault("depth", self.depth + 1)
         kwargs.setdefault("seen", self.seen)
-        instance = Value(val, **kwargs)
-
-        return instance
+        return Value(val, **{**self.kwargs, **kwargs})
 
     def _is_magic(self, name):
         """Return true if the name is __name__
