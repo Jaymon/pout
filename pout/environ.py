@@ -62,6 +62,10 @@ INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "    ")
 """This is what pout uses to indent when it is creating the output"""
 
 
+SHORT_PREFIX = bool(int(os.environ.get("POUT_SHORT_PREFIX", 0)))
+"""pout will print short value prefixes without memory address"""
+
+
 def handle_decode_replace(e):
     """this handles replacing bad characters when printing out
 

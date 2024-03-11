@@ -667,12 +667,17 @@ class ValueTest(TestCase):
         r = v.string_value()
         self.assertRegex(r, r"\s1\s", r)
 
-
-    def test_show_prefix(self):
+    def test_show_simple(self):
         l = [self.get_dict() for _ in range(5)]
 
         v = Value(l, show_simple=True)
         r = v.string_value()
         self.assertTrue(r.startswith("["))
         self.assertTrue(r.endswith("]"))
+
+    def test_short_prefix(self):
+        d = self.get_dict()
+        v = Value(d, short_prefix=True)
+        r = v.string_value()
+        self.assertFalse("at 0x" in r)
 

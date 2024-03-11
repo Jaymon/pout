@@ -100,6 +100,8 @@ class Value(object):
     object is seen it will be expanded"""
 
     SHOW_SIMPLE = False
+    """Output the value without all the bells and whistles. You would use this
+    flag to get a value that is close to actual python code"""
 
     @property
     def typename(self):
@@ -145,11 +147,16 @@ class Value(object):
         self.set_instance_attributes(**kwargs)
 
     def set_instance_attributes(self, **kwargs):
+        """update the instance attributes to reflect what is set in the
+        environment and what was passed into this instance
+
+        :param **kwargs: the passed in keywords
+        """
         # we want to be able to update values based on what was passed in, so
         # if show_methods=True was passed in we want to update .SHOW_METHODS
         # for this instance
         for k, v in kwargs.items():
-            for ik in [k, k.upper()]:
+            for ik in [k, k.upper(), f"SHOW_{k.upper()}"]:
                 if hasattr(self, ik):
                     setattr(self, ik, v)
                     break
@@ -166,7 +173,7 @@ class Value(object):
 
         self.INDENT_STRING = kwargs.get(
             "indent_string",
-            environ.INDENT_STRING
+            kwargs.get("indent", environ.INDENT_STRING)
         )
 
         self.OBJECT_DEPTH = kwargs.get(
@@ -174,8 +181,14 @@ class Value(object):
             environ.OBJECT_DEPTH
         )
 
+        self.SHORT_PREFIX = kwargs.get(
+            "short_prefix",
+            environ.SHORT_PREFIX
+        )
+
         if self.SHOW_SIMPLE:
             self.SHOW_ALWAYS = True
+            self.ITERATE_LIMIT = 0
 
         self.kwargs = kwargs
 
@@ -187,8 +200,8 @@ class Value(object):
         :param **kwargs:
         :returns: Value, the val wrapped in a Value instance
         """
+        kwargs.setdefault("short_prefix", self.SHORT_PREFIX)
         kwargs.setdefault("show_simple", self.SHOW_SIMPLE)
-
         kwargs.setdefault("depth", self.depth + 1)
         kwargs.setdefault("seen", self.seen)
         instance = Value(val, **kwargs)
@@ -421,19 +434,6 @@ class Value(object):
         SHOW_MAGIC = kwargs.get("show_magic", self.SHOW_MAGIC)
         SHOW_STR = kwargs.get("show_str", self.SHOW_STR)
 
-#         SHOW_METHODS = kwargs.get(
-#             "show_methods",
-#             self.kwargs.get("show_methods", self.SHOW_METHODS)
-#         )
-#         SHOW_MAGIC = kwargs.get(
-#             "show_magic",
-#             self.kwargs.get("show_magic", self.SHOW_MAGIC)
-#         )
-#         SHOW_STR = kwargs.get(
-#             "show_str",
-#             self.kwargs.get("show_str", self.SHOW_STR)
-#         )
-
         info_dict = self.info(
             show_methods=SHOW_METHODS,
             show_magic=SHOW_MAGIC,
@@ -612,11 +612,27 @@ class Value(object):
 
         :returns: str
         """
-        return "{} {} at {}".format(
-            self.classpath_value(),
-            self.instance_value(),
-            self.id_value(),
-        )
+        if self.SHORT_PREFIX:
+            # TODO -- this is kind of a hacky way to get just the count if it
+            # is there and ignore it if it doesn't have length information
+            ivalue = self.instance_value()
+            if "(" in ivalue:
+                ivalue = ivalue.split(" ", 1)[0]
+
+            else:
+                ivalue = ""
+
+            return "{} {}".format(
+                self.classpath_value(),
+                ivalue,
+            ).strip()
+
+        else:
+            return "{} {} at {}".format(
+                self.classpath_value(),
+                self.instance_value(),
+                self.id_value(),
+            )
 
     def classpath_value(self):
         """The full class name (eg module.submodule.ClassName)
@@ -736,40 +752,6 @@ class Value(object):
 
         return body
 
-
-#         if self.SHOW_SIMPLE:
-#             indent = 0
-#             vindent = 0
-#             eol = ""
-# 
-#         else:
-#             indent = 1
-#             vindent = 2
-#             eol = "\n"
-# 
-#         indent = 0 if self.SHOW_SIMPLE else 1
-# 
-#         body = ""
-#         if object_body:
-#             start_wrapper = self.start_object_value()
-#             stop_wrapper = self.stop_object_value()
-#             body = self._add_indent(start_wrapper, indent) + eol \
-#                 + self._add_indent(object_body, vindent) + eol \
-#                 + self._add_indent(stop_wrapper, indent)
-# 
-#         if value_body:
-#             start_wrapper = self.start_value()
-#             stop_wrapper = self.stop_value()
-# 
-#             if body:
-#                 body += "\n"
-# 
-#             body += self._add_indent(start_wrapper, indent) + eol \
-#                 + self._add_indent(value_body, vindent) + eol \
-#                 + self._add_indent(stop_wrapper, indent)
-# 
-#         return body
-
     def body_value(self):
         """This is the method that will be most important to subclasses since
         the meat of generating the value of whatever value being represented
@@ -815,7 +797,6 @@ class Value(object):
             val = val.string_value()
 
         return String(val).indent(self.INDENT_STRING, indent_count)
-#         return String(val).indent(indent_count, self.INDENT_STRING)
 
 
 class ObjectValue(Value):
@@ -969,17 +950,7 @@ class DictValue(BuiltinValue):
         '''
         s_body = []
         depth = self.depth
-
-        if self.SHOW_SIMPLE:
-            ITERATE_LIMIT = 0
-
-        else:
-#             ITERATE_LIMIT = self.kwargs.get(
-#                 "iterate_limit",
-#                 environ.ITERATE_LIMIT
-#             )
-
-            ITERATE_LIMIT = self.ITERATE_LIMIT
+        ITERATE_LIMIT = self.ITERATE_LIMIT
 
         try:
             count = 0
@@ -1045,8 +1016,6 @@ class ListValue(DictValue):
         """Returns just a string representation of the integer k"""
         if not self.SHOW_SIMPLE:
             return str(k)
-
-        #return str(k)
 
     def start_value(self):
         return "["
@@ -1466,8 +1435,8 @@ class CallableValue(Value):
 
             if "." in cp and not re.search(r">\.[^\.]+$", cp):
                 # this could also be something like builtin-method, this is for
-                # things like object.__new__ that are technically static methods
-                # but look like functions
+                # things like object.__new__ that are technically static
+                # methods but look like functions
                 if signature.startswith("(self,"):
                     typename = "method"
 
