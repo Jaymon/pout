@@ -613,19 +613,10 @@ class Value(object):
         :returns: str
         """
         if self.SHORT_PREFIX:
-            # TODO -- this is kind of a hacky way to get just the count if it
-            # is there and ignore it if it doesn't have length information
-            ivalue = self.instance_value()
-            if "(" in ivalue:
-                ivalue = ivalue.split(" ", 1)[0]
-
-            else:
-                ivalue = ""
-
             return "{} {}".format(
                 self.classpath_value(),
-                ivalue,
-            ).strip()
+                self.instance_value(),
+            ).rstrip()
 
         else:
             return "{} {} at {}".format(
@@ -662,11 +653,19 @@ class Value(object):
                 other than the default value
         :returns: str
         """
-        instance_value = kwargs.get("value", self.typename.lower())
-        count_value = self.count_value()
+        if self.SHORT_PREFIX:
+            instance_value = ""
 
+        else:
+            instance_value = kwargs.get("value", self.typename.lower())
+
+        count_value = self.count_value()
         if count_value is not None:
-            instance_value = f"({count_value}) {instance_value}"
+            if instance_value:
+                instance_value = f"({count_value}) {instance_value}"
+
+            else:
+                instance_value = f"({count_value})"
 
         return instance_value
 
