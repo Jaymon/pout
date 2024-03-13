@@ -65,6 +65,9 @@ INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "    ")
 SHORT_PREFIX = bool(int(os.environ.get("POUT_SHORT_PREFIX", 0)))
 """pout will print short value prefixes without memory address"""
 
+KEY_QUOTE_CHAR = os.environ.get("POUT_KEY_QUOTE_CHAR", "\'")
+"""pout will use this quotation character to wrap dict keys"""
+
 
 def handle_decode_replace(e):
     """this handles replacing bad characters when printing out

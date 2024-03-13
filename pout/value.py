@@ -189,6 +189,11 @@ class Value(object):
             environ.SHORT_PREFIX
         )
 
+        self.KEY_QUOTE_CHAR = kwargs.get(
+            "key_quote_char",
+            environ.KEY_QUOTE_CHAR
+        )
+
         if self.SHOW_SIMPLE:
             self.SHOW_ALWAYS = True
             self.ITERATE_LIMIT = 0
@@ -922,11 +927,13 @@ class DictValue(BuiltinValue):
         return (dict,)
 
     def name_callback(self, k):
+        quote = self.KEY_QUOTE_CHAR
+
         if isinstance(k, (bytes, bytearray)):
-            ret = "b'{}'".format(String(k))
+            ret = "b{}{}{}".format(quote, String(k), quote)
 
         elif isinstance(k, basestring):
-            ret = "'{}'".format(String(k))
+            ret = "{}{}{}".format(quote, String(k), quote)
 
         else:
             ret = String(k)
