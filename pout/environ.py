@@ -68,6 +68,16 @@ SHORT_PREFIX = bool(int(os.environ.get("POUT_SHORT_PREFIX", 0)))
 KEY_QUOTE_CHAR = os.environ.get("POUT_KEY_QUOTE_CHAR", "\'")
 """pout will use this quotation character to wrap dict keys"""
 
+# we do some tricksy normalizing here for environments where it is
+# hard to set the actual quote value in a variable, I was getting a
+# bunch of errors like: "unterminated quote" when trying to just set
+# a quote value in my environment
+if KEY_QUOTE_CHAR == "DOUBLE":
+    KEY_QUOTE_CHAR = "\""
+
+elif KEY_QUOTE_CHAR == "SINGLE":
+    KEY_QUOTE_CHAR = "'"
+
 
 def handle_decode_replace(e):
     """this handles replacing bad characters when printing out
