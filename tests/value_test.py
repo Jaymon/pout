@@ -696,3 +696,43 @@ class ValueTest(TestCase):
         r = v.string_value()
         self.assertFalse("at 0x" in r)
 
+    def test_short_prefix(self):
+        """
+        https://github.com/Jaymon/pout/issues/93
+        """
+        d = {
+            "dict": {},
+            "list": [],
+            "bool": False,
+            "str": "",
+            "tuple": tuple(),
+            "set": set(),
+            "int": 0,
+            "float": 0.0,
+            "None": None,
+        }
+        v = Value(d, short_prefix=True)
+        r1 = v.string_value()
+        self.assertFalse("<dict" in r1)
+
+        v = Value(d)
+        r2 = v.string_value()
+        self.assertTrue("<dict" in r2)
+        self.assertTrue("bool instance" in r2)
+        self.assertNotEqual(r1, r2)
+
+        d2 = {
+            "dict": {"foo": 1},
+            "list": ["foo", "bar"],
+            "bool": True,
+            "str": "foo bar",
+            "tuple": ("foo", "bar"),
+            "set": set(["foo", "bar"]),
+            "int": 1000,
+            "float": 2000.0,
+            "None": None,
+        }
+        v = Value(d2, short_prefix=True)
+        r3 = v.string_value()
+        self.assertNotEqual(r1, r3)
+

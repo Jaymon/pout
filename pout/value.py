@@ -919,9 +919,17 @@ class BuiltinValue(ObjectValue):
             body = super().bodies_value(object_body, value_body)
         return body
 
+    def summary_value(self):
+        if self.SHORT_PREFIX:
+            start = self.start_value()
+            stop = self.stop_value()
+            return f"{start}{stop}"
+
+        else:
+            return super().summary_value()
+
 
 class DictValue(BuiltinValue):
-
     @classmethod
     def get_types(cls):
         return (dict,)
@@ -1129,6 +1137,12 @@ class PrimitiveValue(BuiltinValue):
             int,
             float
         )
+
+    def set_instance_attributes(self, **kwargs):
+        super().set_instance_attributes(**kwargs)
+
+        if self.SHORT_PREFIX:
+            self.SHOW_SIMPLE = True
 
     def simple_value(self, object_body, value_body, **kwargs):
         if value_body:
