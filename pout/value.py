@@ -581,29 +581,25 @@ class Value(object):
             value_body = ""
 
         if self.seen_first or self.SHOW_ALWAYS:
-            if self.SHOW_SIMPLE:
-                body = self.simple_value(
-                    object_body,
-                    value_body,
-                    pout_method=pout_method
-                )
-
-            else:
-                body = self.bodies_value(
-                    object_body,
-                    value_body,
-                    pout_method=pout_method
-                )
+            body = self.bodies_value(
+                object_body,
+                value_body,
+                pout_method=pout_method
+            )
 
         if body:
-            if prefix:
+            if prefix: 
                 ret = prefix + "\n" + body
 
             else:
                 ret = body
 
         else:
-            ret = self.summary_value()
+            if value_body:
+                ret = self.summary_value()
+
+            else:
+                ret = self.empty_value()
 
         return ret
 
@@ -740,23 +736,32 @@ class Value(object):
         :returns: str, the combined bodies
         """
         body = ""
-        if object_body:
-            start_wrapper = self.start_object_value()
-            stop_wrapper = self.stop_object_value()
-            body = self._add_indent(start_wrapper, 1) + "\n" \
-                + self._add_indent(object_body, 2) + "\n" \
-                + self._add_indent(stop_wrapper, 1)
 
-        if value_body:
-            start_wrapper = self.start_value()
-            stop_wrapper = self.stop_value()
+        if self.SHOW_SIMPLE:
+            body = self.simple_value(
+                object_body,
+                value_body,
+                **kwargs
+            )
 
-            if body:
-                body += "\n"
+        else:
+            if object_body:
+                start_wrapper = self.start_object_value()
+                stop_wrapper = self.stop_object_value()
+                body = self._add_indent(start_wrapper, 1) + "\n" \
+                    + self._add_indent(object_body, 2) + "\n" \
+                    + self._add_indent(stop_wrapper, 1)
 
-            body += self._add_indent(start_wrapper, 1) + "\n" \
-                + self._add_indent(value_body, 2) + "\n" \
-                + self._add_indent(stop_wrapper, 1)
+            if value_body:
+                start_wrapper = self.start_value()
+                stop_wrapper = self.stop_value()
+
+                if body:
+                    body += "\n"
+
+                body += self._add_indent(start_wrapper, 1) + "\n" \
+                    + self._add_indent(value_body, 2) + "\n" \
+                    + self._add_indent(stop_wrapper, 1)
 
         return body
 
@@ -769,6 +774,9 @@ class Value(object):
         """
         return "{}".format(repr(self.val))
 
+    def empty_value(self):
+        return self.summary_value()
+
     def summary_value(self):
         """If there is no body then this will be called to generate an
         appropriate summary value
@@ -777,16 +785,21 @@ class Value(object):
 
         :returns: str
         """
-        if self.SHOW_SIMPLE:
-            start_wrapper = self.start_value()
-            stop_wrapper = self.stop_value()
-            return f"{start_wrapper}{stop_wrapper}"
+        start_wrapper = self.start_object_value()
+        stop_wrapper = self.stop_object_value()
+        prefix = self.prefix_value()
+        return f"{start_wrapper}{prefix}{stop_wrapper}"
 
-        else:
-            start_wrapper = self.start_object_value()
-            stop_wrapper = self.stop_object_value()
-            prefix = self.prefix_value()
-            return f"{start_wrapper}{prefix}{stop_wrapper}"
+#         if self.SHOW_SIMPLE:
+#             start_wrapper = self.start_value()
+#             stop_wrapper = self.stop_value()
+#             return f"{start_wrapper}{stop_wrapper}"
+# 
+#         else:
+#             start_wrapper = self.start_object_value()
+#             stop_wrapper = self.stop_object_value()
+#             prefix = self.prefix_value()
+#             return f"{start_wrapper}{prefix}{stop_wrapper}"
 
     def name_value(self, name):
         """wrapper method that the interface can use to customize the name for a
@@ -913,20 +926,30 @@ class BuiltinValue(ObjectValue):
 
         return ""
 
-    def bodies_value(self, object_body, value_body, **kwargs):
-        body = ""
-        if value_body or kwargs.get("pout_method", None):
-            body = super().bodies_value(object_body, value_body)
-        return body
-
-    def summary_value(self):
-        if self.SHORT_PREFIX:
+    def empty_value(self):
+        if self.SHORT_PREFIX or self.SHOW_SIMPLE:
             start = self.start_value()
             stop = self.stop_value()
             return f"{start}{stop}"
 
         else:
-            return super().summary_value()
+            return super().empty_value()
+
+    def bodies_value(self, object_body, value_body, **kwargs):
+        body = ""
+        if value_body or kwargs.get("pout_method", None):
+            body = super().bodies_value(object_body, value_body)
+
+        return body
+
+#     def summary_value(self):
+#         if self.SHORT_PREFIX:
+#             start = self.start_value()
+#             stop = self.stop_value()
+#             return f"{start}{stop}"
+# 
+#         else:
+#             return super().summary_value()
 
 
 class DictValue(BuiltinValue):
