@@ -775,13 +775,15 @@ class Value(object):
         return "{}".format(repr(self.val))
 
     def empty_value(self):
-        return self.summary_value()
-
-    def summary_value(self):
         """If there is no body then this will be called to generate an
         appropriate summary value
 
-        This was previously called .empty_value
+        :returns: str
+        """
+        return self.summary_value()
+
+    def summary_value(self):
+        """Prints a short summary of the value
 
         :returns: str
         """
@@ -789,17 +791,6 @@ class Value(object):
         stop_wrapper = self.stop_object_value()
         prefix = self.prefix_value()
         return f"{start_wrapper}{prefix}{stop_wrapper}"
-
-#         if self.SHOW_SIMPLE:
-#             start_wrapper = self.start_value()
-#             stop_wrapper = self.stop_value()
-#             return f"{start_wrapper}{stop_wrapper}"
-# 
-#         else:
-#             start_wrapper = self.start_object_value()
-#             stop_wrapper = self.stop_object_value()
-#             prefix = self.prefix_value()
-#             return f"{start_wrapper}{prefix}{stop_wrapper}"
 
     def name_value(self, name):
         """wrapper method that the interface can use to customize the name for a
@@ -941,15 +932,6 @@ class BuiltinValue(ObjectValue):
             body = super().bodies_value(object_body, value_body)
 
         return body
-
-#     def summary_value(self):
-#         if self.SHORT_PREFIX:
-#             start = self.start_value()
-#             stop = self.stop_value()
-#             return f"{start}{stop}"
-# 
-#         else:
-#             return super().summary_value()
 
 
 class DictValue(BuiltinValue):
