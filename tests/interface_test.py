@@ -259,6 +259,36 @@ class TTest(TestCase):
             pout.t()
         self.assertTrue("pout.t()" in c)
 
+    def test_t_2_space(self):
+        with testdata.capture() as c:
+            pout.t ()
+        self.assertTrue("pout.t ()" in c)
+
+    def test_t_3_newline(self):
+        raise ValueError("I need to make this work")
+
+        pout.t(
+            inspect_packages=False,
+            depth=0,
+        )
+
+        return
+
+
+        (
+            pout.t
+            ()
+        )
+
+        return
+
+
+        with testdata.capture() as c:
+            pout.t
+            ()
+        pout.v(str(c))
+        self.assertTrue("pout.t\n()" in c)
+
     def test_t_with_assign(self):
         '''
         there was a problem where the functions to parse the call would fail

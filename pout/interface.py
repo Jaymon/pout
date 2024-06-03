@@ -967,46 +967,53 @@ class L(Interface):
 
 
 class T(Interface):
+    """Print a backtrace from the location of where this was called"""
 
     call_class = Call
 
     def body_value(self, *args, **kwargs):
-        #call_info = self.reflect.info
         name = kwargs.get("name", "")
         frames = kwargs["frames"]
         inspect_packages = kwargs.get("inspect_packages", False)
         depth = kwargs.get("depth", 0)
 
-        calls = self._get_backtrace(frames=frames, inspect_packages=inspect_packages, depth=depth)
+        calls = self._get_backtrace(
+            frames=frames,
+            inspect_packages=inspect_packages,
+            depth=depth
+        )
         return "".join(calls)
 
     def _get_backtrace(self, frames, inspect_packages=False, depth=0):
-        '''
-        get a nicely formatted backtrace
+        """Get a nicely formatted backtrace
 
         since -- 7-6-12
 
-        frames -- list -- the frame_tuple frames to format
-        inpsect_packages -- boolean -- by default, this only prints code of packages that are not 
-            in the pythonN directories, that cuts out a lot of the noise, set this to True if you
-            want a full stacktrace
-        depth -- integer -- how deep you want the stack trace to print (ie, if you only care about
-            the last three calls, pass in depth=3 so you only get the last 3 rows of the stack)
+        :param frames: list, the frame_tuple frames to format
+        :param inpsect_packages: bool, by default, this only prints code of
+            packages that are not in the pythonN directories, that cuts out a
+            lot of the noise, set this to True if you want a full stacktrace
+        :param depth: int, how deep you want the stack trace to print (ie, if
+            you only care about the last three calls, pass in depth=3 so you
+            only get the last 3 rows of the stack)
 
-        return -- list -- each line will be a nicely formatted entry of the backtrace
-        '''
+        :returns: list, each line will be a nicely formatted entry of the
+            backtrace
+        """
         calls = []
 
         for index, f in enumerate(frames, 1):
-            #prev_f = frames[i]
-            #called_module = inspect.getmodule(prev_f[0]).__name__
-            #called_func = prev_f[3]
-
             # https://stackoverflow.com/a/2011168/5006
-            called_module = sys.modules[f[0].f_back.f_globals["__name__"]] if f[0].f_back else None
+            called_module = None
+            if f[0].f_back:
+                called_module = sys.modules[f[0].f_back.f_globals["__name__"]]
             called_func = f[3]
             call = self.call_class(called_module, called_func, f)
-            s = self._get_call_summary(call, inspect_packages=inspect_packages, index=index)
+            s = self._get_call_summary(
+                call,
+                inspect_packages=inspect_packages,
+                index=index
+            )
             calls.append(s)
 
             if depth and (index > depth):
@@ -1016,8 +1023,7 @@ class T(Interface):
         return calls[::-1]
 
     def _get_call_summary(self, call, index=0, inspect_packages=True):
-        '''
-        get a call summary
+        """Get a call summary
 
         a call summary is a nicely formatted string synopsis of the call
 
@@ -1025,14 +1031,15 @@ class T(Interface):
 
         since -- 7-6-12
 
-        call_info -- dict -- the dict returned from _get_call_info()
-        index -- integer -- set to something above 0 if you would like the summary to be numbered
-        inspect_packages -- boolean -- set to True to get the full format even for system frames
-
-        return -- string
-        '''
+        :param call_info: dict, the dict returned from _get_call_info()
+        :param index: int, set to something above 0 if you would like the
+            summary to be numbered
+        :param inspect_packages: bool, set to True to get the full format even
+            for system frames
+        :returns: str
+        """
         call_info = call.info
-        inspect_regex = re.compile(r'[\\\\/]python\d(?:\.\d+)?', re.I)
+        inspect_regex = re.compile(r'[\\/]python\d(?:\.\d+)?', re.I)
         INDENT_STRING = environ.INDENT_STRING
 
         # truncate the filepath if it is super long
@@ -1041,7 +1048,6 @@ class T(Interface):
             f = "{}...{}".format(f[0:30], f[-45:])
 
         if inspect_packages or not inspect_regex.search(call_info['file']): 
-
             s = "{}:{}\n\n{}\n\n".format(
                 f,
                 call_info['line'],
@@ -1049,7 +1055,6 @@ class T(Interface):
             )
 
         else:
-
             s = "{}:{}\n".format(
                 f,
                 call_info['line']
@@ -1066,11 +1071,12 @@ class T(Interface):
 
         since -- 7-6-12
 
-        inpsect_packages -- boolean -- by default, this only prints code of packages that are not 
-            in the pythonN directories, that cuts out a lot of the noise, set this to True if you
-            want a full stacktrace
-        depth -- integer -- how deep you want the stack trace to print (ie, if you only care about
-            the last three calls, pass in depth=3 so you only get the last 3 rows of the stack)
+        :param inpsect_packages: bool, by default, this only prints code of
+            packages that are not in the pythonN directories, that cuts out a
+            lot of the noise, set this to True if you want a full stacktrace
+        :param depth: int, how deep you want the stack trace to print (ie, if
+            you only care about the last three calls, pass in depth=3 so you
+            only get the last 3 rows of the stack)
         '''
         try:
             frames = inspect.stack()
@@ -1105,7 +1111,10 @@ class Tofile(Interface):
         :param path: str, a path to the file you want to write to
         """
         if not path:
-            path = os.path.join(os.getcwd(), "{}.txt".format(self.module_name().upper()))
+            path = os.path.join(
+                os.getcwd(),
+                "{}.txt".format(self.module_name().upper())
+            )
 
         self.path = path
         self.kwargs = kwargs
@@ -1117,4 +1126,33 @@ class Tofile(Interface):
 class F(Tofile):
     """alias function name of Tofile"""
     pass
+
+
+# class Watchcalls(Interface):
+#     """Watch all the method calls of a given object"""
+#     def __call__(self, obj, **kwargs):
+# 
+#         if isinstance(obj, type):
+#             class Wrapper(obj):
+#                 def __getattribute__(_self, name):
+#                     s = self.output(name)
+#                     self.writeline(s)
+#                     return super().__getattribute__(name)
+# 
+#             return Wrapper
+# 
+#         else:
+#             parent_class = obj.__class__
+# 
+#             class Wrapper(obj.__class__):
+#                 def __init__(self, interface, obj):
+#                     self.interface = interface
+#                     self.obj = obj
+# 
+#                 def __getattribute__(self, name):
+#                     s = self.interface.output(name)
+#                     self.interface.writeline(s)
+#                     return getattr(self.obj, name)
+# 
+#             return Wrapper(self, obj)
 

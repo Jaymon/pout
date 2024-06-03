@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, division, print_function, absolute_import
 
 from . import testdata, TestCase
 
 import pout
 from pout.compat import *
-from pout.reflect import CallString
+from pout.reflect import CallString, Call
 
 
 class ReflectTest(TestCase):
@@ -275,4 +274,100 @@ class CallStringTest(TestCase):
         c = CallString("pout.v('isn\'t, no')")
         pout2.v(c.arg_names())
 
+
+class CallTest(TestCase):
+
+    def get_caller_frame_info(self, lines, **kwargs):
+        path = self.create_file(lines)
+        kwargs.setdefault("lineno", 1)
+
+        return self.mock(
+            filename=path,
+            code_context=[lines[kwargs["lineno"] - 1]],
+            index=0,
+            **kwargs
+        )
+
+    def test__find_call(self):
+        caller_src = """def _parse_action_args(self, arg_strings):
+        \"\"\"There is no easy way to customize the parsing by default, so this is
+        an attempt to allow customizing, this will go through each action and
+        if that action has a parse_args() method it will run it, the signature
+        for the handle method is parse_args(parser, arg_strings) return
+        arg_string. This gives actions the ability to customize functionality
+        and keeps that customization contained to within the action class.\"\"\"
+        for flag, action in self._option_string_actions.items():
+            if cb := getattr(action, "parse_args", None):
+                arg_strings = cb(self, arg_strings)
+
+        return arg_strings
+        """
+
+        c = Call("", "parse_args", tuple())
+        c._find_call(caller_src, 10)
+
+    def test_find_call_info_one_line(self):
+        fi = self.get_caller_frame_info([
+            "pout.v(1, 2, 3, 4, 5)"
+        ])
+        ci = Call.find_callstring_info("pout", "v", fi)
+        self.assertEqual(["1", "2", "3", "4", "5"], ci["arg_names"])
+
+    def test_find_call_info_multi_line(self):
+        fi = self.get_caller_frame_info([
+            "pout.v(",
+            "    1,",
+            "    2,",
+            ")",
+        ])
+        ci = Call.find_callstring_info("pout", "v", fi)
+        self.assertEqual(["1", "2"], ci["arg_names"])
+
+    def test_find_call_info_callback_1(self):
+        fi = self.get_caller_frame_info(
+            [
+                "callback = pout.v",
+                "callback(",
+                "    1,",
+                "    2,",
+                ")",
+            ],
+            lineno=2
+        )
+        ci = Call.find_callstring_info("pout", "v", fi)
+        self.assertEqual(["1", "2"], ci["arg_names"])
+
+    def test_find_call_info_callback_2(self):
+        fi = self.get_caller_frame_info(
+            [
+                "d['v callback'] = pout.v",
+                "d['v callback'](",
+                "    1,",
+                "    2,",
+                ")",
+            ],
+            lineno=2
+        )
+        ci = Call.find_callstring_info("pout", "v", fi)
+        self.assertEqual(["1", "2"], ci["arg_names"])
+
+    def test_find_call_info_semicolon_1(self):
+        fi = self.get_caller_frame_info([
+            "pout.b(3); pout.v(1, 2); pout.b()"
+        ])
+        ci = Call.find_callstring_info("pout", "v", fi)
+        self.assertEqual(["1", "2"], ci["arg_names"])
+
+    def test_find_call_info_semicolon_2(self):
+        """This test doesn't resolve because I think it's so rare as to not be
+        worth the time to make it work"""
+        fi = self.get_caller_frame_info(
+            [
+                "callback = pout.v",
+                "pout.b(3); callback(1, 2); pout.b()"
+            ],
+            lineno=2
+        )
+        ci = Call.find_callstring_info("pout", "v", fi)
+        self.assertEqual([], ci["arg_names"])
 

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, division, print_function, absolute_import
 import os
 import logging
 import sys
@@ -13,12 +12,14 @@ logger = logging.getLogger(__name__)
 
 
 class Path(String):
-    """Returns a path string relative to the current working directory (if applicable)"""
+    """Returns a path string relative to the current working directory (if
+    applicable)"""
     def __new__(cls, path):
+        path = os.path.abspath(path)
         cwd = os.getcwd()
         if path.startswith(cwd):
             path = path.replace(cwd, "", 1).lstrip(os.sep)
-        return super(Path, cls).__new__(cls, path)
+        return super().__new__(cls, path)
 
 
 class SitePackagesDir(String):

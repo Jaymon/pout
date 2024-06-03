@@ -3,9 +3,11 @@ import inspect
 import os
 import codecs
 import ast
+import types
 import re
 import logging
-from io import BytesIO
+import io
+import tokenize
 
 from .compat import *
 from . import environ
@@ -22,8 +24,8 @@ class CallString(String):
     @property
     def tokens(self):
         # https://github.com/python/cpython/blob/3.7/Lib/token.py
-        logger.debug('Callstring [{}] being tokenized'.format(self))
-        return tokenizer(BytesIO(self.encode(environ.ENCODING)).readline)
+        logger.debug("Callstring [{}] being tokenized".format(self))
+        return tokenize.generate_tokens(StringIO(self).readline)
 
     def is_complete(self):
         """Return True if this call string is complete, meaning it has a
@@ -31,13 +33,32 @@ class CallString(String):
         try:
             [t for t in self.tokens]
             ret = True
-            logger.debug('CallString [{}] is complete'.format(self.strip()))
+            logger.debug("CallString [{}] is complete".format(self.strip()))
 
         except tokenize.TokenError:
-            logger.debug('CallString [{}] is NOT complete'.format(self.strip()))
+            logger.debug(
+                "CallString [{}] is NOT complete".format(self.strip())
+            )
             ret = False
 
         return ret
+
+    def call_statements(self):
+        statements = []
+
+        statement = ""
+        for token in self.tokens:
+            if token.string == ";":
+                statements.append(
+                    type(self)(statement.strip())
+                )
+
+                statement = ""
+
+            else:
+                statement += token.string
+
+        return statements
 
     def _append_name(self, arg_names, arg_name):
         n = ""
@@ -150,13 +171,222 @@ class CallString(String):
 
 class Call(object):
     """Wraps a generic frame_tuple returned from like inspect.stack() and makes
-    the information containded in that FrameInfo tuple a little easier to digest
+    the information containded in that FrameInfo tuple a little easier to
+    digest
 
     https://docs.python.org/3/library/inspect.html
     """
+    @classmethod
+    def get_src_lines(cls, path):
+        open_kwargs = dict(
+            mode='r',
+            errors='replace',
+            encoding=environ.ENCODING
+        )
+        with open(path, **open_kwargs) as fp:
+            return fp.readlines()
 
-    def __init__(self, called_module, called_func, frame_tuple):
-    #def _get_call_info(self, frame_tuple, called_module='', called_func=''):
+    @classmethod
+    def find_names(cls, called_module, called_func, ast_tree=None):
+        """
+        scan the abstract source tree looking for possible ways to call the
+        called_module and called_func
+
+        since -- 7-2-12 -- Jay
+
+        :example:
+            # import the module a couple ways:
+            import pout
+            from pout import v
+            from pout import v as voom
+            import pout as poom
+
+            # this function would return: ['pout.v', 'v', 'voom', 'poom.v']
+
+        module finder might be useful someday
+        link -- http://docs.python.org/library/modulefinder.html
+        link -- http://stackoverflow.com/questions/2572582/return-a-list-of-imported-python-modules-used-in-a-script
+
+        :param ast_tree: _ast.* instance, the internal ast object that is being
+            checked, returned from compile() with ast.PyCF_ONLY_AST flag
+        :param called_module: str, we are checking the ast for imports of this
+            module
+        :param called_func: str, we are checking the ast for aliases of this
+            function
+        :returns: set, the list of possible calls the ast_tree could make to
+            call the called_func
+        """
+        s = set()
+
+        func_name = called_func
+        if not isinstance(called_func, str):
+            func_name = called_func.__name__
+
+        module_name = called_module
+        if not isinstance(called_module, str):
+            module_name = called_module.__name__
+
+        # always add the default call, the set will make sure there are no
+        # dupes...
+        s.add("{}.{}".format(module_name, func_name))
+
+        if ast_tree:
+            if hasattr(ast_tree, 'name'):
+                if ast_tree.name == func_name:
+                    # the function is defined in this module
+                    s.add(func_name)
+
+            if hasattr(ast_tree, 'body'):
+                # further down the rabbit hole we go
+                if isinstance(ast_tree.body, Iterable):
+                    for ast_body in ast_tree.body:
+                        s.update(
+                            cls.find_names(
+                                module_name,
+                                func_name,
+                                ast_body
+                            )
+                        )
+
+            elif hasattr(ast_tree, 'names'):
+                # base case
+                if hasattr(ast_tree, 'module'):
+                    # we are in a from ... import ... statement
+                    if ast_tree.module == module_name:
+                        for ast_name in ast_tree.names:
+                            if ast_name.name == func_name:
+                                if ast_name.asname is None:
+                                    s.add(ast_name.name)
+
+                                else:
+                                    s.add(str(ast_name.asname))
+
+                else:
+                    # we are in an import ... statement
+                    for ast_name in ast_tree.names:
+                        if (
+                            hasattr(ast_name, 'name')
+                            and (ast_name.name == module_name)
+                        ):
+                            if ast_name.asname is None:
+                                name = ast_name.name
+
+                            else:
+                                name = ast_name.asname
+
+                            call = "{}.{}".format(
+                                name,
+                                func_name
+                            )
+                            s.add(call)
+
+        return s
+
+    @classmethod
+    def find_call_info(cls, called_module, called_func, called_frame_info):
+        call_info = {}
+
+        try:
+            frames = inspect.getouterframes(called_frame_info.frame)
+            caller_frame_info = frames[1]
+
+        except Exception as e:
+            logger.exception(e)
+
+        else:
+            try:
+                call_info = cls.find_callstring_info(
+                    called_module,
+                    called_func,
+                    caller_frame_info
+                )
+
+            except (IOError, SyntaxError) as e:
+                # we failed to open the file, IPython has this problem
+                call = ""
+
+        return call_info
+
+    @classmethod
+    def find_callstring_info(cls, called_module, called_func, caller_frame_info):
+        call_info = {}
+
+        call_info["call"] = ""
+        call_info["call_modname"] = called_module
+        call_info["call_funcname"] = called_func
+        call_info["arg_names"] = []
+
+        call_info["file"] = Path(caller_frame_info.filename)
+        call_info["line"] = caller_frame_info.lineno
+        call_info["start_line"] = caller_frame_info.lineno
+        call_info["stop_line"] = caller_frame_info.lineno
+
+        if caller_frame_info.code_context is not None:
+            cs = CallString(
+                caller_frame_info.code_context[caller_frame_info.index]
+            )
+            if not cs.is_complete():
+                # our call statement is actually multi-line so we will need to
+                # load the file to find the full statement
+                try:
+                    src_lines = cls.get_src_lines(call_info["file"])
+
+                except (IOError, SyntaxError) as e:
+                    # we failed to open the file, IPython has this problem
+                    call = ""
+
+                else:
+                    total_lines = len(src_lines)
+                    start_lineno = call_info["line"] - 1
+                    stop_lineno = call_info["line"] + 1
+                    while not cs.is_complete() and stop_lineno <= total_lines:
+                        cs = CallString(
+                            "".join(
+                                src_lines[start_lineno:stop_lineno]
+                            )
+                        )
+                        stop_lineno += 1
+
+                    call_info["stop_line"] = stop_lineno - 1
+
+            call_info["call"] = cs
+
+            statements = cs.call_statements()
+            if len(statements) > 1:
+                # the line includes semi-colons so we need to find the correct
+                # calling statement
+                def get_call(statements, names):
+                    for statement in statements:
+                        for name in names:
+                            if statement.startswith(name):
+                                return statement
+
+                names = cls.find_names(called_module, called_func)
+                cs = get_call(statements, names)
+
+                if not statement_cs:
+                    # we failed to easily find the correct calling statement
+                    # so we are going to try a little harder this time
+                    ast_tree = compile(
+                        "".join(cls.get_src_lines(call_info["file"])),
+                        call_info['file'],
+                        'exec',
+                        ast.PyCF_ONLY_AST
+                    )
+
+                    names = cls.find_names(
+                        called_module,
+                        called_func,
+                        ast_tree,
+                    )
+                    cs = get_call(statements, names)
+
+            if cs:
+                call_info["arg_names"] = cs.arg_names()
+
+        return call_info
+
+    def x__init__(self, called_module, called_func, frame_tuple):
         '''
         build a dict of information about the call
 
@@ -288,93 +518,243 @@ class Call(object):
 
         self.info = call_info
 
-    def _get_path(self, path):
-        return Path(path)
 
-    def _find_calls(self, ast_tree, called_module, called_func):
-        """
-        scan the abstract source tree looking for possible ways to call the
-        called_module and called_func
+
+
+
+    def __init__(self, called_module, called_func, called_frame_info):
+    #def _get_call_info(self, frame_tuple, called_module='', called_func=''):
+        '''
+        build a dict of information about the call
 
         since -- 7-2-12 -- Jay
 
-        :example:
-            # import the module a couple ways:
-            import pout
-            from pout import v
-            from pout import v as voom
-            import pout as poom
+        frame_info -- tuple -- one row of the inspect.getouterframes return
+        list
 
-            # this function would return: ['pout.v', 'v', 'voom', 'poom.v']
+        return -- dict -- a bunch of information about the call:
+            line -- what line the call originated on
+            file -- the full filepath the call was made from
+            call -- the full text of the call (currently, this might be missing
+                a closing paren)
+        '''
+        self.info = self.find_call_info(
+            called_module,
+            called_func,
+            called_frame_info
+        )
 
-        module finder might be useful someday
-        link -- http://docs.python.org/library/modulefinder.html
-        link -- http://stackoverflow.com/questions/2572582/return-a-list-of-imported-python-modules-used-in-a-script
+#     def _get_path(self, path):
+#         return Path(path)
 
-        :param ast_tree: _ast.* instance, the internal ast object that is being
-            checked, returned from compile() with ast.PyCF_ONLY_AST flag
-        :param called_module: str, we are checking the ast for imports of this
-            module
-        :param called_func: str, we are checking the ast for aliases of this
-            function
-        :returns: set, the list of possible calls the ast_tree could make to
-            call the called_func
-        """
-        s = set()
-
-        # always add the default call, the set will make sure there are no
-        # dupes...
-        s.add("{}.{}".format(called_module, called_func))
-
-        if hasattr(ast_tree, 'name'):
-            if ast_tree.name == called_func:
-                # the function is defined in this module
-                s.add(called_func)
-
-        if hasattr(ast_tree, 'body'):
-            # further down the rabbit hole we go
-            if isinstance(ast_tree.body, Iterable):
-                for ast_body in ast_tree.body:
-                    s.update(
-                        self._find_calls(ast_body, called_module, called_func)
-                    )
-
-        elif hasattr(ast_tree, 'names'):
-            # base case
-            if hasattr(ast_tree, 'module'):
-                # we are in a from ... import ... statement
-                if ast_tree.module == called_module:
-                    for ast_name in ast_tree.names:
-                        if ast_name.name == called_func:
-                            if ast_name.asname is None:
-                                s.add(ast_name.name)
-
-                            else:
-                                s.add(str(ast_name.asname))
-
-                            #s.add(unicode(ast_name.asname if ast_name.asname is not None else ast_name.name))
-
-            else:
-                # we are in a import ... statement
-                for ast_name in ast_tree.names:
-                    if (
-                        hasattr(ast_name, 'name')
-                        and (ast_name.name == called_module)
-                    ):
-                        if ast_name.asname is None:
-                            name = ast_name.name
-
-                        else:
-                            name = ast_name.asname
-
-                        call = "{}.{}".format(
-                            name,
-                            #ast_name.asname if ast_name.asname is not None else ast_name.name,
-                            called_func
-                        )
-                        s.add(call)
-
-        return s
+#     def _find_call(self, caller_src_lines, lineno):
+#         print(caller_src_lines[lineno - 1])
+#         print(caller_src_lines[lineno])
+# 
+#         start_lineno = lineno + 1
+#         stop_lineno = lineno
+#         #start_lineno = stop_lineno = lineno
+#         #caller_src_lines = caller_src.splitlines(False)
+#         total_lines = len(caller_src_lines)
+# 
+#         import token
+# 
+#         def breadline():
+#             nonlocal start_lineno
+#             start_lineno -= 1
+#             if start_lineno >= 0:
+#                 return caller_src_lines[start_lineno]
+# 
+#         tokenizer = tokenize.generate_tokens(breadline)
+# 
+#         for t in tokenizer:
+#             print(f"token type: {token.tok_name[t[0]]}")
+#             print(f"token string: {t[1]}")
+#             print(f"token row col start: {t[2]}")
+#             print(f"token row col stop: {t[3]}")
+#             print(f"token lineno: {t[4]}")
+# 
+# 
+#         exit()
+# 
+# 
+# 
+# 
+# 
+#         call = ""
+# 
+#         # we need to move up one line until we get to the beginning
+#         # of the call
+#         paren_count = 0
+#         while start_lineno >= 0:
+#             x = -1
+#             try:
+#                 while True:
+#                     c = caller_src_lines[start_lineno][x]
+#                     if c == ")":
+#                         paren_count += 1
+# 
+#                     if c == "(":
+#                         paren_count -= 1
+# 
+#                     call = c + call
+# 
+#                     if paren_count <= 0:
+#                         break
+# 
+#                     x -= 1
+# 
+#             except IndexError:
+#                 start_lineno -= 1
+# 
+#             else:
+#                 break
+# 
+#         if start_lineno >= 0:
+#             # find the actual called name
+#             c = caller_src_lines[start_lineno][x]
+#             if c == "(":
+#                 x -= 1
+# 
+#                 while start_lineno >= 0:
+#                     try:
+#                         while True:
+#                             c = caller_src_lines[start_lineno][x]
+#                             if not c.isspace():
+#                                 break
+# 
+#                     except IndexError:
+#                         start_lineno -= 1
+# 
+#                 while True:
+# 
+#                     print(c)
+#                     raise ValueError()
+# 
+#         print(call)
+# 
+#             # TODO -- would it be better to use the
+#             # inspect.getframeinfo() context argument to get more
+#             # lines of code? Instead of reading the file directly?
+# 
+# #             call = "\n".join(
+# #                 caller_src_lines[start_lineno:stop_lineno]
+# #             )
+# #             print(call)
+# # 
+# # 
+# #             match = r.search(call)
+# #             if(match):
+# #                 call = call[match.start():]
+# #                 break
+# # 
+# #             else:
+# #                 start_lineno -= 1
+# 
+#         if start_lineno > -1:
+#             # now we need to make sure we have the end of the call
+#             # also
+#             while stop_lineno < total_lines:
+#                 c = CallString(call)
+#                 if c.is_complete():
+#                     break
+#                 else:
+#                     call += "\n{}".format(
+#                         caller_src_lines[stop_lineno]
+#                     )
+#                     stop_lineno += 1
+# 
+#         else:
+#             call = ''
+# 
+#     def _find_calls(self, ast_tree, called_module, called_func):
+#         """
+#         scan the abstract source tree looking for possible ways to call the
+#         called_module and called_func
+# 
+#         since -- 7-2-12 -- Jay
+# 
+#         :example:
+#             # import the module a couple ways:
+#             import pout
+#             from pout import v
+#             from pout import v as voom
+#             import pout as poom
+# 
+#             # this function would return: ['pout.v', 'v', 'voom', 'poom.v']
+# 
+#         module finder might be useful someday
+#         link -- http://docs.python.org/library/modulefinder.html
+#         link -- http://stackoverflow.com/questions/2572582/return-a-list-of-imported-python-modules-used-in-a-script
+# 
+#         :param ast_tree: _ast.* instance, the internal ast object that is being
+#             checked, returned from compile() with ast.PyCF_ONLY_AST flag
+#         :param called_module: str, we are checking the ast for imports of this
+#             module
+#         :param called_func: str, we are checking the ast for aliases of this
+#             function
+#         :returns: set, the list of possible calls the ast_tree could make to
+#             call the called_func
+#         """
+#         s = set()
+# 
+#         # always add the default call, the set will make sure there are no
+#         # dupes...
+#         if isinstance(called_module, types.ModuleType):
+#             s.add("{}.{}".format(called_module.__name__, called_func))
+# 
+#         else:
+#             s.add("{}.{}".format(called_module, called_func))
+# 
+#         if hasattr(ast_tree, 'name'):
+#             if ast_tree.name == called_func:
+#                 # the function is defined in this module
+#                 s.add(called_func)
+# 
+#         if hasattr(ast_tree, 'body'):
+#             # further down the rabbit hole we go
+#             if isinstance(ast_tree.body, Iterable):
+#                 for ast_body in ast_tree.body:
+#                     s.update(
+#                         self._find_calls(ast_body, called_module, called_func)
+#                     )
+# 
+#         elif hasattr(ast_tree, 'names'):
+#             # base case
+#             if hasattr(ast_tree, 'module'):
+#                 # we are in a from ... import ... statement
+#                 if ast_tree.module == called_module:
+#                     for ast_name in ast_tree.names:
+#                         if ast_name.name == called_func:
+#                             if ast_name.asname is None:
+#                                 s.add(ast_name.name)
+# 
+#                             else:
+#                                 s.add(str(ast_name.asname))
+# 
+#                             #s.add(unicode(ast_name.asname if ast_name.asname is not None else ast_name.name))
+# 
+#             else:
+#                 # we are in a import ... statement
+#                 for ast_name in ast_tree.names:
+#                     if (
+#                         hasattr(ast_name, 'name')
+#                         and (ast_name.name == called_module)
+#                     ):
+#                         if ast_name.asname is None:
+#                             name = ast_name.name
+# 
+#                         else:
+#                             name = ast_name.asname
+# 
+#                         call = "{}.{}".format(
+#                             name,
+#                             #ast_name.asname if ast_name.asname is not None else ast_name.name,
+#                             called_func
+#                         )
+#                         s.add(call)
+# 
+#         return s
 
 
 class Reflect(object):
