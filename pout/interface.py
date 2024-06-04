@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-The pout functions like pout.v() use the interfaces that are defined in this module
-to print an object out
+The pout functions like pout.v() use the interfaces that are defined in this
+module to print an object out
 """
-from __future__ import unicode_literals, division, print_function, absolute_import
 import os
 import sys
 import math
@@ -42,14 +41,17 @@ class Interface(object):
 
         class Foo(Interface):
             def __call__(self, *args, **kwargs):
-                self.writeline(f"Foo called with {len(args)} args and {len(kwargs) kwargs})"
+                self.writeline(
+                    f"Foo call with {len(args)} args and {len(kwargs) kwargs}"
+                )
 
     Then you could do:
 
         pout.foo(1, 2, 3, bar=4)
 
-    Interface has a default call that tries to handle everything and so the only
-    method you might need to mess with is .body_value(self, body, **kwargs)
+    Interface has a default call that tries to handle everything and so the
+    only method you might need to mess with is .body_value(self, body,
+    **kwargs)
     """
     path_class = Path
 
@@ -1048,10 +1050,10 @@ class T(Interface):
             f = "{}...{}".format(f[0:30], f[-45:])
 
         if inspect_packages or not inspect_regex.search(call_info['file']): 
-            s = "{}:{}\n\n{}\n\n".format(
+            s = "{}:{}\n\n{}\n".format(
                 f,
                 call_info['line'],
-                String(call_info['call']).indent(INDENT_STRING, 1)
+                String(call_info['call']).dedent().indent(INDENT_STRING, 1)
             )
 
         else:

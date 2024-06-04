@@ -188,13 +188,24 @@ class Call(object):
     """
     @classmethod
     def get_src_lines(cls, path):
-        open_kwargs = dict(
-            mode='r',
-            errors='replace',
-            encoding=environ.ENCODING
-        )
-        with open(path, **open_kwargs) as fp:
-            return fp.readlines()
+        """Read the src file at path and return the lines as a list
+
+        :param path: str|Path, the full path to the source file
+        :returns: list[str], the lines of the source file or empty list if it
+            couldn't be loaded
+        """
+        try:
+            open_kwargs = dict(
+                mode='r',
+                errors='replace',
+                encoding=environ.ENCODING
+            )
+            with open(path, **open_kwargs) as fp:
+                return fp.readlines()
+
+        except (IOError, SyntaxError) as e:
+            # we failed to open the file, IPython has this problem
+            return []
 
     @classmethod
     def find_names(cls, called_module, called_func, ast_tree=None):
@@ -295,15 +306,16 @@ class Call(object):
     @classmethod
     def find_call_info(cls, called_module, called_func, called_frame_info):
         """This has the same signature as .__init__ and is just here to
-        get the caller frame info and then call .find_callstring_info"""
-        call_info = {}
+        get the caller frame info and then call .find_callstring_info
 
+        :returns dict: see .find_callstring_info
+        """
         try:
             frames = inspect.getouterframes(called_frame_info.frame)
             caller_frame_info = frames[1]
 
         except Exception as e:
-            logger.exception(e)
+            #logger.exception(e)
             # the call was from the outermost script/module
             caller_frame_info = called_frame_info
 
@@ -318,6 +330,26 @@ class Call(object):
 
     @classmethod
     def find_callstring_info(cls, called_module, called_func, caller_frame_info):
+        """Do the best we can to find the actual call string (ie, the function
+        name and the arguments passed to the function when called) in the
+        actual code
+
+        This is where all the magic happens
+
+        :param called_module: str|types.ModuleType, the module that was called,
+            this should almost always be pout
+        :param called_func: str|callable, this is the pout function that was
+            called
+        :param caller_frame_info: inspect.FrameInfo, this is the frame
+            information about the caller (the code that called the module
+            and func
+
+            https://docs.python.org/3/library/inspect.html#the-interpreter-stack
+            https://docs.python.org/3/reference/datamodel.html#frame-objects
+
+        :returns: dict, a dictionary containing all the found information
+            about the call
+        """
         call_info = {}
 
         call_info["call"] = ""
@@ -331,20 +363,15 @@ class Call(object):
         call_info["stop_line"] = caller_frame_info.lineno
 
         if caller_frame_info.code_context is not None:
+            src_lines = []
+
             cs = CallString(
                 caller_frame_info.code_context[caller_frame_info.index]
             )
             if not cs.is_complete():
                 # our call statement is actually multi-line so we will need to
                 # load the file to find the full statement
-                try:
-                    src_lines = cls.get_src_lines(call_info["file"])
-
-                except (IOError, SyntaxError) as e:
-                    # we failed to open the file, IPython has this problem
-                    call = ""
-
-                else:
+                if src_lines := cls.get_src_lines(call_info["file"]):
                     total_lines = len(src_lines)
                     start_lineno = call_info["line"] - 1
                     stop_lineno = call_info["line"] + 1
@@ -374,21 +401,25 @@ class Call(object):
                 cs = get_call(statements, names)
 
                 if not cs:
-                    # we failed to easily find the correct calling statement
-                    # so we are going to try a little harder this time
-                    ast_tree = compile(
-                        "".join(cls.get_src_lines(call_info["file"])),
-                        call_info['file'],
-                        'exec',
-                        ast.PyCF_ONLY_AST
-                    )
+                    if not src_lines:
+                        src_lines = cls.get_src_lines(call_info["file"])
 
-                    names = cls.find_names(
-                        called_module,
-                        called_func,
-                        ast_tree,
-                    )
-                    cs = get_call(statements, names)
+                    if src_lines:
+                        # we failed to easily find the correct calling statement
+                        # so we are going to try a little harder this time
+                        ast_tree = compile(
+                            "".join(src_lines),
+                            call_info['file'],
+                            'exec',
+                            ast.PyCF_ONLY_AST
+                        )
+
+                        names = cls.find_names(
+                            called_module,
+                            called_func,
+                            ast_tree,
+                        )
+                        cs = get_call(statements, names)
 
             if cs:
                 call_info["arg_names"] = cs.arg_names()

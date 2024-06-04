@@ -2,6 +2,7 @@
 import sys
 import logging
 import re
+import textwrap
 
 from .compat import String as BaseString, Bytes
 from . import environ
@@ -88,15 +89,25 @@ class String(BaseString):
 
         http://code.activestate.com/recipes/66055-changing-the-indentation-of-a-multi-line-string/
 
-        :param indent: string, what you want the prefix of each line to be
+        :param indent: str, what you want the prefix of each line to be
         :param count: int, how many times to apply indent to each line
-        :returns: string, string with prefix at the beginning of each line
+        :returns: str, string with prefix at the beginning of each line
         """
-        if not indent: return self
+        if not indent:
+            return self
 
         s = ((indent * count) + line for line in self.splitlines(True))
         s = "".join(s)
         return type(self)(s)
+
+    def dedent(self):
+        """Dedent common whitespace from the string
+
+        https://docs.python.org/3/library/textwrap.html
+
+        :returns: str, a new string instance with removed common whitespace
+        """
+        return type(self)(textwrap.dedent(self))
 
     def camelcase(self):
         """Convert a string to use camel case (spaces removed and capital
