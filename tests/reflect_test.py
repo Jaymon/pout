@@ -276,7 +276,6 @@ class CallStringTest(TestCase):
 
 
 class CallTest(TestCase):
-
     def get_caller_frame_info(self, lines, **kwargs):
         path = self.create_file(lines)
         kwargs.setdefault("lineno", 1)
@@ -287,24 +286,6 @@ class CallTest(TestCase):
             index=0,
             **kwargs
         )
-
-    def test__find_call(self):
-        caller_src = """def _parse_action_args(self, arg_strings):
-        \"\"\"There is no easy way to customize the parsing by default, so this is
-        an attempt to allow customizing, this will go through each action and
-        if that action has a parse_args() method it will run it, the signature
-        for the handle method is parse_args(parser, arg_strings) return
-        arg_string. This gives actions the ability to customize functionality
-        and keeps that customization contained to within the action class.\"\"\"
-        for flag, action in self._option_string_actions.items():
-            if cb := getattr(action, "parse_args", None):
-                arg_strings = cb(self, arg_strings)
-
-        return arg_strings
-        """
-
-        c = Call("", "parse_args", tuple())
-        c._find_call(caller_src, 10)
 
     def test_find_call_info_one_line(self):
         fi = self.get_caller_frame_info([
