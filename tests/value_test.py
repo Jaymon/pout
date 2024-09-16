@@ -178,7 +178,6 @@ class ValueTest(TestCase):
         f = Foo()
         v = Value(f)
         s = v.string_value()
-        print(s)
         self.assertTrue("<property instance" in s)
 
     def test_is_set(self):
@@ -187,9 +186,10 @@ class ValueTest(TestCase):
         self.assertTrue(SetValue.is_valid(v))
         self.assertEqual("SET", t.typename)
 
-    def test_is_generator(self):
+    def test_is_generator_builtin(self):
         v = (x for x in range(100))
         t = Value(v)
+
         self.assertTrue(GeneratorValue.is_valid(v))
         self.assertEqual("GENERATOR", t.typename)
 
@@ -197,6 +197,14 @@ class ValueTest(TestCase):
         t = Value(v)
         self.assertTrue(GeneratorValue.is_valid(v))
         self.assertEqual("GENERATOR", t.typename)
+
+    def test_is_generator_yield(self):
+        def foo():
+            for x in range(10):
+                yield x
+
+        t = Value(foo())
+        self.assertTrue("(10) generator" in t.string_value())
 
     def test_is_binary(self):
         v = memoryview(b'abcefg')

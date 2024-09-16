@@ -555,12 +555,6 @@ class Value(object):
 
         :returns: str, a string suitable to be printed or whatever
         """
-        if self.SHOW_SIMPLE:
-            prefix = ""
-
-        else:
-            prefix = self.prefix_value()
-
         body = ""
         pout_method = None
 
@@ -589,6 +583,12 @@ class Value(object):
             )
 
         if body:
+            if self.SHOW_SIMPLE:
+                prefix = ""
+
+            else:
+                prefix = self.prefix_value()
+
             if prefix: 
                 ret = prefix + "\n" + body
 
@@ -1105,20 +1105,6 @@ class MappingViewValue(SetValue):
         return "])"
 
 
-class GeneratorValue(SetValue):
-    @classmethod
-    def get_types(cls):
-        return (types.GeneratorType, range, map)
-
-    def instance_value(self, **kwargs):
-        kwargs.setdefault("value", "generator")
-        return super().instance_value(**kwargs)
-
-    def string_value(self):
-        s = self.prefix_value()
-        return f"<{s}>"
-
-
 class TupleValue(ListValue):
     @classmethod
     def get_types(cls):
@@ -1130,6 +1116,35 @@ class TupleValue(ListValue):
     def stop_value(self):
         return ")"
 
+
+class GeneratorValue(TupleValue):
+    """Print a generator value
+
+    After years of doing this:
+
+        pout.v(list(func_that_yields()))
+
+    I decided on 2024-9-16 that I might as well print the generator items
+    since I almost never want to just see if the value *is* a generator
+    """
+    @classmethod
+    def get_types(cls):
+        return (types.GeneratorType, range, map)
+
+    def count_value(self):
+        """get how many elements were in the generator, this only works if
+        this is called after .body_value"""
+        return self.count
+
+    def instance_value(self, **kwargs):
+        kwargs.setdefault("value", "generator")
+        return super().instance_value(**kwargs)
+
+    def __iter__(self):
+        for i, v in super().__iter__():
+            yield i, v
+
+        self.count = i + 1
 
 class PrimitiveValue(BuiltinValue):
     """is the value a built-in primitive type?"""
