@@ -19,6 +19,7 @@ import functools
 import sqlite3
 import datetime
 import uuid
+import ast
 
 from .compat import *
 from . import environ
@@ -1570,4 +1571,16 @@ class UUIDValue(ObjectValue):
                 BinaryValue(self.val.bytes_le).body_value()
             ),
         ])
+
+
+class ASTValue(ObjectValue):
+    """
+    https://docs.python.org/3/library/ast.html#ast.AST
+    """
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, ast.AST)
+
+    def object_value(self):
+        return ast.dump(self.val, indent=self.INDENT_STRING)
 
