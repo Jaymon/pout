@@ -583,12 +583,7 @@ class Value(object):
             )
 
         if body:
-            if self.SHOW_SIMPLE:
-                prefix = ""
-
-            else:
-                prefix = self.prefix_value()
-
+            prefix = "" if self.SHOW_SIMPLE else self.prefix_value()
             if prefix: 
                 ret = prefix + "\n" + body
 
