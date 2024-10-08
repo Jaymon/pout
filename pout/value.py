@@ -167,32 +167,50 @@ class Value(object):
 
         self.OBJECT_STR_LIMIT = kwargs.get(
             "object_str_limit",
-            environ.OBJECT_STR_LIMIT
+            kwargs.get(
+                "OBJECT_STR_LIMIT",
+                environ.OBJECT_STR_LIMIT
+            )
         )
 
         self.ITERATE_LIMIT = kwargs.get(
             "iterate_limit",
-            environ.ITERATE_LIMIT
+            kwargs.get(
+                "ITERATE_LIMIT",
+                environ.ITERATE_LIMIT
+            )
         )
 
         self.INDENT_STRING = kwargs.get(
             "indent_string",
-            kwargs.get("indent", environ.INDENT_STRING)
+            kwargs.get(
+                "INDENT_STRING",
+                kwargs.get("indent", environ.INDENT_STRING)
+            )
         )
 
         self.OBJECT_DEPTH = kwargs.get(
             "object_depth",
-            environ.OBJECT_DEPTH
+            kwargs.get(
+                "OBJECT_DEPTH",
+                environ.OBJECT_DEPTH
+            )
         )
 
         self.SHORT_PREFIX = kwargs.get(
             "short_prefix",
-            environ.SHORT_PREFIX
+            kwargs.get(
+                "SHORT_PREFIX",
+                environ.SHORT_PREFIX
+            )
         )
 
         self.KEY_QUOTE_CHAR = kwargs.get(
             "key_quote_char",
-            environ.KEY_QUOTE_CHAR
+            kwargs.get(
+                "KEY_QUOTE_CHAR",
+                environ.KEY_QUOTE_CHAR
+            )
         )
 
         if self.SHOW_SIMPLE:
@@ -413,9 +431,9 @@ class Value(object):
         }
 
     def object_value(self):
-        return self._object_value()
+        return ""
 
-    def _object_value(self, **kwargs):
+    def _get_object_value(self, **kwargs):
         """Internal method
 
         This generates all the information about the Value as an object, it
@@ -519,7 +537,7 @@ class Value(object):
         prefix = self.prefix_value()
         start_wrapper = self._add_indent(self.start_object_value(), 1)
         body = self._add_indent(
-            self._object_value(show_methods=True, show_magic=True),
+            self._get_object_value(show_methods=True, show_magic=True),
             2
         )
         stop_wrapper = self._add_indent(self.stop_object_value(), 1)
@@ -530,6 +548,8 @@ class Value(object):
             + stop_wrapper
 
     def method_value(self):
+        """Return self.val.__pout__ if it exists, this is passed to other
+        methods as `pout_method`"""
         return self._getattr(self.val, "__pout__", None)
 
     def string_value(self):
@@ -543,61 +563,57 @@ class Value(object):
         If there is a body, then the value will look more or less like this:
 
             <PREFIX_VALUE>
-                <OBJECT_START_VALUE>
-                    <OBJECT_VALUE>
-                <OBJECT_STOP_VALUE>
-                <START_VALUE>
-                    <BODY_VALUE>
-                <STOP_VALUE>
+                <BODY_VALUE>
 
         If the value doesn't have a <PREFIX_VALUE> (eg, a primitive like int)
         then it will return basically the string version of that primitive value
 
         :returns: str, a string suitable to be printed or whatever
         """
-        body = ""
-        pout_method = None
+        ret = ""
 
-        depth = self.depth
-        if depth < self.OBJECT_DEPTH or self.SHOW_ALWAYS:
-            pout_method = self.method_value()
-
-            if pout_method and callable(pout_method):
-                object_body = self.create_instance(pout_method()).body_value()
-                value_body = ""
-
-            else:
-                pout_method = None
-                object_body = self.object_value()
-                value_body = self.body_value()
-
-        else:
-            object_body = ""
-            value_body = ""
-
-        if self.seen_first or self.SHOW_ALWAYS:
-            body = self.bodies_value(
-                object_body,
-                value_body,
-                pout_method=pout_method
-            )
-
-        if body:
-            prefix = "" if self.SHOW_SIMPLE else self.prefix_value()
-            if prefix: 
-                ret = prefix + "\n" + body
+        if self.depth < self.OBJECT_DEPTH or self.SHOW_ALWAYS:
+            if self.seen_first:
+                ret = self.body_value()
+                if ret:
+                    prefix = self.prefix_value()
+                    if prefix: 
+                        ret = prefix + "\n" + self._add_indent(ret, 1)
 
             else:
-                ret = body
-
-        else:
-            if value_body:
                 ret = self.summary_value()
 
-            else:
-                ret = self.empty_value()
+        else:
+            ret = self.summary_value()
 
         return ret
+
+#             object_body = ""
+#             value_body = ""
+# 
+#         if self.seen_first or self.SHOW_ALWAYS:
+#             body = self.bodies_value(
+#                 object_body,
+#                 value_body,
+#                 pout_method=pout_method
+#             )
+# 
+#         if body:
+#             prefix = "" if self.SHOW_SIMPLE else self.prefix_value()
+#             if prefix: 
+#                 ret = prefix + "\n" + body
+# 
+#             else:
+#                 ret = body
+# 
+#         else:
+#             if value_body:
+#                 ret = self.summary_value()
+# 
+#             else:
+#                 ret = self.empty_value()
+# 
+#         return ret
 
     def prefix_value(self):
         """Returns the prefix value
@@ -687,15 +703,15 @@ class Value(object):
         """
         return ">"
 
-    def start_value(self):
-        """this is the start wrapper value for .body_value
+    def start_val_value(self):
+        """this is the start wrapper value for .val_value
 
         :returns: str
         """
         return "<"
 
-    def stop_value(self):
-        """this is the stop wrapper value for .body_value
+    def stop_val_value(self):
+        """this is the stop wrapper value for .val_value
 
         :returns: str
         """
@@ -708,8 +724,8 @@ class Value(object):
         see .bodies_value
         """
         if value_body:
-            start_wrapper = self.start_value()
-            stop_wrapper = self.stop_value()
+            start_wrapper = self.start_val_value()
+            stop_wrapper = self.stop_val_value()
 
             body = start_wrapper + "\n" \
                 + self._add_indent(value_body, 1) + "\n" \
@@ -720,9 +736,21 @@ class Value(object):
 
         return body
 
-    def bodies_value(self, object_body, value_body, **kwargs):
+    def body_value(self):
         """Internal method to combine the object and value bodies, called from
         .string_value
+
+        The return value can look something like this:
+
+            <START_OBJECT_VALUE>
+                <OBJECT_VALUE>
+            <STOP_OBJECT_VALUE>
+            <START_VAL_VALUE>
+                <VAL_VALUE>
+            <STOP_VAL_VALUE>
+
+        Most Value subclasses will return either <OBJECT_VALUE> or
+        <VAL_VALUE> but not both, though return both is supported
 
         :param object_body: str, the value returned from .object_value
         :param value_body: str, the value returned from .body_value
@@ -732,36 +760,38 @@ class Value(object):
         :returns: str, the combined bodies
         """
         body = ""
+        pout_method = self.method_value()
 
-        if self.SHOW_SIMPLE:
-            body = self.simple_value(
-                object_body,
-                value_body,
-                **kwargs
-            )
+        if pout_method and callable(pout_method):
+            object_body = self.create_instance(pout_method()).val_value()
+            value_body = ""
 
         else:
-            if object_body:
-                start_wrapper = self.start_object_value()
-                stop_wrapper = self.stop_object_value()
-                body = self._add_indent(start_wrapper, 1) + "\n" \
-                    + self._add_indent(object_body, 2) + "\n" \
-                    + self._add_indent(stop_wrapper, 1)
+            pout_method = None
+            object_body = self.object_value()
+            value_body = self.val_value()
 
-            if value_body:
-                start_wrapper = self.start_value()
-                stop_wrapper = self.stop_value()
+        if object_body:
+            start_wrapper = self.start_object_value()
+            stop_wrapper = self.stop_object_value()
+            body = start_wrapper + "\n" \
+                + self._add_indent(object_body, 1) + "\n" \
+                + stop_wrapper
 
-                if body:
-                    body += "\n"
+        if value_body:
+            start_wrapper = self.start_val_value()
+            stop_wrapper = self.stop_val_value()
 
-                body += self._add_indent(start_wrapper, 1) + "\n" \
-                    + self._add_indent(value_body, 2) + "\n" \
-                    + self._add_indent(stop_wrapper, 1)
+            if body:
+                body += "\n"
+
+            body += start_wrapper + "\n" \
+                + self._add_indent(value_body, 1) + "\n" \
+                + stop_wrapper
 
         return body
 
-    def body_value(self):
+    def val_value(self):
         """This is the method that will be most important to subclasses since
         the meat of generating the value of whatever value being represented
         will be generated
@@ -789,8 +819,8 @@ class Value(object):
         return f"{start_wrapper}{prefix}{stop_wrapper}"
 
     def name_value(self, name):
-        """wrapper method that the interface can use to customize the name for a
-        given Value instance"""
+        """wrapper method that the interface can use to customize the name for
+        a given Value instance"""
         return name
 
     def __repr__(self):
@@ -842,7 +872,7 @@ class ObjectValue(Value):
         kwargs.setdefault("value", "instance")
         return super().instance_value(**kwargs)
 
-    def body_value(self):
+    def val_value(self):
         return ""
 
 
@@ -915,8 +945,8 @@ class BuiltinValue(ObjectValue):
 
     def empty_value(self):
         if self.SHORT_PREFIX or self.SHOW_SIMPLE:
-            start = self.start_value()
-            stop = self.stop_value()
+            start = self.start_val_value()
+            stop = self.stop_val_value()
             return f"{start}{stop}"
 
         else:
@@ -962,13 +992,13 @@ class DictValue(BuiltinValue):
             logger.debug(e, exc_info=True)
             return 0
 
-    def start_value(self):
+    def start_val_value(self):
         return "{"
 
-    def stop_value(self):
+    def stop_val_value(self):
         return "}"
 
-    def body_value(self):
+    def val_value(self):
         '''turn an iteratable value into a string representation
 
         :returns: string
@@ -1042,10 +1072,10 @@ class ListValue(DictValue):
         if not self.SHOW_SIMPLE:
             return str(k)
 
-    def start_value(self):
+    def start_val_value(self):
         return "["
 
-    def stop_value(self):
+    def stop_val_value(self):
         return "]"
 
     def __iter__(self):
@@ -1076,10 +1106,10 @@ class SetValue(ListValue):
     def get_types(cls):
         return (set, frozenset, Set)
 
-    def start_value(self):
+    def start_val_value(self):
         return "{"
 
-    def stop_value(self):
+    def stop_val_value(self):
         return "}"
 
     def name_callback(self, k):
@@ -1093,10 +1123,10 @@ class MappingViewValue(SetValue):
     def get_types(cls):
         return (MappingView,)
 
-    def start_value(self):
+    def start_val_value(self):
         return "(["
 
-    def stop_value(self):
+    def stop_val_value(self):
         return "])"
 
 
@@ -1105,10 +1135,10 @@ class TupleValue(ListValue):
     def get_types(cls):
         return (tuple,)
 
-    def start_value(self):
+    def start_val_value(self):
         return "("
 
-    def stop_value(self):
+    def stop_val_value(self):
         return ")"
 
 
@@ -1128,7 +1158,7 @@ class GeneratorValue(TupleValue):
 
     def count_value(self):
         """get how many elements were in the generator, this only works if
-        this is called after .body_value"""
+        this is called after .val_value"""
         return self.count
 
     def instance_value(self, **kwargs):
@@ -1140,6 +1170,7 @@ class GeneratorValue(TupleValue):
             yield i, v
 
         self.count = i + 1
+
 
 class PrimitiveValue(BuiltinValue):
     """is the value a built-in primitive type?"""
@@ -1167,7 +1198,7 @@ class PrimitiveValue(BuiltinValue):
         else:
             return object_body
 
-    def body_value(self):
+    def val_value(self):
         return str(self.val)
 
 
@@ -1181,13 +1212,13 @@ class StringValue(BuiltinValue):
     def count_value(self):
         return len(self.val)
 
-    def start_value(self):
+    def start_val_value(self):
         return "\""
 
-    def stop_value(self):
+    def stop_val_value(self):
         return "\""
 
-    def body_value(self):
+    def val_value(self):
         try:
             s = String(self.val)
 
@@ -1198,8 +1229,8 @@ class StringValue(BuiltinValue):
 
     def simple_value(self, object_body, value_body, **kwargs):
         if value_body:
-            start_wrapper = self.start_value()
-            stop_wrapper = self.stop_value()
+            start_wrapper = self.start_val_value()
+            stop_wrapper = self.stop_val_value()
             body = start_wrapper + value_body + stop_wrapper
 
         else:
@@ -1213,10 +1244,10 @@ class BinaryValue(StringValue):
     def get_types(cls):
         return (bytes, bytearray, memoryview)
 
-    def start_value(self):
+    def start_val_value(self):
         return "b\""
 
-    def body_value(self):
+    def val_value(self):
         try:
             s = repr(bytes(self.val))
             if s.startswith("b'"):
@@ -1575,10 +1606,10 @@ class UUIDValue(ObjectValue):
             f"hex: {self.val.hex}",
             f"int: {self.val.int}",
             "bytes (big endian): {}".format(
-                BinaryValue(self.val.bytes).body_value()
+                BinaryValue(self.val.bytes).val_value()
             ),
             "bytes (little endian): {}".format(
-                BinaryValue(self.val.bytes_le).body_value()
+                BinaryValue(self.val.bytes_le).val_value()
             ),
         ])
 

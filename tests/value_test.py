@@ -744,3 +744,19 @@ class ValueTest(TestCase):
         r3 = v.string_value()
         self.assertNotEqual(r1, r3)
 
+    def test_object_depth_simple_prefix(self):
+        """empty values were getting returned when simple prefix was used in
+        conjunction with object depth, this means full dictionaries would
+        return as {} and it confused me for longer than I care to admit"""
+        d = {
+            "foo": {
+                "one": 1,
+                "two": 2
+            }
+        }
+
+        v = Value(d, object_depth=1, short_prefix=True)
+        s = v.string_value()
+        self.assertTrue(": <dict (2)>" in s)
+        self.assertTrue("foo" in s)
+
