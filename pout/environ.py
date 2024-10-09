@@ -44,7 +44,7 @@ output annoying, but setting this to like 1 would cause all those nested
 instances to just have repr(instance) be printed instead"""
 
 
-OBJECT_STR_LIMIT = int(os.environ.get("POUT_OBJECT_STR_LIMIT", 500))
+OBJECT_STRING_LIMIT = int(os.environ.get("POUT_OBJECT_STR_LIMIT", 500))
 """Limits the length of an object's __str__() method output"""
 
 
@@ -61,9 +61,6 @@ inspect the object"""
 INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "    ")
 """This is what pout uses to indent when it is creating the output"""
 
-
-SHORT_PREFIX = bool(int(os.environ.get("POUT_SHORT_PREFIX", 0)))
-"""pout will print short value prefixes without memory address"""
 
 KEY_QUOTE_CHAR = os.environ.get("POUT_KEY_QUOTE_CHAR", "\'")
 """pout will use this quotation character to wrap dict keys"""

@@ -24,7 +24,7 @@ import functools
 
 from .compat import *
 from . import environ
-from .value import Value, ObjectValue
+from .value import Value
 from .path import Path
 from .utils import String, FileStream
 from .reflect import Call, Reflect
@@ -425,12 +425,6 @@ class I(V):
     def body_value(self, body, **kwargs):
         value = self.create_value(body, **kwargs)
         return value.info_value() + "\n"
-
-#     def __call__(self, *args, **kwargs):
-#         #kwargs.setdefault("show_methods", True)
-#         #kwargs.setdefault("show_magic", True)
-#         #kwargs.setdefault("value_class", ObjectValue)
-#         return super().__call__(*args, **kwargs)
 
 
 class VI(I):
