@@ -107,6 +107,16 @@ class Value(object):
     """Output the value without all the bells and whistles. You would use this
     flag to get a value that is close to actual python code"""
 
+    SHOW_INSTANCE_ID = False
+    """Output the memory address of the object when printing the prefix
+
+    NOTE -- if this is True then .show_summary will be simplified when the
+    value is considered empty
+    """
+
+    SHOW_INSTANCE_TYPE = False
+    """Output the instance type name (see .instance_value)"""
+
     @property
     def typename(self):
         s = self.__class__.__name__.replace("Value", "")
@@ -214,6 +224,7 @@ class Value(object):
         )
 
         if self.SHOW_SIMPLE:
+            self.SHOW_INSTANCE_ID = False
             self.SHOW_ALWAYS = True
             self.ITERATE_LIMIT = 0
 
@@ -230,6 +241,11 @@ class Value(object):
         kwargs.setdefault("depth", self.depth + 1)
         kwargs.setdefault("seen", self.seen)
         return Value(val, **{**self.kwargs, **kwargs})
+
+    def has_body(self):
+        """Returns True if .val has a body, ie, .val_value or .object_value
+        will return a value"""
+        return True
 
     def _is_magic(self, name):
         """Return true if the name is __name__
@@ -549,8 +565,13 @@ class Value(object):
 
     def method_value(self):
         """Return self.val.__pout__ if it exists, this is passed to other
-        methods as `pout_method`"""
-        return self._getattr(self.val, "__pout__", None)
+        methods as `pout_method`
+
+        :returns: callable
+        """
+        pout_method = self._getattr(self.val, "__pout__", None)
+        if pout_method and callable(pout_method):
+            return pout_method
 
     def string_value(self):
         """This is the main "value" generation method, this is the method that
@@ -563,22 +584,73 @@ class Value(object):
         If there is a body, then the value will look more or less like this:
 
             <PREFIX_VALUE>
-                <BODY_VALUE>
+                <START_OBJECT_VALUE>
+                    <OBJECT_VALUE>
+                <STOP_OBJECT_VALUE>
+                <START_VAL_VALUE>
+                    <VAL_VALUE>
+                <STOP_VAL_VALUE>
+
+        Most Value subclasses will return either <OBJECT_VALUE> or
+        <VAL_VALUE> but not both, though returning both is supported
 
         If the value doesn't have a <PREFIX_VALUE> (eg, a primitive like int)
-        then it will return basically the string version of that primitive value
+        then it will return basically the string version of that primitive
+        value
 
         :returns: str, a string suitable to be printed or whatever
         """
         ret = ""
 
         if self.depth < self.OBJECT_DEPTH or self.SHOW_ALWAYS:
-            if self.seen_first:
-                ret = self.body_value()
-                if ret:
-                    prefix = self.prefix_value()
-                    if prefix: 
-                        ret = prefix + "\n" + self._add_indent(ret, 1)
+            if self.seen_first or self.SHOW_ALWAYS:
+                if pout_method := self.method_value():
+                    v = self.create_instance(pout_method())
+                    object_body = v.val_value()
+                    value_body = ""
+
+                elif self.has_body():
+                    object_body = self.object_value()
+                    value_body = self.val_value()
+
+                    if prefix := self.prefix_value():
+                        ret = prefix
+
+                        if object_body:
+                            object_body = self._wrap_value(
+                                self.start_object_value(),
+                                self.stop_object_value(),
+                                object_body
+                            )
+
+                            ret += self._add_indent(object_body, 1)
+
+                        if value_body:
+                            if ret:
+                                ret += "\n"
+
+                            value_body = self._wrap_value(
+                                self.start_val_value(),
+                                self.stop_val_value(),
+                                value_body
+                            )
+
+                            ret += self._add_indent(value_body, 1)
+
+                    else:
+                        ret = value_body if value_body else object_body
+
+                else:
+                    ret = self.empty_value()
+
+#                 ret = self.body_value()
+#                 if ret:
+#                     prefix = self.prefix_value()
+#                     if prefix: 
+#                         ret = prefix + "\n" + self._add_indent(ret, 1)
+# 
+#                 else:
+#                     ret = self.summary_value()
 
             else:
                 ret = self.summary_value()
@@ -587,33 +659,6 @@ class Value(object):
             ret = self.summary_value()
 
         return ret
-
-#             object_body = ""
-#             value_body = ""
-# 
-#         if self.seen_first or self.SHOW_ALWAYS:
-#             body = self.bodies_value(
-#                 object_body,
-#                 value_body,
-#                 pout_method=pout_method
-#             )
-# 
-#         if body:
-#             prefix = "" if self.SHOW_SIMPLE else self.prefix_value()
-#             if prefix: 
-#                 ret = prefix + "\n" + body
-# 
-#             else:
-#                 ret = body
-# 
-#         else:
-#             if value_body:
-#                 ret = self.summary_value()
-# 
-#             else:
-#                 ret = self.empty_value()
-# 
-#         return ret
 
     def prefix_value(self):
         """Returns the prefix value
@@ -624,18 +669,18 @@ class Value(object):
 
         :returns: str
         """
-        if self.SHORT_PREFIX:
-            return "{} {}".format(
-                self.classpath_value(),
-                self.instance_value(),
-            ).rstrip()
+        ret = ""
 
-        else:
-            return "{} {} at {}".format(
+        if not self.SHOW_SIMPLE:
+            ret = "{} {}".format(
                 self.classpath_value(),
                 self.instance_value(),
-                self.id_value(),
             )
+
+            if self.SHOW_INSTANCE_ID:
+                ret += " at {}".format(self.id_value())
+
+        return ret
 
     def classpath_value(self):
         """The full class name (eg module.submodule.ClassName)
@@ -665,11 +710,11 @@ class Value(object):
                 other than the default value
         :returns: str
         """
-        if self.SHORT_PREFIX:
-            instance_value = ""
+        if self.SHOW_INSTANCE_TYPE:
+            instance_value = kwargs.get("value", self.typename.lower())
 
         else:
-            instance_value = kwargs.get("value", self.typename.lower())
+            instance_value = ""
 
         count_value = self.count_value()
         if count_value is not None:
@@ -771,23 +816,26 @@ class Value(object):
             object_body = self.object_value()
             value_body = self.val_value()
 
-        if object_body:
-            start_wrapper = self.start_object_value()
-            stop_wrapper = self.stop_object_value()
-            body = start_wrapper + "\n" \
-                + self._add_indent(object_body, 1) + "\n" \
-                + stop_wrapper
+        if self.SHOW_BODY_PREFIX:
+            if object_body:
+                body = self._wrap_value(
+                    self.start_object_value(),
+                    self.stop_object_value(),
+                    object_body
+                )
 
-        if value_body:
-            start_wrapper = self.start_val_value()
-            stop_wrapper = self.stop_val_value()
+            if value_body:
+                if body:
+                    body += "\n"
 
-            if body:
-                body += "\n"
+                body = self._wrap_value(
+                    self.start_val_value(),
+                    self.stop_val_value(),
+                    value_body
+                )
 
-            body += start_wrapper + "\n" \
-                + self._add_indent(value_body, 1) + "\n" \
-                + stop_wrapper
+        else:
+            body = value_body if value_body else object_body
 
         return body
 
@@ -806,17 +854,45 @@ class Value(object):
 
         :returns: str
         """
-        return self.summary_value()
+        if self.SHOW_INSTANCE_ID:
+            start_wrapper = self.start_object_value()
+            stop_wrapper = self.stop_object_value()
+            prefix = self.prefix_value()
+            ret = f"{start_wrapper}{prefix}{stop_wrapper}"
+
+        else:
+            start_wrapper = self.start_val_value()
+            stop_wrapper = self.stop_val_value()
+            ret = f"{start_wrapper}{stop_wrapper}"
+
+        return ret
 
     def summary_value(self):
         """Prints a short summary of the value
 
         :returns: str
         """
-        start_wrapper = self.start_object_value()
-        stop_wrapper = self.stop_object_value()
-        prefix = self.prefix_value()
-        return f"{start_wrapper}{prefix}{stop_wrapper}"
+        if self.has_body():
+            start_wrapper = self.start_object_value()
+            stop_wrapper = self.stop_object_value()
+            prefix = self.prefix_value()
+            ret = f"{start_wrapper}{prefix}{stop_wrapper}"
+
+        else:
+            ret = self.empty_value()
+
+#         if self.SHOW_ID:
+#             start_wrapper = self.start_object_value()
+#             stop_wrapper = self.stop_object_value()
+#             prefix = self.prefix_value()
+#             ret = f"{start_wrapper}{prefix}{stop_wrapper}"
+# 
+#         else:
+#             start_wrapper = self.start_val_value()
+#             stop_wrapper = self.stop_val_value()
+#             ret = f"{start_wrapper}{stop_wrapper}"
+
+        return ret
 
     def name_value(self, name):
         """wrapper method that the interface can use to customize the name for
@@ -841,6 +917,13 @@ class Value(object):
             val = val.string_value()
 
         return String(val).indent(self.INDENT_STRING, indent_count)
+
+    def _wrap_value(self, start_wrapper, stop_wrapper, value):
+        return (
+            start_wrapper + "\n"
+            + self._add_indent(value, 1) + "\n"
+            + stop_wrapper
+        )
 
 
 class ObjectValue(Value):
@@ -943,14 +1026,14 @@ class BuiltinValue(ObjectValue):
 
         return ""
 
-    def empty_value(self):
-        if self.SHORT_PREFIX or self.SHOW_SIMPLE:
-            start = self.start_val_value()
-            stop = self.stop_val_value()
-            return f"{start}{stop}"
-
-        else:
-            return super().empty_value()
+#     def empty_value(self):
+#         if self.SHORT_PREFIX or self.SHOW_SIMPLE:
+#             start = self.start_val_value()
+#             stop = self.stop_val_value()
+#             return f"{start}{stop}"
+# 
+#         else:
+#             return super().empty_value()
 
     def bodies_value(self, object_body, value_body, **kwargs):
         body = ""
@@ -991,6 +1074,9 @@ class DictValue(BuiltinValue):
         except (TypeError, KeyError, AttributeError) as e:
             logger.debug(e, exc_info=True)
             return 0
+
+    def has_body(self):
+        return True if self.val else False
 
     def start_val_value(self):
         return "{"
@@ -1112,6 +1198,9 @@ class SetValue(ListValue):
     def stop_val_value(self):
         return "}"
 
+    def empty_value(self):
+        return "set()"
+
     def name_callback(self, k):
         """Having this return a None value means DictValue's key stuff won't
         include a key"""
@@ -1185,18 +1274,25 @@ class PrimitiveValue(BuiltinValue):
             float
         )
 
-    def set_instance_attributes(self, **kwargs):
-        super().set_instance_attributes(**kwargs)
-
-        if self.SHORT_PREFIX:
-            self.SHOW_SIMPLE = True
-
-    def simple_value(self, object_body, value_body, **kwargs):
-        if value_body:
-            return value_body
+    def prefix_value(self):
+        if self.SHOW_INSTANCE_ID:
+            return super().prefix_value()
 
         else:
-            return object_body
+            return ""
+
+#     def set_instance_attributes(self, **kwargs):
+#         super().set_instance_attributes(**kwargs)
+# 
+#         if self.SHORT_PREFIX:
+#             self.SHOW_SIMPLE = True
+
+#     def simple_value(self, object_body, value_body, **kwargs):
+#         if value_body:
+#             return value_body
+# 
+#         else:
+#             return object_body
 
     def val_value(self):
         return str(self.val)
@@ -1217,6 +1313,9 @@ class StringValue(BuiltinValue):
 
     def stop_val_value(self):
         return "\""
+
+    def has_body(self):
+        return True if self.val else False
 
     def val_value(self):
         try:

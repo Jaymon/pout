@@ -680,6 +680,7 @@ class ValueTest(TestCase):
 
         v = Value(l, show_simple=True)
         r = v.string_value()
+        print(r)
         self.assertTrue(r.startswith("["))
         self.assertTrue(r.endswith("]"))
 
@@ -689,7 +690,7 @@ class ValueTest(TestCase):
             ([], "[]"),
             ("", "\"\""),
             ('', "\"\""),
-            (set(), "{}"),
+            (set(), "set()"),
             (tuple(), "()"),
         ]
 
@@ -698,13 +699,13 @@ class ValueTest(TestCase):
             r = v.string_value()
             self.assertEqual(vout, r)
 
-    def test_short_prefix(self):
+    def test_show_instance_id_1(self):
         d = self.get_dict()
-        v = Value(d, short_prefix=True)
+        v = Value(d)
         r = v.string_value()
         self.assertFalse("at 0x" in r)
 
-    def test_short_prefix(self):
+    def test_show_instance_id_empty(self):
         """
         https://github.com/Jaymon/pout/issues/93
         """
@@ -719,11 +720,14 @@ class ValueTest(TestCase):
             "float": 0.0,
             "None": None,
         }
-        v = Value(d, short_prefix=True)
+        v = Value(d)
         r1 = v.string_value()
         self.assertFalse("<dict" in r1)
+        for v in d.values():
+            v = str(v)
+            self.assertTrue(v in r1, v)
 
-        v = Value(d)
+        v = Value(d, show_instance_id=True, show_instance_type=True)
         r2 = v.string_value()
         self.assertTrue("<dict" in r2)
         self.assertTrue("bool instance" in r2)
@@ -740,11 +744,11 @@ class ValueTest(TestCase):
             "float": 2000.0,
             "None": None,
         }
-        v = Value(d2, short_prefix=True)
+        v = Value(d2)
         r3 = v.string_value()
         self.assertNotEqual(r1, r3)
 
-    def test_object_depth_simple_prefix(self):
+    def test_show_instance_id_object_depth(self):
         """empty values were getting returned when simple prefix was used in
         conjunction with object depth, this means full dictionaries would
         return as {} and it confused me for longer than I care to admit"""
@@ -755,8 +759,14 @@ class ValueTest(TestCase):
             }
         }
 
-        v = Value(d, object_depth=1, short_prefix=True)
+        v = Value(
+            d,
+            object_depth=1,
+            show_instance_type=False,
+            show_instance_id=False
+        )
         s = v.string_value()
+        print(s)
         self.assertTrue(": <dict (2)>" in s)
         self.assertTrue("foo" in s)
 
