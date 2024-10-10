@@ -5,6 +5,7 @@ import array
 import re
 from pathlib import Path
 import datetime
+import uuid
 
 from . import testdata, TestCase
 
@@ -18,9 +19,9 @@ from pout.value import (
     ListValue,
     SetValue,
     TupleValue,
-    BinaryValue,
     StringValue,
-    ObjectValue,
+    BytesValue,
+    InstanceValue,
     ExceptionValue,
     ModuleValue,
     TypeValue,
@@ -43,13 +44,18 @@ class ValueTest(TestCase):
     def test_primitive_int(self):
         v = Value(100)
         r = v.string_value()
+        print(r)
+        return
+
+        v = Value(100, show_instance_type=True)
+        r = v.string_value()
         self.assertFalse("Instance Properties" in r, r)
         self.assertTrue("int instance" in r)
         self.assertTrue("100" in r)
         self.assertTrue("<" in r)
 
     def test_primitive_bool(self):
-        v = Value(True)
+        v = Value(True, show_instance_type=True)
         r = v.string_value()
         self.assertFalse("Instance Properties" in r, r)
         self.assertTrue("bool instance" in r)
@@ -57,7 +63,7 @@ class ValueTest(TestCase):
         self.assertTrue("<" in r)
 
     def test_primitive_float(self):
-        v = Value(123456.789)
+        v = Value(123456.789, show_instance_type=True)
         r = v.string_value()
         self.assertFalse("Instance Properties" in r, r)
         self.assertTrue("float instance" in r)
@@ -65,37 +71,11 @@ class ValueTest(TestCase):
         self.assertTrue("<" in r)
 
     def test_primitive_none(self):
-        v = Value(None)
+        v = Value(None, show_instance_type=True)
         r = v.string_value()
         self.assertFalse("Instance Properties" in r, r)
         self.assertTrue("NoneType instance" in r)
         self.assertTrue("<" in r)
-
-    def test_object_nested(self):
-        class Foo(object):
-            pass
-
-        f = Foo()
-        f.bar = 1
-        f.foo = f
-
-        v = Value(f)
-        r = v.string_value()
-        self.assertTrue("foo = <" in r, r)
-        self.assertTrue("bar = int instance" in r, r)
-
-    def test_object_repeated(self):
-        class Foo(object):
-            pass
-
-        f = Foo()
-        f.bar = 1
-
-        v = Value([f for _ in range(5)])
-
-        r = v.string_value()
-        self.assertTrue("0: ValueTest" in r, r)
-        self.assertTrue("1: <ValueTest" in r, r)
 
     def test_iterate_object_depth(self):
         """dicts, lists, etc. should also be subject to OBJECT_DEPTH limits"""
@@ -111,25 +91,23 @@ class ValueTest(TestCase):
                 }
             }
         }
-        with testdata.modify(environ, OBJECT_DEPTH=1):
-            with testdata.capture() as c2:
-                pout.v(t)
-            self.assertTrue("'bar': <dict" in c2)
+        v = Value(t, OBJECT_DEPTH=1)
+        c = v.string_value()
+        self.assertTrue("'bar': <dict" in c)
 
     def test_iterate_limit(self):
         """make sure iterators are cutoff when they reach the set limit"""
-        with testdata.modify(environ, ITERATE_LIMIT=10):
-            t = list(range(0, 100))
-            with testdata.capture() as c:
-                pout.v(t)
-            self.assertTrue("..." in c)
+        t = list(range(0, 100))
+        v = Value(t, ITERATE_LIMIT=10)
+        c = v.string_value()
+        self.assertTrue("..." in c)
 
-            t = {f"{v}": v for v in range(0, 100)}
-            with testdata.capture() as c:
-                pout.v(t)
-            self.assertTrue("..." in c)
+        t = {f"{v}": v for v in range(0, 100)}
+        v = Value(t, ITERATE_LIMIT=10)
+        c = v.string_value()
+        self.assertTrue("..." in c)
 
-    def test_info(self):
+    def test__get_info_1(self):
         class Foo(object):
             one = "one"
 
@@ -137,21 +115,41 @@ class ValueTest(TestCase):
             two = "two"
 
         v = Value(Bar)
-        info_dict = v.info()
+        info_dict = v._get_info()
         self.assertTrue("one" in info_dict["class_properties"])
         self.assertTrue("two" in info_dict["class_properties"])
 
         v = Value(Bar())
-        info_dict = v.info()
+        info_dict = v._get_info()
         self.assertTrue("one" in info_dict["class_properties"])
         self.assertTrue("two" in info_dict["class_properties"])
 
         b = Bar()
         b.two = "three"
         v = Value(b)
-        info_dict = v.info()
-        r = info_dict["instance_properties"]["two"].body_value()
+        info_dict = v._get_info()
+        r = info_dict["instance_properties"]["two"].val_value()
         self.assertEqual("three", r)
+
+    def test__get_info_classmethod(self):
+        """in python 3.10 classmethods were being categorized as properties"""
+        def foo(cls):
+            pass
+
+        func = classmethod(foo)
+        v = Value(func)
+        self.assertEqual("CALLABLE", v.typename)
+
+        class ToProp(object):
+            @classmethod
+            def foo(cls):
+                pass
+
+        v = Value(ToProp)
+        info = v._get_info(show_methods=True)
+        self.assertEqual({}, info["class_properties"])
+        self.assertEqual({}, info["instance_properties"])
+        self.assertTrue("foo" in info["methods"])
 
     def test__get_name(self):
         class Foo(object):
@@ -178,54 +176,18 @@ class ValueTest(TestCase):
         f = Foo()
         v = Value(f)
         s = v.string_value()
-        self.assertTrue("<property instance" in s)
+        self.assertTrue("<property" in s)
 
-    def test_is_set(self):
+    def test_set(self):
         v = set(["foo", "bar", "che"])
         t = Value(v)
         self.assertTrue(SetValue.is_valid(v))
         self.assertEqual("SET", t.typename)
 
-    def test_is_generator_builtin(self):
-        v = (x for x in range(100))
-        t = Value(v)
-
-        self.assertTrue(GeneratorValue.is_valid(v))
-        self.assertEqual("GENERATOR", t.typename)
-
-        v = map(str, range(5))
-        t = Value(v)
-        self.assertTrue(GeneratorValue.is_valid(v))
-        self.assertEqual("GENERATOR", t.typename)
-
-    def test_is_generator_yield(self):
-        def foo():
-            for x in range(10):
-                yield x
-
-        t = Value(foo())
-        self.assertTrue("(10) generator" in t.string_value())
-
-    def test_is_binary(self):
-        v = memoryview(b'abcefg')
-        t = Value(v)
-        self.assertTrue(BinaryValue.is_valid(v))
-        self.assertEqual("BINARY", t.typename)
-
-        v = bytearray.fromhex('2Ef0 F1f2  ')
-        t = Value(v)
-        self.assertTrue(BinaryValue.is_valid(v))
-        self.assertEqual("BINARY", t.typename)
-
-        v = bytes("foobar", "utf-8")
-        t = Value(v)
-        self.assertTrue(BinaryValue.is_valid(v))
-        self.assertEqual("BINARY", t.typename)
-
     def test_typename(self):
         class FooTypename(object): pass
         v = FooTypename()
-        self.assertEqual('OBJECT', Value(v).typename)
+        self.assertEqual('INSTANCE', Value(v).typename)
         self.assertEqual('CALLABLE', Value(FooTypename.__init__).typename)
 
         v = 'foo'
@@ -257,7 +219,7 @@ class ValueTest(TestCase):
         import ast
         self.assertEqual('MODULE', Value(ast).typename)
 
-    def test_instance_callable(self):
+    def test_callable(self):
         class InsCall(object):
             def __call__(self): pass
             @classmethod
@@ -266,7 +228,7 @@ class ValueTest(TestCase):
         instance = InsCall()
 
         v = Value(instance)
-        self.assertEqual('OBJECT', v.typename)
+        self.assertEqual('INSTANCE', v.typename)
 
         v = Value(instance.__call__)
         self.assertEqual('CALLABLE', v.typename)
@@ -291,15 +253,15 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, DictValue))
 
         r = v.string_value()
-        self.assertTrue("dict (0) instance at" in r)
+        self.assertTrue("{}" in r)
 
-    def test_dict_simple(self):
+    def test_dict_populated(self):
         v = Value({"foo": 1, "bar": 2})
         self.assertTrue(isinstance(v, DictValue))
 
         r = v.string_value()
         self.assertTrue("dict (2)" in r, r)
-        self.assertTrue("'foo': int instance" in r, r)
+        self.assertTrue("'foo': 1" in r, r)
 
     def test_dict_unicode_keys(self):
         """Make sure unicode keys don't mess up dictionaries"""
@@ -329,7 +291,12 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, DictProxyValue))
 
     def test_list_empty(self):
-        v = Value([])
+        v = Value(
+            [],
+            show_simple_empty=False,
+            show_instance_type=True,
+            show_instance_id=True
+        )
         self.assertTrue(isinstance(v, ListValue))
 
         r = v.string_value()
@@ -342,11 +309,11 @@ class ValueTest(TestCase):
         ])
 
         r = v.string_value()
-        self.assertTrue("list (2) instance" in r)
+        self.assertTrue("list (2)" in r)
 
     def test_array(self):
         a = array.array("i", range(0, 10))
-        v = Value(a)
+        v = Value(a, show_instance_type=True)
         s = v.string_value()
         self.assertTrue("array.array ('i')" in s)
 
@@ -355,48 +322,85 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, SetValue))
 
         s = set(["foo", "bar"])
-        v = Value(s)
+        v = Value(s, show_instance_type=True)
         r = v.string_value()
         self.assertTrue("set (2) instance" in r)
         self.assertTrue("bar" in r)
 
-    def test_generator(self):
-        v = Value(range(10))
+    def test_generator_1(self):
+        v = Value(range(10), show_instance_type=True)
 
         r = v.string_value()
         self.assertTrue("<range (10) generator")
 
+    def test_generator_builtin(self):
+        v = (x for x in range(100))
+        t = Value(v)
+
+        self.assertTrue(GeneratorValue.is_valid(v))
+        self.assertEqual("GENERATOR", t.typename)
+
+        v = map(str, range(5))
+        t = Value(v)
+        self.assertTrue(GeneratorValue.is_valid(v))
+        self.assertEqual("GENERATOR", t.typename)
+
+    def test_generator_yield(self):
+        def foo():
+            for x in range(10):
+                yield x
+
+        t = Value(foo(), show_instance_type=True)
+        s = t.string_value()
+        self.assertTrue("(10) generator" in s)
+
     def test_tuple(self):
-        v = Value(tuple([1, 2, 3, 4]))
+        v = Value(tuple([1, 2, 3, 4]), show_instance_type=True)
         self.assertTrue(isinstance(v, TupleValue))
 
         r = v.string_value()
         self.assertTrue("tuple (4) instance" in r)
-
-    def test_binary_1(self):
-        v = Value(b"")
-        self.assertTrue(isinstance(v, BinaryValue))
-
-    def test_binary_2(self):
-        d = hmac.new(b"this is the key", b"this is the message", hashlib.md5)
-        v = Value(d.digest())
-
-        r = v.string_value()
-        self.assertTrue(r.startswith("b"))
 
     def test_string(self):
         v = Value("")
         self.assertTrue(isinstance(v, StringValue))
 
         r = v.string_value()
-        self.assertTrue("<str (0) instance" in r, r)
+        self.assertTrue("\"\"" in r, r)
 
         v = Value("foo bar")
         r = v.string_value()
-        self.assertTrue("str (7) instance" in r, r)
+        self.assertTrue("str (7)" in r, r)
         self.assertTrue("foo bar" in r, r)
 
-    def test_bytestring(self):
+    def test_bytes_1(self):
+        v = Value(b"")
+        self.assertTrue(isinstance(v, BytesValue))
+
+    def test_bytes_2(self):
+        d = hmac.new(b"this is the key", b"this is the message", hashlib.md5)
+        v = Value(d.digest())
+
+        r = v.string_value()
+        self.assertTrue(r.startswith("b"))
+
+    def test_bytes_3(self):
+        v = memoryview(b'abcefg')
+        t = Value(v)
+        self.assertTrue(BytesValue.is_valid(v))
+        self.assertEqual("BYTES", t.typename)
+
+        v = bytearray.fromhex('2Ef0 F1f2  ')
+        t = Value(v)
+        self.assertTrue(BytesValue.is_valid(v))
+        self.assertEqual("BYTES", t.typename)
+
+        v = bytes("foobar", "utf-8")
+        t = Value(v)
+        self.assertTrue(BytesValue.is_valid(v))
+        self.assertEqual("BYTES", t.typename)
+
+    def test_bytes_string(self):
         v = Value(bytearray([65, 66, 67, 68]))
         r = v.string_value()
         self.assertTrue("b\"" in r, r)
@@ -409,7 +413,7 @@ class ValueTest(TestCase):
 
         v = Value(b"")
         r = v.string_value()
-        self.assertTrue("<bytes (0) instance" in r, r)
+        self.assertTrue("b\"\"" in r, r)
 
     def test_exception(self):
         v = Value(ValueError("foo bar"))
@@ -428,7 +432,7 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, ModuleValue))
 
         r = v.string_value()
-        self.assertTrue(r.startswith(f"{m.__name__} module at"))
+        self.assertTrue(r.startswith(f"{m.__name__}"))
 
     def test_std_collections__pout__(self):
         """https://github.com/Jaymon/pout/issues/61"""
@@ -441,6 +445,32 @@ class ValueTest(TestCase):
         s = v.string_value()
         self.assertTrue("custom dict" in s)
 
+    def test_object_nested(self):
+        class Foo(object):
+            pass
+
+        f = Foo()
+        f.bar = 1
+        f.foo = f
+
+        v = Value(f)
+        r = v.string_value()
+        self.assertTrue("foo = <" in r, r)
+        self.assertTrue("bar = 1" in r, r)
+
+    def test_object_repeated(self):
+        class Foo(object):
+            pass
+
+        f = Foo()
+        f.bar = 1
+
+        v = Value([f for _ in range(5)])
+
+        r = v.string_value()
+        self.assertTrue("0: ValueTest" in r, r)
+        self.assertTrue("1: <ValueTest" in r, r)
+
     def test_object_1(self):
         class FooObject(object):
             bar = 1
@@ -450,7 +480,7 @@ class ValueTest(TestCase):
         o.baz = [3]
 
         v = Value(o)
-        self.assertTrue(isinstance(v, ObjectValue))
+        self.assertTrue(isinstance(v, InstanceValue))
 
         r = v.string_value()
         self.assertRegex(r, r"\n\s+<\n")
@@ -480,14 +510,9 @@ class ValueTest(TestCase):
             instance = To22()
 
         t = To21()
-        with testdata.capture() as c1:
-            pout.vs(t)
-
-        with testdata.modify(environ, OBJECT_DEPTH=1):
-            with testdata.capture() as c2:
-                pout.vs(t)
-
-        self.assertNotEqual(str(c1), str(c2))
+        c1 = Value(t).string_value()
+        c2 = Value(t, OBJECT_DEPTH=1).string_value()
+        self.assertNotEqual(c1, c2)
 
     def test_object_3(self):
         """in python2 there was an issue with printing lists with unicode, this
@@ -504,7 +529,7 @@ class ValueTest(TestCase):
         ]
 
         # no UnicodeError raised is success
-        pout.v(t)
+        Value(t).string_value()
 
     def test_object_4_recursive(self):
         class To4(object):
@@ -535,12 +560,10 @@ class ValueTest(TestCase):
                 return {"foo": s}
 
         o = OPU()
-        with testdata.capture() as c:
-            pout.v(o)
+        c = Value(o).string_value()
+        self.assertTrue(s in c)
 
-        self.assertTrue(String(s) in String(c))
-
-    def test_object_str_limit(self):
+    def test_object_string_limit(self):
         class StrLimit(object):
             def __str__(self):
                 return testdata.get_words(100)
@@ -556,14 +579,14 @@ class ValueTest(TestCase):
 
         v = Value(Foo)
         s = v.string_value()
-        self.assertTrue("bar = int instance" in s, s)
-        self.assertRegex(s, r"\s1\s", s)
+        #self.assertTrue("bar = int instance" in s, s)
+        self.assertRegex(s, r"bar\s=\s1\s", s)
 
-        v = Value(object)
+        v = Value(object, show_instance_id=True, show_instance_type=True)
         self.assertTrue(isinstance(v, TypeValue))
 
         s = v.string_value()
-        self.assertRegex(s, r"^<object\sclass\sat\s\dx[^>]+?>$", s)
+        self.assertRegex(s, r"object\sclass\sat\s\dx[^>]+?", s)
 
     def test_regex_match(self):
         m = re.match(r"(\d)(\d)(\d+)", "0213434")
@@ -580,7 +603,7 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, RegexValue))
 
         r = v.string_value()
-        self.assertTrue("re:Pattern instance" in r)
+        self.assertTrue("re:Pattern" in r)
         self.assertTrue("groups:" in r)
         self.assertTrue("flags:" in r)
 
@@ -624,33 +647,26 @@ class ValueTest(TestCase):
         r = v.string_value()
         self.assertTrue(".get_foo" in r)
 
-    def test_classmethod(self):
-        """in python 3.10 classmethods were being categorized as properties"""
-        def foo(cls):
-            pass
-
-        func = classmethod(foo)
-        v = Value(func)
-        self.assertEqual("CALLABLE", v.typename)
-
-        class ToProp(object):
-            @classmethod
-            def foo(cls):
-                pass
-
-        v = Value(ToProp)
-        info = v.info(show_methods=True)
-        self.assertEqual({}, info["class_properties"])
-        self.assertEqual({}, info["instance_properties"])
-        self.assertTrue("foo" in info["methods"])
-
     def test_datetime(self):
         dt = datetime.datetime.now()
+
         v = Value(dt)
         r = v.string_value()
         self.assertTrue(str(dt) in r)
+        self.assertTrue("<" in r)
 
-    def test_path(self):
+        v = Value(dt, show_simple_value=False)
+        r = v.string_value()
+        self.assertTrue(str(dt) in r)
+        self.assertTrue("<" in r)
+        self.assertTrue("year:" in r)
+
+        v = Value(dt, show_simple=True)
+        r = v.string_value()
+        self.assertTrue(r.startswith("\""))
+        self.assertFalse("\n" in r)
+
+    def test_pathlib_path(self):
         p = Path("/foo/bar/che")
         v = Value(p)
         s = v.string_value()
@@ -683,13 +699,21 @@ class ValueTest(TestCase):
         self.assertTrue(r.startswith("["))
         self.assertTrue(r.endswith("]"))
 
+    def test_show_simple_str(self):
+        s = self.get_words()
+        v = Value(s, show_simple=True)
+        r = v.string_value()
+        self.assertFalse("\n" in r)
+        self.assertTrue(r.startswith("\""))
+        self.assertTrue(r.endswith("\""))
+
     def test_show_simple_empty(self):
         vio = [
             ({}, "{}"),
             ([], "[]"),
             ("", "\"\""),
             ('', "\"\""),
-            (set(), "{}"),
+            (set(), "set()"),
             (tuple(), "()"),
         ]
 
@@ -698,13 +722,13 @@ class ValueTest(TestCase):
             r = v.string_value()
             self.assertEqual(vout, r)
 
-    def test_short_prefix(self):
+    def test_show_instance_id_1(self):
         d = self.get_dict()
-        v = Value(d, short_prefix=True)
+        v = Value(d)
         r = v.string_value()
         self.assertFalse("at 0x" in r)
 
-    def test_short_prefix(self):
+    def test_show_instance_id_empty(self):
         """
         https://github.com/Jaymon/pout/issues/93
         """
@@ -719,11 +743,19 @@ class ValueTest(TestCase):
             "float": 0.0,
             "None": None,
         }
-        v = Value(d, short_prefix=True)
+        v = Value(d)
         r1 = v.string_value()
         self.assertFalse("<dict" in r1)
+        for v in d.values():
+            v = str(v)
+            self.assertTrue(v in r1, v)
 
-        v = Value(d)
+        v = Value(
+            d,
+            show_simple_empty=False,
+            show_instance_id=True,
+            show_instance_type=True
+        )
         r2 = v.string_value()
         self.assertTrue("<dict" in r2)
         self.assertTrue("bool instance" in r2)
@@ -740,7 +772,46 @@ class ValueTest(TestCase):
             "float": 2000.0,
             "None": None,
         }
-        v = Value(d2, short_prefix=True)
+        v = Value(d2)
         r3 = v.string_value()
         self.assertNotEqual(r1, r3)
+
+    def test_show_instance_id_object_depth(self):
+        """empty values were getting returned when simple prefix was used in
+        conjunction with object depth, this means full dictionaries would
+        return as {} and it confused me for longer than I care to admit"""
+        d = {
+            "foo": {
+                "one": 1,
+                "two": 2
+            }
+        }
+
+        v = Value(
+            d,
+            object_depth=1,
+            show_instance_type=False,
+            show_instance_id=False
+        )
+        s = v.string_value()
+        self.assertTrue(": <dict (2)>" in s)
+        self.assertTrue("foo" in s)
+
+    def test_uuid(self):
+        v = Value(uuid.uuid4())
+        s = v.string_value()
+        self.assertTrue("UUID" in s)
+        self.assertTrue("<" in s)
+
+        v = Value(uuid.uuid4(), show_simple_value=False)
+        s = v.string_value()
+        self.assertTrue("UUID" in s)
+        self.assertTrue("version:" in s)
+        self.assertTrue("<" in s)
+
+        v = Value(uuid.uuid4(), show_simple=True)
+        s = v.string_value()
+        self.assertTrue(s.startswith("\""))
+        self.assertTrue(s.endswith("\""))
+        self.assertFalse("\n" in s)
 

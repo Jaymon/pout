@@ -35,6 +35,19 @@ ENCODING_REPLACE_CHAR = String(os.environ.get(
 period but figured I should use the actual replacement character"""
 
 
+SHOW_SIMPLE_PREFIX = bool(os.environ.get("POUT_SHOW_SIMPLE_PREFIX", False))
+"""This flips SHOW_INSTANCE_ID and SHOW_INSTANCE_TYPE to its value"""
+
+
+SHOW_SIMPLE_VALUE = bool(os.environ.get("POUT_SHOW_SIMPLE_VALUE", True))
+"""This displays simple values for Value subclasses that support it
+
+This has to be specifically supported by a Value subclass to have any effect
+
+see: https://github.com/Jaymon/pout/issues/95
+"""
+
+
 OBJECT_DEPTH = int(os.environ.get("POUT_OBJECT_DEPTH", 5))
 """Change this to set how far down in depth pout will print instances with full
 ObjectValue output while it is compiling the value for the passed in instance.
@@ -44,7 +57,7 @@ output annoying, but setting this to like 1 would cause all those nested
 instances to just have repr(instance) be printed instead"""
 
 
-OBJECT_STR_LIMIT = int(os.environ.get("POUT_OBJECT_STR_LIMIT", 500))
+OBJECT_STRING_LIMIT = int(os.environ.get("POUT_OBJECT_STR_LIMIT", 500))
 """Limits the length of an object's __str__() method output"""
 
 
@@ -61,9 +74,6 @@ inspect the object"""
 INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "    ")
 """This is what pout uses to indent when it is creating the output"""
 
-
-SHORT_PREFIX = bool(int(os.environ.get("POUT_SHORT_PREFIX", 0)))
-"""pout will print short value prefixes without memory address"""
 
 KEY_QUOTE_CHAR = os.environ.get("POUT_KEY_QUOTE_CHAR", "\'")
 """pout will use this quotation character to wrap dict keys"""

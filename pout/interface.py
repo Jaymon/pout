@@ -24,7 +24,7 @@ import functools
 
 from .compat import *
 from . import environ
-from .value import Value, ObjectValue
+from .value import Value
 from .path import Path
 from .utils import String, FileStream
 from .reflect import Call, Reflect
@@ -426,12 +426,6 @@ class I(V):
         value = self.create_value(body, **kwargs)
         return value.info_value() + "\n"
 
-#     def __call__(self, *args, **kwargs):
-#         #kwargs.setdefault("show_methods", True)
-#         #kwargs.setdefault("show_magic", True)
-#         #kwargs.setdefault("value_class", ObjectValue)
-#         return super().__call__(*args, **kwargs)
-
 
 class VI(I):
     """alias of I"""
@@ -449,7 +443,7 @@ class R(V):
                 info.get("call_modname", "Unknown"),
                 info.get("call_funcname", "Unknown"),
             )
-            c = info.get("call", default_c)
+            c = info.get("call", default_c).strip()
             instance.writeline("{} called {} times at {}".format(c, d["count"], s))
 
     def bump(self, count=1):
@@ -557,7 +551,7 @@ class B(Interface):
 
         if len(args) == 1:
             v = Value(args[0])
-            if v.typename in set(['STRING', 'BINARY']):
+            if v.typename in set(['STRING', 'BYTES']):
                 title = args[0]
 
             elif v.typename in set(["PRIMITIVE"]):
@@ -740,7 +734,7 @@ class E(Interface):
             self.exc_value = exc_value
             self.traceback = traceback
             self.writeline(self.output())
-            reraise(exc_type, exc_value, traceback)
+            raise exc_value
 
     def __call__(self, **kwargs):
         """
