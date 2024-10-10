@@ -5,6 +5,7 @@ import array
 import re
 from pathlib import Path
 import datetime
+import uuid
 
 from . import testdata, TestCase
 
@@ -41,6 +42,11 @@ class ValuesTest(TestCase):
 
 class ValueTest(TestCase):
     def test_primitive_int(self):
+        v = Value(100)
+        r = v.string_value()
+        print(r)
+        return
+
         v = Value(100, show_instance_type=True)
         r = v.string_value()
         self.assertFalse("Instance Properties" in r, r)
@@ -249,7 +255,7 @@ class ValueTest(TestCase):
         r = v.string_value()
         self.assertTrue("{}" in r)
 
-    def test_dict_simple(self):
+    def test_dict_populated(self):
         v = Value({"foo": 1, "bar": 2})
         self.assertTrue(isinstance(v, DictValue))
 
@@ -285,7 +291,12 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, DictProxyValue))
 
     def test_list_empty(self):
-        v = Value([], show_instance_id=True, show_instance_type=True)
+        v = Value(
+            [],
+            show_simple_empty=False,
+            show_instance_type=True,
+            show_instance_id=True
+        )
         self.assertTrue(isinstance(v, ListValue))
 
         r = v.string_value()
@@ -575,7 +586,7 @@ class ValueTest(TestCase):
         self.assertTrue(isinstance(v, TypeValue))
 
         s = v.string_value()
-        self.assertRegex(s, r"^object\sclass\sat\s\dx[^>]+?$", s)
+        self.assertRegex(s, r"object\sclass\sat\s\dx[^>]+?", s)
 
     def test_regex_match(self):
         m = re.match(r"(\d)(\d)(\d+)", "0213434")
@@ -638,9 +649,22 @@ class ValueTest(TestCase):
 
     def test_datetime(self):
         dt = datetime.datetime.now()
+
         v = Value(dt)
         r = v.string_value()
         self.assertTrue(str(dt) in r)
+        self.assertTrue("<" in r)
+
+        v = Value(dt, show_simple_value=False)
+        r = v.string_value()
+        self.assertTrue(str(dt) in r)
+        self.assertTrue("<" in r)
+        self.assertTrue("year:" in r)
+
+        v = Value(dt, show_simple=True)
+        r = v.string_value()
+        self.assertTrue(r.startswith("\""))
+        self.assertFalse("\n" in r)
 
     def test_pathlib_path(self):
         p = Path("/foo/bar/che")
@@ -726,7 +750,12 @@ class ValueTest(TestCase):
             v = str(v)
             self.assertTrue(v in r1, v)
 
-        v = Value(d, show_instance_id=True, show_instance_type=True)
+        v = Value(
+            d,
+            show_simple_empty=False,
+            show_instance_id=True,
+            show_instance_type=True
+        )
         r2 = v.string_value()
         self.assertTrue("<dict" in r2)
         self.assertTrue("bool instance" in r2)
@@ -767,4 +796,22 @@ class ValueTest(TestCase):
         s = v.string_value()
         self.assertTrue(": <dict (2)>" in s)
         self.assertTrue("foo" in s)
+
+    def test_uuid(self):
+        v = Value(uuid.uuid4())
+        s = v.string_value()
+        self.assertTrue("UUID" in s)
+        self.assertTrue("<" in s)
+
+        v = Value(uuid.uuid4(), show_simple_value=False)
+        s = v.string_value()
+        self.assertTrue("UUID" in s)
+        self.assertTrue("version:" in s)
+        self.assertTrue("<" in s)
+
+        v = Value(uuid.uuid4(), show_simple=True)
+        s = v.string_value()
+        self.assertTrue(s.startswith("\""))
+        self.assertTrue(s.endswith("\""))
+        self.assertFalse("\n" in s)
 

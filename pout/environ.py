@@ -35,6 +35,19 @@ ENCODING_REPLACE_CHAR = String(os.environ.get(
 period but figured I should use the actual replacement character"""
 
 
+SHOW_SIMPLE_PREFIX = bool(os.environ.get("POUT_SHOW_SIMPLE_PREFIX", False))
+"""This flips SHOW_INSTANCE_ID and SHOW_INSTANCE_TYPE to its value"""
+
+
+SHOW_SIMPLE_VALUE = bool(os.environ.get("POUT_SHOW_SIMPLE_VALUE", True))
+"""This displays simple values for Value subclasses that support it
+
+This has to be specifically supported by a Value subclass to have any effect
+
+see: https://github.com/Jaymon/pout/issues/95
+"""
+
+
 OBJECT_DEPTH = int(os.environ.get("POUT_OBJECT_DEPTH", 5))
 """Change this to set how far down in depth pout will print instances with full
 ObjectValue output while it is compiling the value for the passed in instance.

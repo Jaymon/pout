@@ -443,7 +443,7 @@ class R(V):
                 info.get("call_modname", "Unknown"),
                 info.get("call_funcname", "Unknown"),
             )
-            c = info.get("call", default_c)
+            c = info.get("call", default_c).strip()
             instance.writeline("{} called {} times at {}".format(c, d["count"], s))
 
     def bump(self, count=1):
@@ -551,7 +551,7 @@ class B(Interface):
 
         if len(args) == 1:
             v = Value(args[0])
-            if v.typename in set(['STRING', 'BINARY']):
+            if v.typename in set(['STRING', 'BYTES']):
                 title = args[0]
 
             elif v.typename in set(["PRIMITIVE"]):
@@ -734,7 +734,7 @@ class E(Interface):
             self.exc_value = exc_value
             self.traceback = traceback
             self.writeline(self.output())
-            reraise(exc_type, exc_value, traceback)
+            raise exc_value
 
     def __call__(self, **kwargs):
         """

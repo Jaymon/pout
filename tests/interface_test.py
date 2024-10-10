@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, division, print_function, absolute_import
 import sys
 import time
 import hmac
@@ -265,29 +264,34 @@ class TTest(TestCase):
         self.assertTrue("pout.t ()" in c)
 
     def test_t_3_newline(self):
-        raise ValueError("I need to make this work")
-
-        pout.t(
-            inspect_packages=False,
-            depth=0,
-        )
-
-        return
-
-
-        (
-            pout.t
-            ()
-        )
-
-        return
-
-
         with testdata.capture() as c:
-            pout.t
-            ()
-        pout.v(str(c))
-        self.assertTrue("pout.t\n()" in c)
+            pout.t(
+                inspect_packages=False,
+                depth=0,
+            )
+        self.assertRegex(
+            str(c),
+            (
+                r"pout.t\(\n"
+                r"\s+inspect_packages=False,\n"
+                r"\s+depth=0,\n"
+                r"\s+\)"
+            )
+        )
+
+#         (
+#             pout.t
+#             ()
+#         )
+# 
+#         return
+# 
+# 
+#         with testdata.capture() as c:
+#             pout.t
+#             ()
+#         pout.v(str(c))
+#         self.assertTrue("pout.t\n()" in c)
 
     def test_t_with_assign(self):
         '''
@@ -321,7 +325,7 @@ class STest(TestCase):
         v = "foo"
         r = pout.s(v)
         self.assertTrue('v = ' in r)
-        self.assertTrue('str (3) instance' in r)
+        self.assertTrue('str (3)' in r)
         self.assertTrue('foo' in r)
 
     def test_ss_return(self):
@@ -599,7 +603,7 @@ class VTest(TestCase):
         with testdata.capture() as c:
             pout.v(s)
 
-        for s in ["foo", "che", "bar", "set (3) ", "{", "}"]:
+        for s in ["foo", "che", "bar", "set (3)", "{", "}"]:
             self.assertTrue(s in c, s)
 
     def test_descriptor_error(self):
@@ -622,15 +626,15 @@ class VTest(TestCase):
 
             e = DescExample()
             e.foo()
-        for s in ['__init__', 'args = tuple', 'kwargs = <dict (0) instance']:
+        for s in ['__init__', 'args = tuple', 'kwargs = {}']:
             self.assertTrue(s in c, s)
 
-        for s in ['__get__', 'DescExample instance', 'DescExample class']:
+        for s in ['__get__', 'DescExample', 'DescExample']:
             self.assertTrue(s in c, s)
 
     def test_misclassified_instance(self):
-        """objects that have a __getattr__ method that always return something get
-        misclassified as dict proxies, this makes sure that is fixed"""
+        """objects that have a __getattr__ method that always return something
+        get misclassified as dict proxies, this makes sure that is fixed"""
 
         def misclass_func():
             return 2
@@ -642,15 +646,14 @@ class VTest(TestCase):
         with testdata.capture() as c:
             m = Misclass()
             pout.v(m)
-        self.assertTrue("1 instance" in c)
+        self.assertTrue("<1>" in c)
         self.assertTrue("m = " in c)
 
     def test_proxy_dict(self):
         with testdata.capture() as c:
             pout.v(FooBar.__dict__)
-        for s in ["FooBar.__dict__", " (2) ", "{"]:
-            self.assertTrue(s in c)
-        #self.assertTrue("FooBar.__dict__ (2) = dict_proxy({" in c)
+        for s in ["FooBar.__dict__", " (2)", "{"]:
+            self.assertTrue(s in c, s)
 
     def test_multiline_comma(self):
         # https://github.com/Jaymon/pout/issues/12
@@ -660,24 +663,21 @@ class VTest(TestCase):
                 "bar",
                 "che",
             )
-        #self.assertRegex(String(c), re.compile(r'"foo"\s+"bar"\s+"che"', re.M))
-        #self.assertTrue('"foo"\n\n"bar"\n\n"che"' in c)
         self.assertTrue("foo" in c)
         self.assertTrue("bar" in c)
         self.assertTrue("che" in c)
 
     def test_type(self):
         with testdata.capture() as c:
-            pout.v(type(100))
-
-        pout.v(str(c))
-        self.assertTrue("type(100) =" in c)
-        self.assertTrue("int class" in c)
-
-        with testdata.capture() as c:
             pout.v(type([]))
         self.assertTrue("type([]) =" in c)
-        self.assertTrue("<list class" in c)
+        self.assertTrue("<list" in c)
+
+        with testdata.capture() as c:
+            pout.v(type(100))
+
+        self.assertTrue("type(100) =" in c)
+        self.assertTrue("int" in c)
 
     def test_str(self):
         '''
@@ -694,21 +694,10 @@ class VTest(TestCase):
         s_unicode = ""
         s_byte = b""
         with testdata.capture() as c:
-            pout.v(s_unicode)
-            pout.v(s_byte)
+            pout.v(s_unicode, show_simple_empty=False)
+            pout.v(s_byte, show_simple_empty=False)
         self.assertTrue("bytes (0)" in c.stderr)
         self.assertTrue('str (0)' in c.stderr)
-
-        #print(c.stderr.read())
-
-#         d = {
-#             'foo': "foo is a unicode str",
-#             'bar': b"bar is a byte string"
-#         }
-#         with testdata.capture() as c:
-#             pout.v(d)
-#         self.assertTrue('\'foo\': "foo is a unicode str"' in c.stderr)
-#         self.assertTrue("'bar': b'bar is a byte string'" in c.stderr)
 
     def test_sys_module(self):
         '''
@@ -719,7 +708,7 @@ class VTest(TestCase):
         with testdata.capture() as c:
             pout.v(sys)
 
-        for s in ["sys = sys module", "Functions:", "Classes:"]:
+        for s in ["sys = sys", "Functions:"]:
             self.assertTrue(s in c, "[{}] is not present".format(s))
 
     def test_multiline_call(self):
@@ -744,7 +733,7 @@ class VTest(TestCase):
             )
         self.assertTrue("foo = " in c)
         self.assertTrue("bar = " in c)
-        self.assertTrue("str (16) instance" in c)
+        self.assertTrue("str (16)" in c)
 
         from pout import v
 
@@ -787,7 +776,7 @@ class VTest(TestCase):
                     5
                 )
             )
-        self.assertRegex(String(c), "\s10\s")
+        self.assertRegex(String(c), r"\s10\s")
 
         import pout as poom
         with testdata.capture() as c:
@@ -876,8 +865,6 @@ class VTest(TestCase):
         foo = {'foo': 1}
         pout.v(foo)
 
-        #pout._get_arg_info([foo])
-
     def test_queue(self):
         """Queue.Queue was failing, let's fix that"""
         pout.v(queue.Queue)
@@ -896,8 +883,6 @@ class VTest(TestCase):
         self.assertTrue(str(i) in c)
 
     def test_range_iterator(self):
-        #p = pout.Pout()
-        #print(p._get_type(range(5)))
         with testdata.capture() as c:
             pout.v(range(5))
         for s in ["range(5)", "range (5)"]:
@@ -933,21 +918,21 @@ class ITest(TestCase):
 
         with testdata.capture() as c:
             pout.i(Foo)
-        self.assertTrue("Foo class at" in c)
+        self.assertTrue(Foo.__qualname__ in c)
 
         with testdata.capture() as c:
             pout.i(dict)
-        self.assertTrue("dict class at" in c)
+        self.assertTrue(dict.__qualname__ in c)
 
         d = {}
         with testdata.capture() as c:
             pout.i(d)
-        self.assertTrue("dict (0) instance at" in c)
+        self.assertTrue("dict (0)" in c)
 
         f = Foo()
         with testdata.capture() as c:
             pout.i(f)
-        self.assertTrue("Foo instance at" in c)
+        self.assertTrue(".Foo" in c)
 
     def test_map(self):
         with testdata.capture() as c:

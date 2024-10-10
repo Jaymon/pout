@@ -115,17 +115,26 @@ class Value(object):
 
     SHOW_SIMPLE = False
     """Output the value without all the bells and whistles. You would use this
-    flag to get a value that is close to actual python code"""
+    flag to get a value that is close to actual python code
+
+    NOTE -- while this flips SHOW_SIMPLE_PREFIX and SHOW_SIMPLE_VALUE to True
+    if it is True this can be checked separately and so subclasses that want
+    to show different values depending on this or SHOW_SIMPLE_VALUE need to
+    check this value first
+    """
+
+    SHOW_SIMPLE_EMPTY = True
+    """See .empty_value"""
 
     SHOW_INSTANCE_ID = False
-    """Output the memory address of the object when printing the prefix
-
-    NOTE -- if this is True then .show_summary will be simplified when the
-    value is considered empty
-    """
+    """Output the memory address of the object when printing the prefix"""
 
     SHOW_INSTANCE_TYPE = False
     """Output the instance type name (see .instance_value)"""
+
+    SHOW_SIMPLE_PREFIX = environ.SHOW_SIMPLE_PREFIX
+
+    SHOW_SIMPLE_VALUE = environ.SHOW_SIMPLE_VALUE
 
     OBJECT_STRING_LIMIT = environ.OBJECT_STRING_LIMIT
 
@@ -196,9 +205,18 @@ class Value(object):
                     break
 
         if self.SHOW_SIMPLE:
-            self.SHOW_INSTANCE_ID = False
+            self.SHOW_SIMPLE_PREFIX = True
+            self.SHOW_SIMPLE_VALUE = True
+            self.SHOW_SIMPLE_EMPTY = True
             self.SHOW_ALWAYS = True
             self.ITERATE_LIMIT = 0
+            self.SHOW_OBJECT = False
+            self.OBJECT_DEPTH = 0
+
+        if self.SHOW_SIMPLE_PREFIX:
+            self.SHOW_SIMPLE_EMPTY = True
+            self.SHOW_INSTANCE_ID = False
+            self.SHOW_INSTANCE_TYPE = False
 
         self.kwargs = kwargs
 
@@ -359,8 +377,8 @@ class Value(object):
         methods_dict = {}
         instance_dict = {}
 
-        SHOW_METHODS = kwargs.get("show_methods", False)
-        SHOW_MAGIC = kwargs.get("show_magic", False)
+        SHOW_METHODS = kwargs.get("show_methods", self.SHOW_METHODS)
+        SHOW_MAGIC = kwargs.get("show_magic", self.SHOW_MAGIC)
 
         try:
             for k, v in vars(val).items():
@@ -423,8 +441,10 @@ class Value(object):
         return self.typename.lower()
 
     def _get_object_method(self):
-        """Return self.val.__pout__ if it exists, this is passed to other
-        methods as `pout_method`
+        """Return self.val.__pout__ if it exists
+
+        This is used in .method_value to generate the val value in
+        .string_value
 
         :returns: callable
         """
@@ -531,6 +551,22 @@ class Value(object):
 
         return s_body.strip()
 
+
+    def _is_body_visible(self):
+        """Returns True if the body should be visible, see .string_value"""
+        ret = False
+
+        if self.SHOW_ALWAYS:
+            ret = True
+
+        elif self.OBJECT_DEPTH <= 0:
+            ret = True
+
+        elif self.depth < self.OBJECT_DEPTH:
+            ret = self.seen_first
+
+        return ret
+
     def info_value(self):
         """If you want to get all the information about the value as an object
         then you can use this method
@@ -579,22 +615,22 @@ class Value(object):
         """
         ret = ""
 
-        if self.depth < self.OBJECT_DEPTH or self.SHOW_ALWAYS:
-            if self.seen_first or self.SHOW_ALWAYS:
-                if self.has_body():
-                    object_body = ""
-                    value_body = ""
+        if self._is_body_visible():
+            if self.has_body():
+                object_body = ""
+                value_body = ""
+
+                if self.SHOW_VAL:
+                    value_body = self.method_value()
+
+                if not value_body:
+                    if self.SHOW_OBJECT:
+                        object_body = self.object_value()
 
                     if self.SHOW_VAL:
-                        value_body = self.method_value()
+                        value_body = self.val_value()
 
-                    if not value_body:
-                        if self.SHOW_OBJECT:
-                            object_body = self.object_value()
-
-                        if self.SHOW_VAL:
-                            value_body = self.val_value()
-
+                if value_body or object_body:
                     if prefix := self.prefix_value():
                         ret = prefix
 
@@ -621,10 +657,10 @@ class Value(object):
                             ret = self._wrap_object_value(object_body)
 
                 else:
-                    ret = self.empty_value()
+                    ret = self.summary_value()
 
             else:
-                ret = self.summary_value()
+                ret = self.empty_value()
 
         else:
             ret = self.summary_value()
@@ -633,7 +669,7 @@ class Value(object):
 
     def method_value(self):
         """Return the __pout__ method output completely ready for
-        .string_value use"""
+        .string_value use as the val value"""
         ret = ""
         if pout_method := self._get_object_method():
             v = self.create_instance(pout_method())
@@ -641,42 +677,8 @@ class Value(object):
 
         return ret
 
-#     def string_method_value(self):
-#         """Return the __pout__ method output completely ready for
-#         .string_value use"""
-#         ret = ""
-#         if pout_method := self._get_object_method():
-#             v = self.create_instance(pout_method())
-#             ret = v.val_value()
-#             if ret:
-#                 ret = self._wrap_value(
-#                     self.start_object_value(),
-#                     self.stop_object_value(),
-#                     ret
-#                 )
-# 
-#         return ret
-
     def object_value(self):
         return self._get_object_value()
-#         ret = ""
-#         if self.SHOW_OBJECT:
-#             ret = self._get_object_value()
-# 
-#         return ret
-
-#     def string_object_value(self):
-#         """Wrapper around .object_value (which is what child classes define)
-#         that wraps the value with start and stop object wrappers"""
-#         ret = self.object_value()
-#         if ret:
-#             ret = self._wrap_value(
-#                 self.start_object_value(),
-#                 self.stop_object_value(),
-#                 ret
-#             )
-# 
-#         return ret
 
     def val_value(self):
         """This is the method that will be most important to subclasses since
@@ -687,19 +689,6 @@ class Value(object):
         """
         return "{}".format(repr(self.val))
 
-#     def string_val_value(self):
-#         """Wrapper around .val_value (which is what child classes define)
-#         that wraps the value with start and stop val wrappers"""
-#         ret = self.val_value()
-#         if ret:
-#             ret = self._wrap_value(
-#                 self.start_val_value(),
-#                 self.stop_val_value(),
-#                 ret
-#             )
-# 
-#         return ret
-
     def prefix_value(self):
         """Returns the prefix value
 
@@ -707,11 +696,19 @@ class Value(object):
 
             <CLASSPATH> <INSTANCE_VALUE> at <ID_VALUE>
 
+        This is impacted by a few class variables:
+            * SHOW_SIMPLE - if True, will set SHOW_SIMPLE_PREFIX to True
+            * SHOW_SIMPLE_PREFIX - the simple prefix, by default, is no
+                prefix, so if this is True then this returns an empty string
+            * SHOW_INSTANCE_ID - if False then don't call .id_value
+            * SHOW_INSTANCE_TYPE - if False then don't return
+                ._get_instance_type
+
         :returns: str
         """
         ret = ""
 
-        if not self.SHOW_SIMPLE:
+        if not self.SHOW_SIMPLE_PREFIX:
             ret = "{} {}".format(
                 self.classpath_value(),
                 self.instance_value(),
@@ -806,99 +803,22 @@ class Value(object):
         """
         return ">"
 
-#     def simple_value(self, object_body, value_body, **kwargs):
-#         """Internal method called instead of .bodies_value when .SHOW_SIMPLE
-#         is True.
-# 
-#         see .bodies_value
-#         """
-#         if value_body:
-#             start_wrapper = self.start_val_value()
-#             stop_wrapper = self.stop_val_value()
-# 
-#             body = start_wrapper + "\n" \
-#                 + self._add_indent(value_body, 1) + "\n" \
-#                 + stop_wrapper
-# 
-#         else:
-#             body = object_body
-# 
-#         return body
-
-#     def body_value(self):
-#         """Internal method to combine the object and value bodies, called from
-#         .string_value
-# 
-#         The return value can look something like this:
-# 
-#             <START_OBJECT_VALUE>
-#                 <OBJECT_VALUE>
-#             <STOP_OBJECT_VALUE>
-#             <START_VAL_VALUE>
-#                 <VAL_VALUE>
-#             <STOP_VAL_VALUE>
-# 
-#         Most Value subclasses will return either <OBJECT_VALUE> or
-#         <VAL_VALUE> but not both, though return both is supported
-# 
-#         :param object_body: str, the value returned from .object_value
-#         :param value_body: str, the value returned from .body_value
-#         :param **kwargs:
-#             - pout_method: callable, the pout method used to generate
-#                 object_body
-#         :returns: str, the combined bodies
-#         """
-#         body = ""
-#         pout_method = self.method_value()
-# 
-#         if pout_method and callable(pout_method):
-#             object_body = self.create_instance(pout_method()).val_value()
-#             value_body = ""
-# 
-#         else:
-#             pout_method = None
-#             object_body = self.object_value()
-#             value_body = self.val_value()
-# 
-#         if self.SHOW_BODY_PREFIX:
-#             if object_body:
-#                 body = self._wrap_value(
-#                     self.start_object_value(),
-#                     self.stop_object_value(),
-#                     object_body
-#                 )
-# 
-#             if value_body:
-#                 if body:
-#                     body += "\n"
-# 
-#                 body = self._wrap_value(
-#                     self.start_val_value(),
-#                     self.stop_val_value(),
-#                     value_body
-#                 )
-# 
-#         else:
-#             body = value_body if value_body else object_body
-# 
-#         return body
-
     def empty_value(self):
         """If there is no body then this will be called to generate an
         appropriate summary value
 
         :returns: str
         """
-        if self.SHOW_INSTANCE_ID:
+        if self.SHOW_SIMPLE_EMPTY:
+            start_wrapper = self.start_val_value()
+            stop_wrapper = self.stop_val_value()
+            ret = f"{start_wrapper}{stop_wrapper}"
+
+        else:
             start_wrapper = self.start_object_value()
             stop_wrapper = self.stop_object_value()
             prefix = self.prefix_value()
             ret = f"{start_wrapper}{prefix}{stop_wrapper}"
-
-        else:
-            start_wrapper = self.start_val_value()
-            stop_wrapper = self.stop_val_value()
-            ret = f"{start_wrapper}{stop_wrapper}"
 
         return ret
 
@@ -915,17 +835,6 @@ class Value(object):
 
         else:
             ret = self.empty_value()
-
-#         if self.SHOW_ID:
-#             start_wrapper = self.start_object_value()
-#             stop_wrapper = self.stop_object_value()
-#             prefix = self.prefix_value()
-#             ret = f"{start_wrapper}{prefix}{stop_wrapper}"
-# 
-#         else:
-#             start_wrapper = self.start_val_value()
-#             stop_wrapper = self.stop_val_value()
-#             ret = f"{start_wrapper}{stop_wrapper}"
 
         return ret
 
@@ -1003,10 +912,6 @@ class InstanceValue(Value):
     def _get_instance_type(self):
         return "instance"
 
-#     def instance_value(self, **kwargs):
-#         kwargs.setdefault("value", "instance")
-#         return super().instance_value(**kwargs)
-
     def val_value(self):
         return self._get_object_value()
 
@@ -1048,7 +953,7 @@ class BuiltinValue(InstanceValue):
         try:
             return isinstance(val, cls.get_types())
 
-        except TypeError:
+        except (TypeError, NotImplementedError):
             return False
 
     @classmethod
@@ -1059,41 +964,11 @@ class BuiltinValue(InstanceValue):
         """
         return NotImplementedError()
 
-#     def object_value(self):
-#         if self.SHOW_OBJECT:
-#             types = set(self.get_types())
-#             val_type = type(self.val)
-#             for t in types:
-#                 try:
-#                     if isinstance(self.val, t) and val_type not in types:
-#                         return super().object_value()
-# 
-#                 except TypeError:
-#                     pass
-# 
-#         return ""
-
-#     def empty_value(self):
-#         if self.SHORT_PREFIX or self.SHOW_SIMPLE:
-#             start = self.start_val_value()
-#             stop = self.stop_val_value()
-#             return f"{start}{stop}"
-# 
-#         else:
-#             return super().empty_value()
-
-    def bodies_value(self, object_body, value_body, **kwargs):
-        body = ""
-        if value_body or kwargs.get("pout_method", None):
-            body = super().bodies_value(object_body, value_body)
-
-        return body
-
 
 class DictValue(BuiltinValue):
     @classmethod
     def get_types(cls):
-        return (dict,)
+        return dict
 
     def name_callback(self, k):
         quote = self.KEY_QUOTE_CHAR
@@ -1201,7 +1076,10 @@ class ListValue(DictValue):
         return (list,)
 
     def name_callback(self, k):
-        """Returns just a string representation of the integer k"""
+        """Returns just a string representation of the integer k
+
+        if SHOW_SIMPLE is True then this returns None
+        """
         if not self.SHOW_SIMPLE:
             return str(k)
 
@@ -1232,13 +1110,6 @@ class ArrayValue(ListValue):
             self.val.typecode,
             self.KEY_QUOTE_CHAR
         )
-
-#     def _get_instance_type(self):
-#         return f"{super()._get_instance_type()} ('{self.val.typecode}')"
-
-
-#     def instance_value(self):
-#         return f"('{self.val.typecode}') {super().instance_value()}"
 
 
 class SetValue(ListValue):
@@ -1302,14 +1173,14 @@ class GeneratorValue(TupleValue):
     def count_value(self):
         """get how many elements were in the generator, this only works if
         this is called after .val_value"""
-        return self.count
+        try:
+            return self.count
+
+        except AttributeError:
+            return None
 
     def _get_instance_type(self):
         return "generator"
-
-#     def instance_value(self, **kwargs):
-#         kwargs.setdefault("value", "generator")
-#         return super().instance_value(**kwargs)
 
     def __iter__(self):
         for i, v in super().__iter__():
@@ -1331,13 +1202,6 @@ class PrimitiveValue(BuiltinValue):
             float
         )
 
-#     def prefix_value(self):
-#         if self.SHOW_INSTANCE_ID or self.SHOW_INSTANCE_TYPE:
-#             return super().prefix_value()
-# 
-#         else:
-#             return ""
-
     def _wrap_val_value(self, value):
         return value if self.SHOW_SIMPLE else super()._wrap_val_value(value)
 
@@ -1345,14 +1209,10 @@ class PrimitiveValue(BuiltinValue):
         super().set_instance_attributes(**kwargs)
 
         if not self.SHOW_INSTANCE_ID and not self.SHOW_INSTANCE_TYPE:
+            # don't wrap the value
             self.SHOW_SIMPLE = True
-
-#     def simple_value(self, object_body, value_body, **kwargs):
-#         if value_body:
-#             return value_body
-# 
-#         else:
-#             return object_body
+            # get rid of the prefix
+            self.SHOW_SIMPLE_PREFIX = True
 
     def val_value(self):
         return str(self.val)
@@ -1363,7 +1223,7 @@ class StringValue(BuiltinValue):
 
     @classmethod
     def get_types(cls):
-        return basestring
+        return str
 
     def count_value(self):
         return len(self.val)
@@ -1397,16 +1257,34 @@ class StringValue(BuiltinValue):
 
         return ret
 
-#     def simple_value(self, object_body, value_body, **kwargs):
-#         if value_body:
-#             start_wrapper = self.start_val_value()
-#             stop_wrapper = self.stop_val_value()
-#             body = start_wrapper + value_body + stop_wrapper
-# 
-#         else:
-#             body = super().simple_value(object_body, value_body, **kwargs)
-# 
-#         return body
+
+class StringLikeValue(StringValue):
+    """Certain subclasses revert to a string values when they are simplified,
+    this is the parent class for those subclasses"""
+    @classmethod
+    def get_types(cls):
+        raise NotImplementedError()
+
+    def count_value(self):
+        return len(str(self.val))
+
+    def start_val_value(self):
+        if self.SHOW_SIMPLE:
+            ret = super().start_val_value()
+
+        else:
+            ret = super().start_object_value()
+
+        return ret
+
+    def stop_val_value(self):
+        if self.SHOW_SIMPLE:
+            ret = super().stop_val_value()
+
+        else:
+            ret = super().stop_object_value()
+
+        return ret
 
 
 class BytesValue(StringValue):
@@ -1444,10 +1322,6 @@ class ModuleValue(InstanceValue):
 
     def _get_instance_type(self):
         return "module"
-
-#     def instance_value(self):
-#         return super().instance_value(value="module")
-#         return "module"
 
     def val_value(self):
         s = ""
@@ -1527,6 +1401,8 @@ class TypeValue(Value):
         Value(Foo).typename # TYPE
         Value(Foo()).typename # INSTANCE
     """
+    SHOW_INSTANCE_TYPE = True
+
     @classmethod
     def is_valid(cls, val):
         return isinstance(val, type)
@@ -1534,15 +1410,10 @@ class TypeValue(Value):
     def _get_instance_type(self):
         return "class"
 
-#     def instance_value(self, **kwargs):
-#         kwargs.setdefault("value", "class")
-#         return super().instance_value(**kwargs)
-
     def val_value(self):
         s_body = ""
 
-        SHOW_MAGIC = self.SHOW_MAGIC
-        info_dict = self._get_info(show_magic=SHOW_MAGIC)
+        info_dict = self._get_info()
 
         if class_dict := info_dict["class_properties"]:
             s_body += f"Class Properties ({len(class_dict)}):\n"
@@ -1702,34 +1573,40 @@ class CallableValue(Value):
         )
 
 
-class DatetimeValue(InstanceValue):
+class DatetimeValue(StringLikeValue):
     """
     https://docs.python.org/3/library/datetime.html
     """
     @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, (datetime.datetime, datetime.date))
+    def get_types(cls):
+        return (datetime.datetime, datetime.date)
 
     def val_value(self):
-        body = [
-            String(self.val),
-            "",
-            f"year: {self.val.year}",
-            f"month: {self.val.month}",
-            f"day: {self.val.day}",
-        ]
+        if self.SHOW_SIMPLE_VALUE:
+            ret = String(self.val)
 
-        if isinstance(self.val, datetime.datetime):
-            body.extend([
+        else:
+            body = [
+                String(self.val),
                 "",
-                f"hour: {self.val.hour}",
-                f"minute: {self.val.minute}",
-                f"second: {self.val.second}",
-                f"microsecond: {self.val.microsecond}",
-                f"tzinfo: {self.val.tzinfo}",
-            ])
+                f"year: {self.val.year}",
+                f"month: {self.val.month}",
+                f"day: {self.val.day}",
+            ]
 
-        return "\n".join(body)
+            if isinstance(self.val, datetime.datetime):
+                body.extend([
+                    "",
+                    f"hour: {self.val.hour}",
+                    f"minute: {self.val.minute}",
+                    f"second: {self.val.second}",
+                    f"microsecond: {self.val.microsecond}",
+                    f"tzinfo: {self.val.tzinfo}",
+                ])
+
+            ret = "\n".join(body)
+
+        return ret
 
 
 class TimedeltaValue(InstanceValue):
@@ -1752,40 +1629,46 @@ class TimedeltaValue(InstanceValue):
         return "\n".join(body)
 
 
-class PathValue(InstanceValue):
+class PathValue(StringLikeValue):
     """
     https://docs.python.org/3/library/pathlib.html
     """
     @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, PurePath)
+    def get_types(cls):
+        return PurePath
 
     def val_value(self):
         return String(self.val)
 
 
-class UUIDValue(InstanceValue):
+class UUIDValue(StringLikeValue):
     """
     https://docs.python.org/3/library/uuid.html#uuid.UUID
     """
     @classmethod
-    def is_valid(cls, val):
-        return isinstance(val, uuid.UUID)
+    def get_types(cls):
+        return uuid.UUID
 
     def val_value(self):
-        return "\n".join([
-            String(self.val),
-            "",
-            f"version: {self.val.version}",
-            f"hex: {self.val.hex}",
-            f"int: {self.val.int}",
-            "bytes (big endian): {}".format(
-                BinaryValue(self.val.bytes).val_value()
-            ),
-            "bytes (little endian): {}".format(
-                BinaryValue(self.val.bytes_le).val_value()
-            ),
-        ])
+        if self.SHOW_SIMPLE_VALUE:
+            ret = String(self.val)
+
+        else:
+            ret = "\n".join([
+                String(self.val),
+                "",
+                f"version: {self.val.version}",
+                f"hex: {self.val.hex}",
+                f"int: {self.val.int}",
+                "bytes (big endian): {}".format(
+                    BytesValue(self.val.bytes).val_value()
+                ),
+                "bytes (little endian): {}".format(
+                    BytesValue(self.val.bytes_le).val_value()
+                ),
+            ])
+
+        return ret
 
 
 class ASTValue(InstanceValue):
