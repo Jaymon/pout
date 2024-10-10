@@ -434,17 +434,6 @@ class ValueTest(TestCase):
         r = v.string_value()
         self.assertTrue(r.startswith(f"{m.__name__}"))
 
-    def test_std_collections__pout__(self):
-        """https://github.com/Jaymon/pout/issues/61"""
-        class PoutDict(dict):
-            def __pout__(self):
-                return "custom dict"
-
-        d = PoutDict(foo=1, bar=2)
-        v = Value(d)
-        s = v.string_value()
-        self.assertTrue("custom dict" in s)
-
     def test_object_nested(self):
         class Foo(object):
             pass
@@ -562,6 +551,30 @@ class ValueTest(TestCase):
         o = OPU()
         c = Value(o).string_value()
         self.assertTrue(s in c)
+
+    def test_object___pout___class(self):
+        """The __pout__ method could cause failure when defined on a class
+        and the class is being outputted because __pout__ is an instance
+        method, this makes sure __pout__ failing doesn't fail the whole thing
+        """
+        class Foo(object):
+            def __pout__(self):
+                return 1
+
+        v = Value(Foo)
+        s = v.string_value()
+        self.assertTrue(".Foo" in s)
+
+    def test_std_collections__pout__(self):
+        """https://github.com/Jaymon/pout/issues/61"""
+        class PoutDict(dict):
+            def __pout__(self):
+                return "custom dict"
+
+        d = PoutDict(foo=1, bar=2)
+        v = Value(d)
+        s = v.string_value()
+        self.assertTrue("custom dict" in s)
 
     def test_object_string_limit(self):
         class StrLimit(object):

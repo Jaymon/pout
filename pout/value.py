@@ -231,7 +231,7 @@ class Value(object):
         kwargs.setdefault("depth", self.depth + 1)
         kwargs.setdefault("seen", self.seen)
 
-        # certain values don't persist across sub instances
+        # certain flags only apply to this instance and not sub-instances
         kwargs = {**self.kwargs, **kwargs}
         ignore_keys = [
             "SHOW_VAL",
@@ -241,12 +241,6 @@ class Value(object):
             kwargs.pop(k, None)
 
         return Value(val, **kwargs)
-
-#         if inherit_kwargs:
-#             return Value(val, **{**self.kwargs, **kwargs})
-# 
-#         else:
-#             return Value(val, **kwargs)
 
     def has_body(self):
         """Returns True if .val has a body, ie, .val_value or .object_value
@@ -411,18 +405,6 @@ class Value(object):
 
         try:
             populate_dicts(vars(val).items())
-#             for k, v in vars(val).items():
-#                 if SHOW_MAGIC or not self._is_magic(k):
-#                     v = self.create_instance(v)
-#                     if v.typename == "CALLABLE":
-#                         if SHOW_METHODS:
-#                             methods_dict[k] = v
-#                     else:
-#                         if val is val_class:
-#                             class_dict[k] = v
-# 
-#                         else:
-#                             instance_dict[k] = v
 
         except TypeError as e:
             # Since vars() failed we are going to try and make
@@ -430,14 +412,6 @@ class Value(object):
             # Also, I could get a recursion error if I tried to just do
             # inspect.getmembers in certain circumstances, I have no idea why
             populate_dicts(inspect.getmembers(val))
-#             for k, v in inspect.getmembers(val):
-#                 if SHOW_MAGIC or not self._is_magic(k):
-#                     v = self.create_instance(v)
-#                     if v.typename == "CALLABLE":
-#                         if SHOW_METHODS:
-#                             methods_dict[k] = v
-#                     else:
-#                         instance_dict[k] = v
 
         if val_class:
             # build a full class variables dict with the variables of 
@@ -632,14 +606,13 @@ class Value(object):
                 object_body = ""
                 value_body = ""
 
+                if self.SHOW_OBJECT:
+                    object_body = self.object_value()
+
                 if self.SHOW_VAL:
                     value_body = self.method_value()
 
-                if not value_body:
-                    if self.SHOW_OBJECT:
-                        object_body = self.object_value()
-
-                    if self.SHOW_VAL:
+                    if not value_body:
                         value_body = self.val_value()
 
                 if value_body or object_body:
@@ -687,8 +660,14 @@ class Value(object):
         .string_value use as the val value"""
         ret = ""
         if pout_method := self._get_object_method():
-            v = self.create_instance(pout_method())
-            ret = v.val_value()
+            try:
+                v = self.create_instance(pout_method())
+                ret = v.val_value()
+
+            except TypeError:
+                # ignore instance method __pout__ being called as a
+                # classmethod
+                pass
 
         return ret
 
@@ -767,7 +746,6 @@ class Value(object):
         """
         if self.SHOW_INSTANCE_TYPE:
             instance_value = self._get_instance_type()
-            #instance_value = kwargs.get("value", self.typename.lower())
 
         else:
             instance_value = ""
