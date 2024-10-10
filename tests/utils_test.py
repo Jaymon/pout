@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 
-# this is the local pout that is going to be tested
+import pout
 from pout.compat import *
-from pout.utils import String
+from pout.utils import String, Color
 from pout import environ
 
-from . import TestCase
+from . import TestCase, SkipTest
 
 
 class StringTest(TestCase):
@@ -27,4 +27,44 @@ class StringTest(TestCase):
     def test_snakecase(self):
         s = String("FooBar").snakecase()
         self.assertEqual("foo_bar", s)
+
+
+class ColorTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        environ.SHOW_COLOR = True
+
+    def test_has_color_support(self):
+        self.assertTrue(environ.has_color_support())
+        environ.SHOW_COLOR = False
+        self.assertFalse(environ.has_color_support())
+        environ.SHOW_COLOR = True
+
+    def test_color(self):
+        if environ.has_color_support():
+            text = Color.color("foo bar", "red")
+            self.assertTrue("31m" in text)
+
+        else:
+            raise SkipTest("Color is not supported")
+
+    def test_pout(self):
+        """This doesn't test anything, it's just here for me to check colors"""
+        class Foo(object):
+            prop_str = "string value"
+            prop_int = 123456
+
+        d = {
+            "bool-true": True,
+            "bool-false": False,
+            "float": 123456.789,
+            "int": 1234456789,
+            "none": None,
+            "list": list(range(5)),
+            "string": "foo bar che",
+            "instance": Foo(),
+            "class": Foo,
+        }
+
+        pout.v(d)
 

@@ -24,7 +24,7 @@ import ast
 from .compat import *
 from . import environ
 from .path import Path
-from .utils import String, OrderedItems
+from .utils import String, OrderedItems, Color
 
 
 logger = logging.getLogger(__name__)
@@ -501,10 +501,12 @@ class Value(object):
                         psrc_file = Path(psrc_file)
                     pname = self._get_name(pcls)
                     if psrc_file:
-                        s_body += "{} ({})".format(pname, psrc_file)
+                        pname = "{} ({})".format(pname, psrc_file)
 
-                    else:
-                        s_body += "{}".format(pname)
+                    if pname:
+                        pname = Color.color_meta(pname)
+
+                    s_body += "{}".format(pname)
                     s_body += "\n"
 
         if SHOW_OBJECT_STRING and hasattr(val, "__str__"):
@@ -519,32 +521,48 @@ class Value(object):
                     strlen
                 )
 
-            s_body += "\n__str__ ({}):\n".format(strlen)
+            if s_str:
+                s_str = Color.color_string(s_str)
+
+            header = Color.color_header(f"__str__ ({strlen})")
+            s_body += f"\n{header}:\n"
             s_body += self._add_indent(s_str, 1)
             s_body += "\n"
 
         if class_dict := info_dict["class_properties"]:
-            s_body += f"\nClass Properties ({len(class_dict)}):\n"
+            header = Color.color_header(
+                f"Class Properties ({len(class_dict)})"
+            )
+            s_body += f"\n:{header}\n"
 
             for k, v in OrderedItems(class_dict):
+                k = Color.color_attr(k)
                 s_var = '{} = '.format(k)
                 s_var += v.string_value()
                 s_body += self._add_indent(s_var, 1)
                 s_body += "\n"
 
         if instance_dict := info_dict["instance_properties"]:
-            s_body += f"\nInstance Properties ({len(instance_dict)}):\n"
+            header = Color.color_header(
+                f"Instance Properties ({len(instance_dict)})"
+            )
+            s_body += f"\n{header}:\n"
 
             for k, v in OrderedItems(instance_dict):
+                k = Color.color_attr(k)
                 s_var = '{} = '.format(k)
                 s_var += v.string_value()
                 s_body += self._add_indent(s_var, 1)
                 s_body += "\n"
 
         if methods_dict := info_dict["methods"]:
-            s_body += f"\nMethods ({len(methods_dict)}):\n"
+            header = Color.color_header(
+                f"Methods ({len(methods_dict)})"
+            )
+            s_body += f"\n{header}:\n"
 
             for k, v in OrderedItems(methods_dict):
+                k = Color.color_attr(k)
                 s_body += self._add_indent(v.string_value(), 1)
                 s_body += "\n"
 
@@ -555,7 +573,6 @@ class Value(object):
             )
 
         return s_body.strip()
-
 
     def _is_body_visible(self):
         """Returns True if the body should be visible, see .string_value"""
@@ -713,6 +730,9 @@ class Value(object):
 
             if self.SHOW_INSTANCE_ID:
                 ret += " at {}".format(self.id_value())
+
+        if ret:
+            ret = Color.color_meta(ret)
 
         return ret
 
@@ -975,6 +995,7 @@ class DictValue(BuiltinValue):
         else:
             ret = String(k)
 
+        ret = Color.color_key(ret)
         return ret
 
     def __iter__(self):
@@ -1074,7 +1095,7 @@ class ListValue(DictValue):
         if SHOW_SIMPLE is True then this returns None
         """
         if not self.SHOW_SIMPLE:
-            return str(k)
+            return Color.color_key(str(k))
 
     def start_val_value(self):
         return "["
@@ -1183,17 +1204,18 @@ class GeneratorValue(TupleValue):
 
 
 class PrimitiveValue(BuiltinValue):
-    """is the value a built-in primitive type?"""
+    """Internal class. The base class for the primitives: bool, None, int, 
+    and float"""
     SHOW_ALWAYS = True
 
-    @classmethod
-    def get_types(cls):
-        return (
-            type(None),
-            bool,
-            int,
-            float
-        )
+#     @classmethod
+#     def get_types(cls):
+#         return (
+#             type(None),
+#             bool,
+#             int,
+#             float
+#         )
 
     def _wrap_val_value(self, value):
         return value if self.SHOW_SIMPLE else super()._wrap_val_value(value)
@@ -1207,8 +1229,44 @@ class PrimitiveValue(BuiltinValue):
             # get rid of the prefix
             self.SHOW_SIMPLE_PREFIX = True
 
+    def val_color(self, val):
+        return val
+
     def val_value(self):
-        return str(self.val)
+        return self.val_color(str(self.val))
+
+
+class NoneValue(PrimitiveValue):
+    @classmethod
+    def get_types(cls):
+        return type(None)
+
+    def val_color(self, val):
+        return Color.color(val, bold=True)
+
+
+class IntValue(PrimitiveValue):
+    @classmethod
+    def get_types(cls):
+        return int
+
+    def val_color(self, val):
+        return Color.color_number(val)
+
+
+class BoolValue(IntValue):
+    @classmethod
+    def get_types(cls):
+        return bool
+
+    def val_color(self, val):
+        return Color.color(val, bold=True)
+
+
+class FloatValue(IntValue):
+    @classmethod
+    def get_types(cls):
+        return float
 
 
 class StringValue(BuiltinValue):
@@ -1248,6 +1306,7 @@ class StringValue(BuiltinValue):
         else:
             ret = super()._wrap_val_value(value)
 
+        ret = Color.color_string(ret)
         return ret
 
 
@@ -1345,24 +1404,29 @@ class ModuleValue(InstanceValue):
                 properties[k] = v
 
         if modules:
-            s += "\nModules:\n"
+            header = Color.color_header("Modules")
+            s += f"\n{header}:\n"
             for k, v in modules.items():
+                k = Color.color_attr(k)
                 module_path = Path(self._get_src_file(v.val))
                 s += self._add_indent("{} ({})".format(k, module_path), 1)
                 s += "\n"
 
         if funcs:
-            s += "\nFunctions:\n"
+            header = Color.color_header("Functions")
+            s += f"\n{header}:\n"
 
             for k, v in funcs.items():
+                k = Color.color_attr(k)
                 s += self._add_indent(v, 1)
                 s += "\n"
 
         if classes:
-            s += "\nClasses:\n"
+            header = Color.color_header("Classes")
+            s += f"\n{header}:\n"
 
             for k, v in classes.items():
-
+                k = Color.color_attr(k)
                 s += self._add_indent(k, 1)
                 s += "\n"
 
@@ -1375,8 +1439,10 @@ class ModuleValue(InstanceValue):
                 s += "\n"
 
         if properties:
-            s += "\nProperties:\n"
+            header = Color.color_header("Properties")
+            s += f"\n{header}:\n"
             for k, v in properties.items():
+                k = Color.color_attr(k)
                 s += self._add_indent(k, 1)
                 s += "\n"
 
@@ -1409,9 +1475,13 @@ class TypeValue(Value):
         info_dict = self._get_info()
 
         if class_dict := info_dict["class_properties"]:
-            s_body += f"Class Properties ({len(class_dict)}):\n"
+            header = Color.color_header(
+                f"Class Properties ({len(class_dict)})"
+            )
+            s_body += f"{header}:\n"
 
             for k, v in OrderedItems(class_dict):
+                k = Color.color_attr(k)
                 s_var = '{} = '.format(k)
                 s_var += v.string_value()
 

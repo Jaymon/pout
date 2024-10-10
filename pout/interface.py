@@ -26,7 +26,7 @@ from .compat import *
 from . import environ
 from .value import Value
 from .path import Path
-from .utils import String, FileStream
+from .utils import String, FileStream, Color
 from .reflect import Call, Reflect
 
 
@@ -182,7 +182,8 @@ class Interface(object):
         return self.path_class(path)
 
     def _printstr(self, args):
-        """this gets all the args ready to be printed, this is terribly named"""
+        """this gets all the args ready to be printed, this is terribly named
+        """
         s = "\n"
 
         for arg in args:
@@ -192,31 +193,38 @@ class Interface(object):
         return s
 
     def name_value(self, name, body, **kwargs):
-        """normalize name. This will only do something with name if it has a value
+        """normalize name. This will only do something with name if it has a
+        value
 
-        this method is called after .body_value(). This method respects SHOW_META
-        and SHOW_NAME. This method will get called once for
-        each tuple value [0] yielded from .input()
+        this method is called after .body_value(). This method respects
+        SHOW_META and SHOW_NAME. This method will get called once for each
+        tuple value [0] yielded from .input()
 
         :param name: str, the name value to use
-        :param body: Any, the original un-normalized body, this is handy to have
-            in case you want to tie the normalized name to the body in some way
+        :param body: Any, the original un-normalized body, this is handy to
+            have in case you want to tie the normalized name to the body in
+            some way
         :param **kwargs: dict, anything passed into the interface
         :returns: str, the name normalized
         """
         s = ""
+
         if name:
             show_meta = kwargs.get("show_meta", self.SHOW_META)
             show_name = show_meta and kwargs.get("show_name", self.SHOW_NAME)
             if show_name:
                 s = name
+
+        if s:
+            s = Color.color_attr(s)
+
         return s
 
     def body_value(self, body, **kwargs):
         """normalize body
 
-        this method is called from .output(). This method will get called once for
-        each tuple value [1] yielded from .input()
+        this method is called from .output(). This method will get called once
+        for each tuple value [1] yielded from .input()
 
         :param body: mixed, one of the inputted body
         :param **kwargs: dict, anything passed into the interface
@@ -230,10 +238,11 @@ class Interface(object):
         This method respects SHOW_META and SHOW_PATH
 
         :param **kwargs: dict, anything passed into the interface
-        :returns: str, the path that should be included with the .name_value() and
-            .body_value() values
+        :returns: str, the path that should be included with the .name_value()
+            and .body_value() values
         """
         s = ""
+
         show_meta = kwargs.get("show_meta", self.SHOW_META)
         show_path = show_meta and kwargs.get("show_path", self.SHOW_PATH)
         if show_path:
@@ -243,6 +252,10 @@ class Interface(object):
                     self._get_path(call_info['file']),
                     call_info['line']
                 )
+
+        if s:
+            s = Color.color_meta(s)
+
         return s
 
     def input(self, *args, **kwargs):
@@ -563,7 +576,7 @@ class B(Interface):
             if v.typename in set(['STRING', 'BYTES']):
                 title = args[0]
 
-            elif v.typename in set(["PRIMITIVE"]):
+            elif v.typename in set(["INT"]):
                 arg_name = String(self.reflect.info["args"][0]["name"])
                 arg_val = String(self.reflect.info["args"][0]["val"])
                 if arg_name == arg_val:

@@ -194,10 +194,10 @@ class ValueTest(TestCase):
         self.assertEqual('STRING', Value(v).typename)
 
         v = 123
-        self.assertEqual('PRIMITIVE', Value(v).typename)
+        self.assertEqual('INT', Value(v).typename)
 
         v = True
-        self.assertEqual('PRIMITIVE', Value(v).typename)
+        self.assertEqual('BOOL', Value(v).typename)
 
         def baz(): pass
         self.assertEqual('CALLABLE', Value(baz).typename)
@@ -284,6 +284,8 @@ class ValueTest(TestCase):
         v = Value(d)
         s = v.string_value()
         self.assertTrue("b'foo'" in s)
+
+        pout.v(d)
 
     def test_dictproxy(self):
         class FooDictProxy(object): pass

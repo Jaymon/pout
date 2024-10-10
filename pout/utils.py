@@ -205,3 +205,131 @@ class OrderedItems(object):
         for k in keys:
             yield k, self.d[k]
 
+
+class Color(object):
+    @classmethod
+    def color_header(cls, text):
+        return cls.color(text, bold=True)
+
+    @classmethod
+    def color_meta(cls, text):
+        return cls.color(text, "LIGHTGRAY")
+
+    @classmethod
+    def color_string(cls, text):
+        return cls.color(text, "RED")
+
+    @classmethod
+    def color_key(cls, text):
+        return cls.color(text, "CYAN")
+
+    @classmethod
+    def color_attr(cls, text):
+        return cls.color(text, "BLUE")
+
+    @classmethod
+    def color_number(cls, text):
+        return cls.color(text, "MAGENTA")
+
+    @classmethod
+    def color(cls, text, fg="", bg="", **kwargs):
+        if text and environ.has_color_support():
+
+            color_names = (
+                "BLACK",
+                "RED",
+                "GREEN",
+                "YELLOW",
+                "BLUE",
+                "MAGENTA",
+                "CYAN",
+                "WHITE"
+            )
+            foreground = {color_names[x]: f"3{x}" for x in range(8)}
+            background = {color_names[x]: f"4{x}" for x in range(8)}
+
+            foreground["NONE"] = 0
+
+            aliases = [
+                ("LIGHTGRAY", "WHITE"),
+                ("GRAY", "WHITE"),
+                ("PURPLE", "MAGENTA"),
+            ]
+            for k1, k2 in aliases:
+                foreground[k1] = foreground[k2]
+                background[k1] = background[k2]
+
+            options = {
+                "bold": "1",
+                "underscore": "4",
+                "underline": "4",
+                "blink": "5",
+                "reverse": "7",
+                "conceal": "8",
+            }
+
+#             colors = {
+#                 "YELLOW": "\033[0;33m",
+#                 "PURPLE": "\033[0;35m",
+#                 "CYAN": "\033[0;36m",
+#                 "WHITE": "\033[0;37m",
+#                 "RED": "\033[0;31m",
+#                 "LIGHTRED": "\033[1;31m",
+#                 "GREEN": "\033[0;32m",
+#                 "BLACK": "\033[0;30m",
+#                 "BLUE": "\033[0;34m",
+#                 "LIGHTGRAY": "\033[37m",
+#                 "NONE": "\033[0m", # Text Reset
+# 
+#                 # http://apple.stackexchange.com/questions/9821/
+#                 "C_DEFAULT": "\033[m",
+#                 "C_WHITE": "\033[1m",
+#                 "C_BLACK": "\033[30m",
+#                 "C_RED": "\033[31m",
+#                 "C_GREEN": "\033[32m",
+#                 "C_YELLOW": "\033[33m",
+#                 "C_BLUE": "\033[34m",
+#                 "C_PURPLE": "\033[35m",
+#                 "C_CYAN": "\033[36m",
+#                 "C_LIGHTGRAY": "\033[37m",
+#                 "C_DARKGRAY": "\033[1;30m",
+#                 "C_LIGHTRED": "\033[1;31m",
+#                 "C_LIGHTGREEN": "\033[1;32m",
+#                 "C_LIGHTYELLOW": "\033[1;33m",
+#                 "C_LIGHTBLUE": "\033[1;34m",
+#                 "C_LIGHTPURPLE": "\033[1;35m",
+#                 "C_LIGHTCYAN": "\033[1;36m",
+#                 "C_BG_BLACK": "\033[40m",
+#                 "C_BG_RED": "\033[41m",
+#                 "C_BG_GREEN": "\033[42m",
+#                 "C_BG_YELLOW": "\033[43m",
+#                 "C_BG_BLUE": "\033[44m",
+#                 "C_BG_PURPLE": "\033[45m",
+#                 "C_BG_CYAN": "\033[46m",
+#                 "C_BG_LIGHTGRAY": "\033[47m",
+#             }
+
+            codes = []
+            if fg:
+                codes.append(foreground[fg.upper()])
+
+            if bg:
+                codes.append(background[bg.upper()])
+
+            for k, v in kwargs.items():
+                if v:
+                    k = k.lower()
+                    if options.get(k, False):
+                        codes.append(options[k])
+
+            color = reset = ""
+            if codes:
+                color = "\033[{}m".format(";".join(codes))
+                reset = "\033[{}m".format(foreground["NONE"])
+
+    #         c = colors[color.upper()]
+    #         r = colors["NONE"]
+            text = f"{color}{text}{reset}"
+
+        return text
+

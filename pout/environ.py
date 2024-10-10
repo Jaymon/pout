@@ -2,6 +2,7 @@
 import os
 import codecs
 import uuid
+import sys
 
 from .compat import *
 
@@ -35,17 +36,24 @@ ENCODING_REPLACE_CHAR = String(os.environ.get(
 period but figured I should use the actual replacement character"""
 
 
-SHOW_SIMPLE_PREFIX = bool(os.environ.get("POUT_SHOW_SIMPLE_PREFIX", False))
+SHOW_SIMPLE_PREFIX = bool(int(os.environ.get(
+    "POUT_SHOW_SIMPLE_PREFIX",
+    False
+)))
 """This flips SHOW_INSTANCE_ID and SHOW_INSTANCE_TYPE to its value"""
 
 
-SHOW_SIMPLE_VALUE = bool(os.environ.get("POUT_SHOW_SIMPLE_VALUE", True))
+SHOW_SIMPLE_VALUE = bool(int(os.environ.get("POUT_SHOW_SIMPLE_VALUE", True)))
 """This displays simple values for Value subclasses that support it
 
 This has to be specifically supported by a Value subclass to have any effect
 
 see: https://github.com/Jaymon/pout/issues/95
 """
+
+
+SHOW_COLOR = bool(int(os.environ.get("POUT_SHOW_COLOR", True)))
+"""Set to True for pout to use color if the terminal supports it"""
 
 
 OBJECT_DEPTH = int(os.environ.get("POUT_OBJECT_DEPTH", 5))
@@ -113,5 +121,29 @@ except LookupError:
 else:
     raise ValueError(
         "{} has already been registered".format(ENCODING_REPLACE_METHOD)
+    )
+
+
+def has_color_support():
+    """
+    This is a simplified version of:
+        https://github.com/django/django/blob/main/django/core/management/color.py
+    """
+    global SHOW_COLOR
+
+    return (
+        SHOW_COLOR
+        and hasattr(sys.stdout, "isatty")
+        and sys.stdout.isatty()
+        and (
+            sys.platform != "win32"
+            or "ANSICON" in os.environ
+            or
+            # Windows Terminal supports VT codes.
+            "WT_SESSION" in os.environ
+            or
+            # Microsoft Visual Studio Code's built-in terminal supports colors.
+            os.environ.get("TERM_PROGRAM") == "vscode"
+        )
     )
 
