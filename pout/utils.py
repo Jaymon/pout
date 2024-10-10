@@ -233,6 +233,32 @@ class Color(object):
 
     @classmethod
     def color(cls, text, fg="", bg="", **kwargs):
+        """Wrap text in fg and bg color
+
+        See:
+            - https://github.com/Jaymon/pout/issues/94
+
+        Based off of this:
+            https://github.com/django/django/blob/main/django/utils/termcolors.py
+
+        The supported color names:
+            - BLACK
+            - RED
+            - GREEN
+            - YELLOW
+            - BLUE
+            - MAGENTA
+            - CYAN
+            - WHITE
+
+        :param text: str, the text to wrap with fg and bg colors
+        :param fg: str, the foreground color
+        :param bg: str, the background color
+        :param **kwargs:
+            - bold: bool, True to make text bold
+            - underline: bool, True to underline text
+        :returns: str, text wrapped with terminal color if supported
+        """
         if text and environ.has_color_support():
 
             color_names = (
@@ -268,47 +294,6 @@ class Color(object):
                 "conceal": "8",
             }
 
-#             colors = {
-#                 "YELLOW": "\033[0;33m",
-#                 "PURPLE": "\033[0;35m",
-#                 "CYAN": "\033[0;36m",
-#                 "WHITE": "\033[0;37m",
-#                 "RED": "\033[0;31m",
-#                 "LIGHTRED": "\033[1;31m",
-#                 "GREEN": "\033[0;32m",
-#                 "BLACK": "\033[0;30m",
-#                 "BLUE": "\033[0;34m",
-#                 "LIGHTGRAY": "\033[37m",
-#                 "NONE": "\033[0m", # Text Reset
-# 
-#                 # http://apple.stackexchange.com/questions/9821/
-#                 "C_DEFAULT": "\033[m",
-#                 "C_WHITE": "\033[1m",
-#                 "C_BLACK": "\033[30m",
-#                 "C_RED": "\033[31m",
-#                 "C_GREEN": "\033[32m",
-#                 "C_YELLOW": "\033[33m",
-#                 "C_BLUE": "\033[34m",
-#                 "C_PURPLE": "\033[35m",
-#                 "C_CYAN": "\033[36m",
-#                 "C_LIGHTGRAY": "\033[37m",
-#                 "C_DARKGRAY": "\033[1;30m",
-#                 "C_LIGHTRED": "\033[1;31m",
-#                 "C_LIGHTGREEN": "\033[1;32m",
-#                 "C_LIGHTYELLOW": "\033[1;33m",
-#                 "C_LIGHTBLUE": "\033[1;34m",
-#                 "C_LIGHTPURPLE": "\033[1;35m",
-#                 "C_LIGHTCYAN": "\033[1;36m",
-#                 "C_BG_BLACK": "\033[40m",
-#                 "C_BG_RED": "\033[41m",
-#                 "C_BG_GREEN": "\033[42m",
-#                 "C_BG_YELLOW": "\033[43m",
-#                 "C_BG_BLUE": "\033[44m",
-#                 "C_BG_PURPLE": "\033[45m",
-#                 "C_BG_CYAN": "\033[46m",
-#                 "C_BG_LIGHTGRAY": "\033[47m",
-#             }
-
             codes = []
             if fg:
                 codes.append(foreground[fg.upper()])
@@ -327,8 +312,6 @@ class Color(object):
                 color = "\033[{}m".format(";".join(codes))
                 reset = "\033[{}m".format(foreground["NONE"])
 
-    #         c = colors[color.upper()]
-    #         r = colors["NONE"]
             text = f"{color}{text}{reset}"
 
         return text

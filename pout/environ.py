@@ -125,9 +125,16 @@ else:
 
 
 def has_color_support():
-    """
+    """True if the environment has color support
+
     This is a simplified version of:
         https://github.com/django/django/blob/main/django/core/management/color.py
+
+    See:
+        - https://stackoverflow.com/questions/
+        - https://stackoverflow.com/questions/7445658/
+
+    :returns: bool, True if the environment supports color
     """
     global SHOW_COLOR
 
