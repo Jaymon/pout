@@ -914,20 +914,20 @@ class ITest(TestCase):
         """I noticed when passing classes into pout.i() they identified as
         instances in the output, this makes sense now that I've looked into it,
         but I went ahead and fixed it"""
-        class Foo(object): pass
-
+        class Foo(object):
+            pass
         with testdata.capture() as c:
             pout.i(Foo)
         self.assertTrue(Foo.__qualname__ in c)
-
-        with testdata.capture() as c:
-            pout.i(dict)
-        self.assertTrue(dict.__qualname__ in c)
 
         d = {}
         with testdata.capture() as c:
             pout.i(d)
         self.assertTrue("dict (0)" in c)
+
+        with testdata.capture() as c:
+            pout.i(dict)
+        self.assertTrue(dict.__qualname__ in c)
 
         f = Foo()
         with testdata.capture() as c:

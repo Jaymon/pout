@@ -423,8 +423,17 @@ class X(V):
 class I(V):
     """Print out all class information (properties and methods) of the values"""
     def body_value(self, body, **kwargs):
-        value = self.create_value(body, **kwargs)
-        return value.info_value() + "\n"
+        kwargs.setdefault("SHOW_METHODS", True)
+        kwargs.setdefault("SHOW_MAGIC", True)
+        kwargs.setdefault("SHOW_VAL", False)
+        kwargs.setdefault("SHOW_OBJECT", True)
+        kwargs.setdefault("SHOW_INSTANCE_ID", True)
+        kwargs.setdefault("SHOW_INSTANCE_TYPE", True)
+        kwargs.setdefault("SHOW_SIMPLE_EMPTY", False)
+        kwargs.setdefault("SHOW_SIMPLE_PREFIX", False)
+        return super().body_value(body, **kwargs)
+#         value = self.create_value(body, **kwargs)
+#         return value.string_value() + "\n"
 
 
 class VI(I):

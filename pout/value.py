@@ -230,8 +230,23 @@ class Value(object):
         """
         kwargs.setdefault("depth", self.depth + 1)
         kwargs.setdefault("seen", self.seen)
-        #return Value(val, **kwargs)
-        return Value(val, **{**self.kwargs, **kwargs})
+
+        # certain values don't persist across sub instances
+        kwargs = {**self.kwargs, **kwargs}
+        ignore_keys = [
+            "SHOW_VAL",
+            "SHOW_OBJECT"
+        ]
+        for k in ignore_keys:
+            kwargs.pop(k, None)
+
+        return Value(val, **kwargs)
+
+#         if inherit_kwargs:
+#             return Value(val, **{**self.kwargs, **kwargs})
+# 
+#         else:
+#             return Value(val, **kwargs)
 
     def has_body(self):
         """Returns True if .val has a body, ie, .val_value or .object_value
@@ -380,8 +395,8 @@ class Value(object):
         SHOW_METHODS = kwargs.get("show_methods", self.SHOW_METHODS)
         SHOW_MAGIC = kwargs.get("show_magic", self.SHOW_MAGIC)
 
-        try:
-            for k, v in vars(val).items():
+        def populate_dicts(items):
+            for k, v in items:
                 if SHOW_MAGIC or not self._is_magic(k):
                     v = self.create_instance(v)
                     if v.typename == "CALLABLE":
@@ -394,19 +409,35 @@ class Value(object):
                         else:
                             instance_dict[k] = v
 
+        try:
+            populate_dicts(vars(val).items())
+#             for k, v in vars(val).items():
+#                 if SHOW_MAGIC or not self._is_magic(k):
+#                     v = self.create_instance(v)
+#                     if v.typename == "CALLABLE":
+#                         if SHOW_METHODS:
+#                             methods_dict[k] = v
+#                     else:
+#                         if val is val_class:
+#                             class_dict[k] = v
+# 
+#                         else:
+#                             instance_dict[k] = v
+
         except TypeError as e:
             # Since vars() failed we are going to try and make
             # inspect.getmembers act like vars()
             # Also, I could get a recursion error if I tried to just do
             # inspect.getmembers in certain circumstances, I have no idea why
-            for k, v in inspect.getmembers(val):
-                v = self.create_instance(v)
-                if SHOW_MAGIC or not self._is_magic(k):
-                    if v.typename == "CALLABLE":
-                        if SHOW_METHODS:
-                            methods_dict[k] = v
-                    else:
-                        instance_dict[k] = v
+            populate_dicts(inspect.getmembers(val))
+#             for k, v in inspect.getmembers(val):
+#                 if SHOW_MAGIC or not self._is_magic(k):
+#                     v = self.create_instance(v)
+#                     if v.typename == "CALLABLE":
+#                         if SHOW_METHODS:
+#                             methods_dict[k] = v
+#                     else:
+#                         instance_dict[k] = v
 
         if val_class:
             # build a full class variables dict with the variables of 
@@ -417,7 +448,7 @@ class Value(object):
                     # filter out anything that's in the instance dict also
                     # since that takes precedence.
                     if k not in instance_dict:
-                        v = self.create_instance(v, key=k)
+                        v = self.create_instance(v)
                         if SHOW_MAGIC or not self._is_magic(k):
                             if v.typename == "CALLABLE":
                                 if SHOW_METHODS:
@@ -473,7 +504,7 @@ class Value(object):
         depth = self.depth
 
         # these exist because .info_value passes flags
-        SHOW_METHODS = kwargs.get("show_methods",self.SHOW_METHODS)
+        SHOW_METHODS = kwargs.get("show_methods", self.SHOW_METHODS)
         SHOW_MAGIC = kwargs.get("show_magic", self.SHOW_MAGIC)
         SHOW_OBJECT_STRING = kwargs.get(
             "show_object_string",
@@ -567,25 +598,6 @@ class Value(object):
 
         return ret
 
-    def info_value(self):
-        """If you want to get all the information about the value as an object
-        then you can use this method
-
-        :returns: str, the full object information string
-        """
-        prefix = self.prefix_value()
-        start_wrapper = self._add_indent(self.start_object_value(), 1)
-        body = self._add_indent(
-            self._get_object_value(show_methods=True, show_magic=True),
-            2
-        )
-        stop_wrapper = self._add_indent(self.stop_object_value(), 1)
-
-        return prefix + "\n" \
-            + start_wrapper + "\n" \
-            + body + "\n" \
-            + stop_wrapper
-
     def string_value(self):
         """This is the main "value" generation method, this is the method that
         should be called from external sources
@@ -635,6 +647,9 @@ class Value(object):
                         ret = prefix
 
                         if object_body:
+                            if ret:
+                                ret += "\n"
+
                             ret += self._add_indent(
                                 self._wrap_object_value(object_body),
                                 1

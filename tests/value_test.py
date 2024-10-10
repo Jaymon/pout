@@ -510,7 +510,7 @@ class ValueTest(TestCase):
             instance = To22()
 
         t = To21()
-        c1 = Value(t).string_value()
+        c1 = Value(t, OBJECT_DEPTH=10).string_value()
         c2 = Value(t, OBJECT_DEPTH=1).string_value()
         self.assertNotEqual(c1, c2)
 
