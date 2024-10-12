@@ -634,7 +634,7 @@ class Value(object):
 
                 if value_body or object_body:
                     if prefix := self.prefix_value():
-                        ret = prefix
+                        ret = Color.color_meta(prefix)
 
                         if object_body:
                             if ret:
@@ -730,9 +730,6 @@ class Value(object):
 
             if self.SHOW_INSTANCE_ID:
                 ret += " at {}".format(self.id_value())
-
-        if ret:
-            ret = Color.color_meta(ret)
 
         return ret
 
@@ -832,6 +829,7 @@ class Value(object):
             stop_wrapper = self.stop_object_value()
             prefix = self.prefix_value()
             ret = f"{start_wrapper}{prefix}{stop_wrapper}"
+            ret = Color.color_meta(ret)
 
         return ret
 
@@ -845,6 +843,7 @@ class Value(object):
             stop_wrapper = self.stop_object_value()
             prefix = self.prefix_value()
             ret = f"{start_wrapper}{prefix}{stop_wrapper}"
+            ret = Color.color_meta(ret)
 
         else:
             ret = self.empty_value()
@@ -952,7 +951,9 @@ class DescriptorValue(Value):
         return is_descriptor
 
     def string_value(self):
-        return f"<{self.prefix_value()}>"
+        ret = f"<{self.prefix_value()}>"
+        ret = Color.color_meta(ret)
+        return ret
 
 
 class BuiltinValue(InstanceValue):
@@ -1628,12 +1629,24 @@ class CallableValue(Value):
                 else:
                     typename = "staticmethod"
 
-        return "<{} {}{} at {}>".format(
-            typename,
-            classpath,
-            signature,
-            self.id_value()
-        )
+        if self.SHOW_INSTANCE_ID:
+            ret = "<{} {}{} at {}>".format(
+                typename,
+                classpath,
+                signature,
+                self.id_value()
+            )
+
+        else:
+            ret = "<{} {}{}>".format(
+                typename,
+                classpath,
+                signature,
+            )
+
+        ret = Color.color_meta(ret)
+
+        return ret
 
 
 class DatetimeValue(StringLikeValue):

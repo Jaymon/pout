@@ -50,6 +50,9 @@ class ColorTest(TestCase):
 
     def test_pout(self):
         """This doesn't test anything, it's just here for me to check colors"""
+        def bar(one, two, three):
+            pass
+
         class Foo(object):
             prop_str = "string value"
             prop_int = 123456
@@ -64,6 +67,7 @@ class ColorTest(TestCase):
             "string": "foo bar che",
             "instance": Foo(),
             "class": Foo,
+            "function": bar,
         }
 
         pout.v(d)

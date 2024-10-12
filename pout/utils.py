@@ -237,6 +237,8 @@ class Color(object):
 
         See:
             - https://github.com/Jaymon/pout/issues/94
+            - https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
+            - https://unix.stackexchange.com/questions/105568/
 
         Based off of this:
             https://github.com/django/django/blob/main/django/utils/termcolors.py
@@ -274,10 +276,16 @@ class Color(object):
             foreground = {color_names[x]: f"3{x}" for x in range(8)}
             background = {color_names[x]: f"4{x}" for x in range(8)}
 
+            # bright versions
+            for x in range(8):
+                foreground[f"BRIGHT{color_names[x]}"] = f"9{x}"
+                background[f"BRIGHT{color_names[x]}"] = f"10{x}"
+
             foreground["NONE"] = 0
 
             aliases = [
                 ("LIGHTGRAY", "WHITE"),
+                ("BRIGHTGRAY", "BRIGHTBLACK"),
                 ("GRAY", "WHITE"),
                 ("PURPLE", "MAGENTA"),
             ]
