@@ -29,15 +29,15 @@ from pout.value import (
     RegexMatchValue,
     GeneratorValue,
     CallableValue,
-    Values,
+#     Values,
     Value,
 )
 
 
-class ValuesTest(TestCase):
-    def test___init__(self):
-        vs = Values()
-        self.assertEqual(Value, vs[-1])
+# class ValuesTest(TestCase):
+#     def test___init__(self):
+#         vs = Values()
+#         self.assertEqual(Value, vs[-1])
 
 
 class ValueTest(TestCase):

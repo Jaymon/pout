@@ -91,8 +91,15 @@ inspect the object"""
 #INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u0F0B   ")
 # https://www.compart.com/en/unicode/U+0F0C
 #INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u0F0C   ")
+# https://www.compart.com/en/unicode/U+115C5
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\U000115C5   ")
+
+# my favorite dot
 # https://www.compart.com/en/unicode/U+0701
 INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u0701   ")
+# my favorite vertical line
+# https://en.wikipedia.org/wiki/Box_Drawing
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u2502   ")
 """This is what pout uses to indent when it is creating the output
 
 You can check here for other delimiters:

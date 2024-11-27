@@ -47,17 +47,16 @@ class Values(list):
         super().__init__()
 
         self.indexes = {}
-        self.cutoff_class = Value
 
-        module = sys.modules[__name__]
-        for ni, vi in inspect.getmembers(module, inspect.isclass):
-            if issubclass(vi, self.cutoff_class):
-                self.insert(vi)
+#         module = sys.modules[__name__]
+#         for ni, vi in inspect.getmembers(module, inspect.isclass):
+#             if issubclass(vi, self.cutoff_class):
+#                 self.insert(vi)
 
     def insert(self, value_class):
         index = len(self)
         for vclass in reversed(inspect.getmro(value_class)):
-            if issubclass(vclass, self.cutoff_class):
+            if issubclass(vclass, Value):
                 index_name = f"{vclass.__module__}.{vclass.__name__}"
                 if index_name in self.indexes:
                     index = min(index, self.indexes[index_name])
@@ -83,10 +82,10 @@ class Value(object):
     The most important method in this class is .string_value, check out that
     docblock for the order all the other *_value methods are called
     """
-    values_class = Values
+    #values_class = Values
     """Holds the class this will use to find the right Value class to return"""
 
-    values_instance = None
+    classes = Values()
     """Holds a cached instance of values_class for faster searches"""
 
     SHOW_METHODS = False
@@ -151,17 +150,17 @@ class Value(object):
         s = self.__class__.__name__.replace("Value", "")
         return String(s).snakecase().upper()
 
-    @classmethod
-    def find_class(cls, val):
-        """Return the *Value class that represents val"""
-        if cls is Value:
-            if not cls.values_instance:
-                cls.values_instance = cls.values_class()
-
-            return cls.values_instance.find_class(val)
-
-        else:
-            return cls
+#     @classmethod
+#     def find_class(cls, val):
+#         """Return the *Value class that represents val"""
+#         if cls is Value:
+#             if not cls.values_instance:
+#                 cls.values_instance = cls.values_class()
+# 
+#             return cls.values_instance.find_class(val)
+# 
+#         else:
+#             return cls
 
     @classmethod
     def is_valid(cls, val):
@@ -174,7 +173,7 @@ class Value(object):
 
         # we don't pass in (val, depth) because this just returns the instance
         # and then __init__ is called with those values also
-        return super().__new__(cls.find_class(val))
+        return super().__new__(cls.classes.find_class(val))
 
     def __init__(self, val, depth=0, **kwargs):
         self.val = val
@@ -182,6 +181,13 @@ class Value(object):
         self.instances = kwargs.pop("instances", {})
         self._seen_string_value = False
         self.set_instance_attributes(**kwargs)
+
+    def __init_subclass__(cls):
+        """Called when a child class is loaded into memory
+
+        https://peps.python.org/pep-0487/
+        """
+        cls.classes.insert(cls)
 
     def set_instance_attributes(self, **kwargs):
         """update the instance attributes to reflect what is set in the
