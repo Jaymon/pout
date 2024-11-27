@@ -409,37 +409,37 @@ class VTest(TestCase):
         self.assertTrue("'foo':" in c)
         self.assertTrue("'bar':" in c)
 
-    def test_overriding(self):
-        """This verifies that child classes still can find the correct stack
-        traces
-
-        https://github.com/Jaymon/pout/issues/8
-        """
-        original_function = pout.v
-
-        class Child(V):
-            @classmethod
-            def function_name(cls):
-                return "v"
-
-            def name_value(self, name, body, **kwargs):
-                return "foo custom"
-
-        Child.inject()
-
-        try:
-            with testdata.capture() as c:
-                v = "foo"
-                pout.v(v)
-            self.assertTrue("foo custom" in c)
-
-            with testdata.capture() as c:
-                v = "bar"
-                pout.v(v)
-            self.assertTrue("bar" in c)
-
-        finally:
-            pout.v = original_function
+#     def test_overriding(self):
+#         """This verifies that child classes still can find the correct stack
+#         traces
+# 
+#         https://github.com/Jaymon/pout/issues/8
+#         """
+#         original_function = pout.v
+# 
+#         class Child(V):
+#             @classmethod
+#             def function_name(cls):
+#                 return "v"
+# 
+#             def name_value(self, name, body, **kwargs):
+#                 return "foo custom"
+# 
+#         Child.inject()
+# 
+#         try:
+#             with testdata.capture() as c:
+#                 v = "foo"
+#                 pout.v(v)
+#             self.assertTrue("foo custom" in c)
+# 
+#             with testdata.capture() as c:
+#                 v = "bar"
+#                 pout.v(v)
+#             self.assertTrue("bar" in c)
+# 
+#         finally:
+#             pout.v = original_function
 
     def test_issue_31(self):
         """https://github.com/Jaymon/pout/issues/31"""

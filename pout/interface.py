@@ -70,6 +70,9 @@ class Interface(object):
     RETURN_OUTPUT = False
     """If True then .output() will be returned"""
 
+    classes = {}
+    """see .__init_subclass__"""
+
     @classmethod
     def function_name(cls):
         """returns the name that pout will use to interface with an instance of
@@ -117,57 +120,64 @@ class Interface(object):
             instance = instance_class(r, module.stream)
             return instance(*args, **kwargs)
 
-    @classmethod
-    def find_classes(cls, cutoff_class=None):
-        """Used by auto-discovery to find all the children of Interface
-
-        :param cutoff_class: object, this method will only find children of
-            this class, if not passed in then it will be set to Interface
-        :returns: generator, yields all found classes
-        """
-        cutoff_class = cutoff_class or Interface
-        module = sys.modules[__name__]
-        for ni, vi in inspect.getmembers(module, inspect.isclass):
-            if issubclass(vi, cutoff_class) and vi is not cutoff_class:
-                yield vi
-
-    @classmethod
-    def inject_classes(cls, cutoff_class=None, module=None):
-        """This will find all the children of cutoff_class and inject them into
-        module as being callable at module.<FUNCTION_NAME>
-
-        :param cutoff_class: see find_classes
-        :param module: module, a python module that will be injected with the 
-            found cutoff_class children. This will default to pout
-        """
-        module = cls.get_module(module)
-        for inter_class in cls.find_classes(cutoff_class=cutoff_class):
-            inter_class.inject(module)
-
-    @classmethod
-    def inject(cls, module=None):
-        """Actually inject this cls into module"""
-        module = cls.get_module(module)
-        function_name = cls.function_name()
-        logger.debug("Injecting {}.{} as {}.{} function".format(
-            __name__,
-            cls.__name__,
-            module.__name__,
-            function_name,
-        ))
-        func = functools.partial(
-            cls.create_instance,
-            pout_module=module,
-            pout_function_name=function_name,
-            pout_interface_class=cls,
-        )
-        func.__name__ = function_name
-        func.__module__ = module
-        setattr(module, function_name, func)
+#     @classmethod
+#     def find_classes(cls, cutoff_class=None):
+#         """Used by auto-discovery to find all the children of Interface
+# 
+#         :param cutoff_class: object, this method will only find children of
+#             this class, if not passed in then it will be set to Interface
+#         :returns: generator, yields all found classes
+#         """
+#         cutoff_class = cutoff_class or Interface
+#         module = sys.modules[__name__]
+#         for ni, vi in inspect.getmembers(module, inspect.isclass):
+#             if issubclass(vi, cutoff_class) and vi is not cutoff_class:
+#                 yield vi
+# 
+#     @classmethod
+#     def inject_classes(cls, cutoff_class=None, module=None):
+#         """This will find all the children of cutoff_class and inject them into
+#         module as being callable at module.<FUNCTION_NAME>
+# 
+#         :param cutoff_class: see find_classes
+#         :param module: module, a python module that will be injected with the 
+#             found cutoff_class children. This will default to pout
+#         """
+#         module = cls.get_module(module)
+#         for inter_class in cls.find_classes(cutoff_class=cutoff_class):
+#             inter_class.inject(module)
+# 
+#     @classmethod
+#     def inject(cls, module=None):
+#         """Actually inject this cls into module"""
+#         module = cls.get_module(module)
+#         function_name = cls.function_name()
+#         logger.debug("Injecting {}.{} as {}.{} function".format(
+#             __name__,
+#             cls.__name__,
+#             module.__name__,
+#             function_name,
+#         ))
+#         func = functools.partial(
+#             cls.create_instance,
+#             pout_module=module,
+#             pout_function_name=function_name,
+#             pout_interface_class=cls,
+#         )
+#         func.__name__ = function_name
+#         func.__module__ = module
+#         setattr(module, function_name, func)
 
     def __init__(self, reflect, stream):
         self.reflect = reflect
         self.stream = stream
+
+    def __init_subclass__(cls):
+        """Called when a child class is loaded into memory
+
+        https://peps.python.org/pep-0487/
+        """
+        cls.classes[cls.__name__.lower()] = cls
 
     def writeline(self, s):
         """Actually write s to something using self.stream"""

@@ -19,6 +19,7 @@ since -- 6-26-12
 """
 import sys
 import logging
+import functools
 
 from . import environ
 #from .compat import *
@@ -60,7 +61,22 @@ stream = StderrStream()
 
 # This will inject functions into the pout module, so if you're wondering where
 # the pout.v() method is, look at the pout.interface.V class
-Interface.inject_classes()
+#Interface.inject_classes()
+
+
+def __getattr__(name):
+    interface_class = Interface.classes[name]
+    module = interface_class.get_module()
+
+    func = functools.partial(
+        interface_class.create_instance,
+        pout_module=module,
+        pout_function_name=name,
+        pout_interface_class=interface_class,
+    )
+    func.__name__ = name
+    func.__module__ = module
+    return func
 
 
 def inject():
