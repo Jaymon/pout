@@ -449,7 +449,7 @@ class ValueTest(TestCase):
         self.assertTrue("foo = <" in r, r)
         self.assertTrue("bar = 1" in r, r)
 
-    def test_object_repeated(self):
+    def test_object_repeated_1(self):
         class Foo(object):
             pass
 
@@ -462,6 +462,35 @@ class ValueTest(TestCase):
         self.assertTrue("0: ValueTest" in r, r)
         self.assertTrue("1: <ValueTest" in r, r)
 
+    def test_object_repeated_2(self):
+        """This test was created to spot check issue 96 but I can't duplicate
+        the problem
+
+        https://github.com/Jaymon/pout/issues/96
+        """
+        m = testdata.create_module("""
+            class Parent(object):
+                classes = []
+                def __init_subclass__(cls):
+                    cls.classes.append(cls)
+
+            class Foo(Parent):
+                pass
+
+            class Bar(Parent):
+                pass
+
+            class Che(Parent):
+                pass
+        """).get_module()
+
+        v = Value(m.Bar.classes, OBJECT_DEPTH=10)
+        s = v.string_value()
+
+        self.assertEqual(1, s.count("Foo class at"))
+        self.assertEqual(1, s.count("Bar class at"))
+        self.assertEqual(1, s.count("Che class at"))
+
     def test_object_1(self):
         class FooObject(object):
             bar = 1
@@ -469,12 +498,13 @@ class ValueTest(TestCase):
 
         o = FooObject()
         o.baz = [3]
+        indent = environ.INDENT_STRING
 
         v = Value(o)
         self.assertTrue(isinstance(v, InstanceValue))
 
         r = v.string_value()
-        self.assertRegex(r, r"\n\s+<\n")
+        self.assertRegex(r, rf"\n[{indent}]+<\n")
 
         d = {
             "che": o,
@@ -482,8 +512,7 @@ class ValueTest(TestCase):
         }
         v = Value(d)
         r = v.string_value()
-        indent = environ.INDENT_STRING * 3
-        self.assertTrue(f"\n{indent}<\n" in r)
+        self.assertTrue(f"\n{indent * 3}<\n" in r)
 
     def test_object_2(self):
         class To26(object):
@@ -829,4 +858,15 @@ class ValueTest(TestCase):
         self.assertTrue(s.startswith("\""))
         self.assertTrue(s.endswith("\""))
         self.assertFalse("\n" in s)
+
+    def test_trailing_whitespace(self):
+        v = Value([1, 2])
+        s = v.string_value()
+        self.assertFalse(s[-1].isspace())
+
+    def test_module_output(self):
+        v = Value(testdata)
+        s = v.string_value()
+        for header in ["Properties", "Classes", "Functions", "Modules"]:
+            self.assertTrue(header in s)
 

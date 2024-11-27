@@ -179,13 +179,15 @@ class Value(object):
     def __init__(self, val, depth=0, **kwargs):
         self.val = val
         self.depth = depth
+        self.instances = kwargs.pop("instances", {})
+        self._seen_string_value = False
 
         # tracks which instances have been seen so they are only fully expanded
         # the first time they're seen for this call
-        self.seen = kwargs.pop("seen", Counter())
-        vid = self.id_value()
-        self.seen[vid] += 1
-        self.seen_first = self.seen[vid] == 1
+#         self.seen = kwargs.pop("seen", Counter())
+#         vid = self.id_value()
+#         self.seen[vid] += 1
+#         self.seen_first = self.seen[vid] == 1
 
         self.set_instance_attributes(**kwargs)
 
@@ -218,21 +220,7 @@ class Value(object):
             self.SHOW_INSTANCE_ID = False
             self.SHOW_INSTANCE_TYPE = False
 
-        self.kwargs = kwargs
-
-    def create_instance(self, val, **kwargs):
-        """Sometimes while generating the .string_value for .val sub Value
-        instances need to be created, they should be created using this method
-
-        :param val: Any, the value to be wrapped in a Value instance
-        :param **kwargs:
-        :returns: Value, the val wrapped in a Value instance
-        """
-        kwargs.setdefault("depth", self.depth + 1)
-        kwargs.setdefault("seen", self.seen)
-
         # certain flags only apply to this instance and not sub-instances
-        kwargs = {**self.kwargs, **kwargs}
         ignore_keys = [
             "SHOW_VAL",
             "SHOW_OBJECT"
@@ -240,7 +228,30 @@ class Value(object):
         for k in ignore_keys:
             kwargs.pop(k, None)
 
-        return Value(val, **kwargs)
+        self.kwargs = kwargs
+
+    def get_instance(self, val, **kwargs):
+        """Sometimes while generating the .string_value for .val sub Value
+        instances need to be created or retrieved, they should be created
+        or retrieved only using this method
+
+        :param val: Any, the value to be wrapped in a Value instance
+        :returns: Value, the val wrapped in a Value instance
+        """
+        vid = self._get_id(val)
+        if vid in self.instances:
+            instance = self.instances[vid]
+            instance.depth = self.depth + 1
+
+        else:
+            kwargs.setdefault("depth", self.depth + 1)
+            kwargs.setdefault("instances", self.instances)
+            kwargs = {**self.kwargs, **kwargs}
+
+            instance = Value(val, **kwargs)
+            self.instances[vid] = instance
+
+        return instance
 
     def has_body(self):
         """Returns True if .val has a body, ie, .val_value or .object_value
@@ -360,6 +371,43 @@ class Value(object):
 
         return path
 
+    def getmembers(self, **kwargs):
+        """Yields all the members of .val as Value instances
+
+        This is named this way because it's kind of a wrapper around
+        `inspect.getmembers`
+
+        :returns: Generator[Value]
+        """
+        SHOW_MAGIC = kwargs.get("show_magic", self.SHOW_MAGIC)
+
+        def iter_items(items):
+            for k, v in items:
+                if SHOW_MAGIC or not self._is_magic(k):
+                    yield self.get_instance(v)
+
+        try:
+            items = vars(self.val).items()
+
+        except TypeError as e:
+            # Since vars() failed we are going to try and make
+            # inspect.getmembers act like vars()
+            # Also, I could get a recursion error if I tried to just do
+            # inspect.getmembers in certain circumstances, I have no idea why
+            items = inspect.getmembers(self.val)
+
+        for k, v in items:
+            if SHOW_MAGIC or not self._is_magic(k):
+                yield k, self.get_instance(v)
+
+    def _get_id(self, v):
+        """Returns the Python memory object id as a nicely formatted string
+
+        :param v: Any, the python object we want the id value of
+        :returns: str, v's id in hex format
+        """
+        return "0x{:02x}".format(id(v))
+
     def _get_info(self, **kwargs):
         """Gathers all the information about this object
 
@@ -387,33 +435,22 @@ class Value(object):
         instance_dict = {}
 
         SHOW_METHODS = kwargs.get("show_methods", self.SHOW_METHODS)
-        SHOW_MAGIC = kwargs.get("show_magic", self.SHOW_MAGIC)
 
-        def populate_dicts(items):
-            for k, v in items:
-                if SHOW_MAGIC or not self._is_magic(k):
-                    v = self.create_instance(v)
-                    if v.typename == "CALLABLE":
-                        if SHOW_METHODS:
-                            methods_dict[k] = v
-                    else:
-                        if val is val_class:
-                            class_dict[k] = v
+        for k, v in self.getmembers(**kwargs):
+            if v.typename == "CALLABLE":
+                if SHOW_METHODS:
+                    methods_dict[k] = v
 
-                        else:
-                            instance_dict[k] = v
+            else:
+                if val is val_class:
+                    class_dict[k] = v
 
-        try:
-            populate_dicts(vars(val).items())
-
-        except TypeError as e:
-            # Since vars() failed we are going to try and make
-            # inspect.getmembers act like vars()
-            # Also, I could get a recursion error if I tried to just do
-            # inspect.getmembers in certain circumstances, I have no idea why
-            populate_dicts(inspect.getmembers(val))
+                else:
+                    instance_dict[k] = v
 
         if val_class:
+            SHOW_MAGIC = kwargs.get("show_magic", self.SHOW_MAGIC)
+
             # build a full class variables dict with the variables of 
             # the full class hierarchy.
             # The reversing makes us go from parent -> child
@@ -422,16 +459,17 @@ class Value(object):
                     # filter out anything that's in the instance dict also
                     # since that takes precedence.
                     if k not in instance_dict:
-                        v = self.create_instance(v)
                         if SHOW_MAGIC or not self._is_magic(k):
+                            v = self.get_instance(v)
+
                             if v.typename == "CALLABLE":
                                 if SHOW_METHODS:
                                     methods_dict[k] = v
 
                             else:
                                 #class_dict.setdefault(k, v)
-                                if k in class_dict:
-                                    v.seen_first = class_dict[k].seen_first
+#                                 if k in class_dict:
+#                                     v.seen_first = class_dict[k].seen_first
 
                                 class_dict[k] = v
 
@@ -457,18 +495,189 @@ class Value(object):
         if pout_method and callable(pout_method):
             return pout_method
 
-    def _get_object_value(self, **kwargs):
-        """Internal method
+    def _is_body_visible(self):
+        """Returns True if the body should be visible, see .string_value"""
+        ret = False
+
+        if self.SHOW_ALWAYS:
+            ret = True
+
+        elif self.OBJECT_DEPTH <= 0:
+            ret = True
+
+        elif self.depth < self.OBJECT_DEPTH:
+            ret = True
+#             ret = not self._seen_string_value
+#             ret = self.seen_first
+
+        return ret
+
+    def string_value(self):
+        """This is the main "value" generation method, this is the method that
+        should be called from external sources
+
+        If a value has no body, then it returns a value like this:
+
+            <OBJECT_START_VALUE><PREFIX_VALUE><OBJECT_STOP_VALUE>
+
+        If there is a body, then the value will look more or less like this:
+
+            <PREFIX_VALUE>
+                <START_OBJECT_VALUE>
+                    <OBJECT_VALUE>
+                <STOP_OBJECT_VALUE>
+                <START_VAL_VALUE>
+                    <VAL_VALUE>
+                <STOP_VAL_VALUE>
+
+        Most Value subclasses will return either <OBJECT_VALUE> or
+        <VAL_VALUE> but not both, though returning both is supported
+
+        If the value doesn't have a <PREFIX_VALUE> (eg, a primitive like int)
+        then it will return basically the string version of that primitive
+        value
+
+        :returns: str, a string suitable to be printed or whatever
+        """
+        ret = ""
+
+        if not self._is_body_visible():
+#             print("summary_value")
+            ret = self.summary_value()
+
+        elif not self.has_body():
+#             print("empty_value")
+            ret = self.empty_value()
+
+        elif self._seen_string_value:
+#             print("seen_value")
+            ret = self.seen_value()
+
+        else:
+#             print("string_value")
+            self._seen_string_value = True
+            object_body = ""
+            value_body = ""
+
+            if self.SHOW_OBJECT:
+                object_body = self.object_value()
+
+            if self.SHOW_VAL:
+                value_body = self.method_value()
+
+                if not value_body:
+                    value_body = self.val_value()
+
+            if value_body or object_body:
+                if prefix := self.prefix_value():
+                    ret = Color.color_meta(prefix)
+
+                    if object_body:
+                        if ret:
+                            ret += "\n"
+
+                        ret += self._add_indent(
+                            self._wrap_object_value(object_body),
+                            1
+                        )
+
+                    if value_body:
+                        if ret:
+                            ret += "\n"
+
+                        ret += self._add_indent(
+                            self._wrap_val_value(value_body),
+                            1
+                        )
+
+                else:
+                    if value_body:
+                        ret = self._wrap_val_value(value_body)
+
+                    elif object_body:
+                        ret = self._wrap_object_value(object_body)
+
+            else:
+                ret = self.summary_value()
+
+#         if self._is_body_visible():
+#             if self.has_body():
+#                 object_body = ""
+#                 value_body = ""
+# 
+#                 if self.SHOW_OBJECT:
+#                     object_body = self.object_value()
+# 
+#                 if self.SHOW_VAL:
+#                     value_body = self.method_value()
+# 
+#                     if not value_body:
+#                         value_body = self.val_value()
+# 
+#                 if value_body or object_body:
+#                     if prefix := self.prefix_value():
+#                         ret = Color.color_meta(prefix)
+# 
+#                         if object_body:
+#                             if ret:
+#                                 ret += "\n"
+# 
+#                             ret += self._add_indent(
+#                                 self._wrap_object_value(object_body),
+#                                 1
+#                             )
+# 
+#                         if value_body:
+#                             if ret:
+#                                 ret += "\n"
+# 
+#                             ret += self._add_indent(
+#                                 self._wrap_val_value(value_body),
+#                                 1
+#                             )
+# 
+#                     else:
+#                         if value_body:
+#                             ret = self._wrap_val_value(value_body)
+# 
+#                         elif object_body:
+#                             ret = self._wrap_object_value(object_body)
+# 
+#                 else:
+#                     ret = self.summary_value()
+# 
+#             else:
+#                 ret = self.empty_value()
+# 
+#         else:
+#             ret = self.summary_value()
+# 
+#         self._seen_string_value = True
+        return ret
+
+    def method_value(self):
+        """Return the __pout__ method output completely ready for
+        .string_value use as the val value"""
+        ret = ""
+        if pout_method := self._get_object_method():
+            try:
+                v = self.get_instance(pout_method())
+                ret = v.val_value()
+
+            except TypeError:
+                # ignore instance method __pout__ being called as a
+                # classmethod
+                pass
+
+        return ret
+
+    def object_value(self):
+        """Return information about the object itself
 
         This generates all the information about the Value as an object, it
         is used in .info_value() and is broken out so it can be more easily
         used in subclasses
 
-        :param **kwargs:
-            - show_magic: bool, True if you want to generate method information,
-                default is False
-            - show_magic: bool, True if you want to generate magic properties
-                and methods values, default is False
         :returns: str, the object information body
         """
         s_body = ""
@@ -477,17 +686,11 @@ class Value(object):
         val = self.val
         depth = self.depth
 
-        # these exist because .info_value passes flags
-        SHOW_METHODS = kwargs.get("show_methods", self.SHOW_METHODS)
-        SHOW_MAGIC = kwargs.get("show_magic", self.SHOW_MAGIC)
-        SHOW_OBJECT_STRING = kwargs.get(
-            "show_object_string",
-            self.SHOW_OBJECT_STRING
-        )
+        SHOW_OBJECT_STRING = self.SHOW_OBJECT_STRING
 
         info_dict = self._get_info(
-            show_methods=SHOW_METHODS,
-            show_magic=SHOW_MAGIC,
+            show_methods=self.SHOW_METHODS,
+            show_magic=self.SHOW_MAGIC,
         )
 
         if val_class := info_dict["val_class"]:
@@ -533,7 +736,7 @@ class Value(object):
             header = Color.color_header(
                 f"Class Properties ({len(class_dict)})"
             )
-            s_body += f"\n:{header}\n"
+            s_body += f"\n{header}:\n"
 
             for k, v in OrderedItems(class_dict):
                 k = Color.color_attr(k)
@@ -574,123 +777,6 @@ class Value(object):
 
         return s_body.strip()
 
-    def _is_body_visible(self):
-        """Returns True if the body should be visible, see .string_value"""
-        ret = False
-
-        if self.SHOW_ALWAYS:
-            ret = True
-
-        elif self.OBJECT_DEPTH <= 0:
-            ret = True
-
-        elif self.depth < self.OBJECT_DEPTH:
-            ret = self.seen_first
-
-        return ret
-
-    def string_value(self):
-        """This is the main "value" generation method, this is the method that
-        should be called from external sources
-
-        If a value has no body, then it returns a value like this:
-
-            <OBJECT_START_VALUE><PREFIX_VALUE><OBJECT_STOP_VALUE>
-
-        If there is a body, then the value will look more or less like this:
-
-            <PREFIX_VALUE>
-                <START_OBJECT_VALUE>
-                    <OBJECT_VALUE>
-                <STOP_OBJECT_VALUE>
-                <START_VAL_VALUE>
-                    <VAL_VALUE>
-                <STOP_VAL_VALUE>
-
-        Most Value subclasses will return either <OBJECT_VALUE> or
-        <VAL_VALUE> but not both, though returning both is supported
-
-        If the value doesn't have a <PREFIX_VALUE> (eg, a primitive like int)
-        then it will return basically the string version of that primitive
-        value
-
-        :returns: str, a string suitable to be printed or whatever
-        """
-        ret = ""
-
-        if self._is_body_visible():
-            if self.has_body():
-                object_body = ""
-                value_body = ""
-
-                if self.SHOW_OBJECT:
-                    object_body = self.object_value()
-
-                if self.SHOW_VAL:
-                    value_body = self.method_value()
-
-                    if not value_body:
-                        value_body = self.val_value()
-
-                if value_body or object_body:
-                    if prefix := self.prefix_value():
-                        ret = Color.color_meta(prefix)
-
-                        if object_body:
-                            if ret:
-                                ret += "\n"
-
-                            ret += self._add_indent(
-                                self._wrap_object_value(object_body),
-                                1
-                            )
-
-                        if value_body:
-                            if ret:
-                                ret += "\n"
-
-                            ret += self._add_indent(
-                                self._wrap_val_value(value_body),
-                                1
-                            )
-
-                    else:
-                        if value_body:
-                            ret = self._wrap_val_value(value_body)
-
-                        elif object_body:
-                            ret = self._wrap_object_value(object_body)
-
-                else:
-                    ret = self.summary_value()
-
-            else:
-                ret = self.empty_value()
-
-        else:
-            ret = self.summary_value()
-
-        return ret
-
-    def method_value(self):
-        """Return the __pout__ method output completely ready for
-        .string_value use as the val value"""
-        ret = ""
-        if pout_method := self._get_object_method():
-            try:
-                v = self.create_instance(pout_method())
-                ret = v.val_value()
-
-            except TypeError:
-                # ignore instance method __pout__ being called as a
-                # classmethod
-                pass
-
-        return ret
-
-    def object_value(self):
-        return self._get_object_value()
-
     def val_value(self):
         """This is the method that will be most important to subclasses since
         the meat of generating the value of whatever value being represented
@@ -729,7 +815,7 @@ class Value(object):
             ret = ret.rstrip()
 
             if self.SHOW_INSTANCE_ID:
-                ret += " at {}".format(self.id_value())
+                ret += " at {}".format(self._get_id(self.val))
 
         return ret
 
@@ -777,12 +863,13 @@ class Value(object):
 
         return instance_value
 
-    def id_value(self):
-        """Returns the Python memory object id as a nicely formatted string
-
-        :returns: str, .val's id in hex format
-        """
-        return "0x{:02x}".format(id(self.val))
+#     def id_value(self):
+#         """Returns the Python memory object id as a nicely formatted string
+# 
+#         :returns: str, .val's id in hex format
+#         """
+#         return self._get_id(self.val)
+#         #return "0x{:02x}".format(id(self.val))
 
     def start_object_value(self):
         """this is the start wrapper value for .object_value
@@ -850,6 +937,21 @@ class Value(object):
 
         return ret
 
+    def seen_value(self):
+        """Shown if this instance has generated an actual .string_value at
+        some point"""
+        prev_simple_prefix = self.SHOW_SIMPLE_PREFIX
+        prev_instance_id = self.SHOW_INSTANCE_ID
+        self.SHOW_SIMPLE_PREFIX = False
+        self.SHOW_INSTANCE_ID = True
+
+        ret = self.summary_value()
+
+        self.SHOW_SIMPLE_PREFIX = prev_simple_prefix
+        self.SHOW_INSTANCE_ID = prev_instance_id
+
+        return ret
+
     def name_value(self, name):
         """wrapper method that the interface can use to customize the name for
         a given Value instance"""
@@ -872,7 +974,12 @@ class Value(object):
         if isinstance(val, Value):
             val = val.string_value()
 
-        return String(val).indent(self.INDENT_STRING, indent_count)
+        indent = self.INDENT_STRING
+        lines = String(val).splitlines(True)
+
+        return "".join(
+            Color.color_indent(indent * indent_count) + line for line in lines
+        )
 
     def _wrap_value(self, start_wrapper, stop_wrapper, value):
         return (
@@ -899,9 +1006,11 @@ class Value(object):
 class InstanceValue(Value):
     @classmethod
     def is_valid(cls, val):
-        is_method = inspect.ismethod(val) \
-            or inspect.isfunction(val) \
+        is_method = (
+            inspect.ismethod(val)
+            or inspect.isfunction(val)
             or inspect.ismethoddescriptor(val)
+        )
 
         if is_method:
             return False
@@ -925,7 +1034,7 @@ class InstanceValue(Value):
         return "instance"
 
     def val_value(self):
-        return self._get_object_value()
+        return self.object_value()
 
 
 class DescriptorValue(Value):
@@ -1052,7 +1161,7 @@ class DictValue(BuiltinValue):
                     break
 
                 else:
-                    v = self.create_instance(v)
+                    v = self.get_instance(v)
                     k = self.name_callback(k)
                     if k is None:
                         s_body.append(v.string_value())
@@ -1209,15 +1318,6 @@ class PrimitiveValue(BuiltinValue):
     and float"""
     SHOW_ALWAYS = True
 
-#     @classmethod
-#     def get_types(cls):
-#         return (
-#             type(None),
-#             bool,
-#             int,
-#             float
-#         )
-
     def _wrap_val_value(self, value):
         return value if self.SHOW_SIMPLE else super()._wrap_val_value(value)
 
@@ -1281,10 +1381,10 @@ class StringValue(BuiltinValue):
         return len(self.val)
 
     def start_val_value(self):
-        return "\""
+        return Color.color_string("\"")
 
     def stop_val_value(self):
-        return "\""
+        return Color.color_string("\"")
 
     def has_body(self):
         return True if self.val else False
@@ -1299,6 +1399,7 @@ class StringValue(BuiltinValue):
         return s
 
     def _wrap_val_value(self, value):
+        value = Color.color_string(value)
         if self.SHOW_SIMPLE:
             start_wrapper = self.start_val_value()
             stop_wrapper = self.stop_val_value()
@@ -1307,7 +1408,7 @@ class StringValue(BuiltinValue):
         else:
             ret = super()._wrap_val_value(value)
 
-        ret = Color.color_string(ret)
+        #ret = Color.color_string(ret)
         return ret
 
 
@@ -1378,8 +1479,6 @@ class ModuleValue(InstanceValue):
 
     def val_value(self):
         s = ""
-        SHOW_MAGIC = self.SHOW_MAGIC
-
         val = self.val
 
         file_path = Path(self._get_src_file(val))
@@ -1391,16 +1490,16 @@ class ModuleValue(InstanceValue):
         classes = {}
         properties = {}
 
-        for k, v in inspect.getmembers(val):
-            if self._is_magic(k) and not SHOW_MAGIC: continue
-
-            v = Value(v)
-            if v.typename == 'CALLABLE':
+        for k, v in self.getmembers():
+            if v.typename == "CALLABLE":
                 funcs[k] = v
-            elif v.typename == 'MODULE':
+
+            elif v.typename == "MODULE":
                 modules[k] = v
-            elif v.typename == 'OBJECT':
+
+            elif v.typename in ["TYPE", "INSTANCE"]:
                 classes[k] = v
+
             else:
                 properties[k] = v
 
@@ -1431,14 +1530,6 @@ class ModuleValue(InstanceValue):
                 s += self._add_indent(k, 1)
                 s += "\n"
 
-                # add methods
-                for m, mv in inspect.getmembers(v):
-                    mv = Value(mv)
-                    if mv.typename == 'CALLABLE':
-                        s += self._add_indent(mv, 2)
-                        s += "\n"
-                s += "\n"
-
         if properties:
             header = Color.color_header("Properties")
             s += f"\n{header}:\n"
@@ -1447,7 +1538,7 @@ class ModuleValue(InstanceValue):
                 s += self._add_indent(k, 1)
                 s += "\n"
 
-        return s
+        return s.strip()
 
 
 class TypeValue(Value):
@@ -1489,7 +1580,7 @@ class TypeValue(Value):
                 s_body += self._add_indent(s_var, 1)
                 s_body += "\n"
 
-        return s_body
+        return s_body.strip()
 
 
 class RegexValue(InstanceValue):
@@ -1634,7 +1725,7 @@ class CallableValue(Value):
                 typename,
                 classpath,
                 signature,
-                self.id_value()
+                self._get_id(self.val)
             )
 
         else:

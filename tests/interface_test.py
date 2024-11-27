@@ -13,6 +13,7 @@ import json
 import pout
 from pout.compat import *
 from pout.interface import V
+from pout import environ
 
 from . import testdata, TestCase
 
@@ -269,29 +270,16 @@ class TTest(TestCase):
                 inspect_packages=False,
                 depth=0,
             )
+        indent = environ.INDENT_STRING
         self.assertRegex(
             str(c),
             (
                 r"pout.t\(\n"
-                r"\s+inspect_packages=False,\n"
-                r"\s+depth=0,\n"
-                r"\s+\)"
+                rf"[{indent}]+inspect_packages=False,\n"
+                rf"[{indent}]+depth=0,\n"
+                rf"[{indent}]+\)"
             )
         )
-
-#         (
-#             pout.t
-#             ()
-#         )
-# 
-#         return
-# 
-# 
-#         with testdata.capture() as c:
-#             pout.t
-#             ()
-#         pout.v(str(c))
-#         self.assertTrue("pout.t\n()" in c)
 
     def test_t_with_assign(self):
         '''

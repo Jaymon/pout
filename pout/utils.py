@@ -209,26 +209,40 @@ class OrderedItems(object):
 class Color(object):
     @classmethod
     def color_header(cls, text):
+        """The color/formatting for section headers for things like classes"""
         return cls.color(text, bold=True)
 
     @classmethod
     def color_meta(cls, text):
+        """The color/formatting for meta information"""
         return cls.color(text, "LIGHTGRAY")
 
     @classmethod
+    def color_indent(cls, text):
+        """The color/formatting for the indentation for each line of output"""
+        return cls.color_meta(text)
+
+    @classmethod
     def color_string(cls, text):
-        return cls.color(text, "RED")
+        """The color/formatting for string values"""
+        return "".join(
+            cls.color(line, "RED") for line in text.splitlines(True)
+        )
+        #return cls.color(text, "RED")
 
     @classmethod
     def color_key(cls, text):
+        """The color/formatting for dictionary keys and list indexes"""
         return cls.color(text, "CYAN")
 
     @classmethod
     def color_attr(cls, text):
+        """The color/formatting for object attributes"""
         return cls.color(text, "BLUE")
 
     @classmethod
     def color_number(cls, text):
+        """The color/formatting for numerical values"""
         return cls.color(text, "MAGENTA")
 
     @classmethod
@@ -256,13 +270,11 @@ class Color(object):
         :param text: str, the text to wrap with fg and bg colors
         :param fg: str, the foreground color
         :param bg: str, the background color
-        :param **kwargs:
-            - bold: bool, True to make text bold
-            - underline: bool, True to underline text
+        :keyword bold: bool, True to make text bold
+        :keyword underline: bool, True to underline text
         :returns: str, text wrapped with terminal color if supported
         """
         if text and environ.has_color_support():
-
             color_names = (
                 "BLACK",
                 "RED",

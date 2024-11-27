@@ -79,8 +79,26 @@ inspect the object"""
 
 
 #INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\t")
-INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "    ")
-"""This is what pout uses to indent when it is creating the output"""
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "    ")
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "‧   ") # \u2027
+# https://www.reddit.com/r/Unicode/comments/1cd05m9/smallest_shortest_thinnest_widest_tallest_unicode/
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u05B4   ")
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u05BC   ")
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "ᐧ   ")
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u0387   ")
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u05C5   ")
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\uFE52   ")
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u0F0B   ")
+# https://www.compart.com/en/unicode/U+0F0C
+#INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u0F0C   ")
+# https://www.compart.com/en/unicode/U+0701
+INDENT_STRING = os.environ.get("POUT_INDENT_STRING", "\u0701   ")
+"""This is what pout uses to indent when it is creating the output
+
+You can check here for other delimiters:
+
+    https://www.compart.com/en/unicode/category/Po
+"""
 
 
 KEY_QUOTE_CHAR = os.environ.get("POUT_KEY_QUOTE_CHAR", "\'")

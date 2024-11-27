@@ -56,6 +56,10 @@ class ColorTest(TestCase):
         class Foo(object):
             prop_str = "string value"
             prop_int = 123456
+            prop_dict = {
+                "key-1": "string dict value 1",
+                "key-2": "string dict value 2"
+            }
 
         d = {
             "bool-true": True,
