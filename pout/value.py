@@ -181,14 +181,6 @@ class Value(object):
         self.depth = depth
         self.instances = kwargs.pop("instances", {})
         self._seen_string_value = False
-
-        # tracks which instances have been seen so they are only fully expanded
-        # the first time they're seen for this call
-#         self.seen = kwargs.pop("seen", Counter())
-#         vid = self.id_value()
-#         self.seen[vid] += 1
-#         self.seen_first = self.seen[vid] == 1
-
         self.set_instance_attributes(**kwargs)
 
     def set_instance_attributes(self, **kwargs):
@@ -467,10 +459,6 @@ class Value(object):
                                     methods_dict[k] = v
 
                             else:
-                                #class_dict.setdefault(k, v)
-#                                 if k in class_dict:
-#                                     v.seen_first = class_dict[k].seen_first
-
                                 class_dict[k] = v
 
         return {
@@ -542,19 +530,15 @@ class Value(object):
         ret = ""
 
         if not self._is_body_visible():
-#             print("summary_value")
             ret = self.summary_value()
 
         elif not self.has_body():
-#             print("empty_value")
             ret = self.empty_value()
 
         elif self._seen_string_value:
-#             print("seen_value")
             ret = self.seen_value()
 
         else:
-#             print("string_value")
             self._seen_string_value = True
             object_body = ""
             value_body = ""
@@ -600,59 +584,6 @@ class Value(object):
             else:
                 ret = self.summary_value()
 
-#         if self._is_body_visible():
-#             if self.has_body():
-#                 object_body = ""
-#                 value_body = ""
-# 
-#                 if self.SHOW_OBJECT:
-#                     object_body = self.object_value()
-# 
-#                 if self.SHOW_VAL:
-#                     value_body = self.method_value()
-# 
-#                     if not value_body:
-#                         value_body = self.val_value()
-# 
-#                 if value_body or object_body:
-#                     if prefix := self.prefix_value():
-#                         ret = Color.color_meta(prefix)
-# 
-#                         if object_body:
-#                             if ret:
-#                                 ret += "\n"
-# 
-#                             ret += self._add_indent(
-#                                 self._wrap_object_value(object_body),
-#                                 1
-#                             )
-# 
-#                         if value_body:
-#                             if ret:
-#                                 ret += "\n"
-# 
-#                             ret += self._add_indent(
-#                                 self._wrap_val_value(value_body),
-#                                 1
-#                             )
-# 
-#                     else:
-#                         if value_body:
-#                             ret = self._wrap_val_value(value_body)
-# 
-#                         elif object_body:
-#                             ret = self._wrap_object_value(object_body)
-# 
-#                 else:
-#                     ret = self.summary_value()
-# 
-#             else:
-#                 ret = self.empty_value()
-# 
-#         else:
-#             ret = self.summary_value()
-# 
-#         self._seen_string_value = True
         return ret
 
     def method_value(self):
@@ -862,14 +793,6 @@ class Value(object):
                 instance_value = f"({count_value})"
 
         return instance_value
-
-#     def id_value(self):
-#         """Returns the Python memory object id as a nicely formatted string
-# 
-#         :returns: str, .val's id in hex format
-#         """
-#         return self._get_id(self.val)
-#         #return "0x{:02x}".format(id(self.val))
 
     def start_object_value(self):
         """this is the start wrapper value for .object_value

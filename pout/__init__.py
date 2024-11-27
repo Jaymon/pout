@@ -28,20 +28,24 @@ from .interface import Interface
 from .value import Value
 
 
-__version__ = '2.4.0'
+__version__ = '3.0.0'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
 # messed with we will set it to warning so it won't print anything out
 logger = logging.getLogger(__name__)
-# don't try and configure the logger for default if it has been configured elsewhere
+
+# don't try and configure the logger for default if it has been configured
+# elsewhere
 # http://stackoverflow.com/questions/6333916/python-logging-ensure-a-handler-is-added-only-once
 if len(logger.handlers) == 0:
     # set to True to turn on all logging:
     if environ.DEBUG:
         logger.setLevel(logging.DEBUG)
         log_handler = logging.StreamHandler(stream=sys.stderr)
-        log_handler.setFormatter(logging.Formatter('[%(levelname).1s] %(message)s'))
+        log_handler.setFormatter(
+            logging.Formatter('[%(levelname).1s] %(message)s')
+        )
         logger.addHandler(log_handler)
 
     else:
@@ -49,8 +53,8 @@ if len(logger.handlers) == 0:
         logger.addHandler(logging.NullHandler())
 
 
-# this is the pout printing logger, you can modify the logger this instance uses
-# or completely replace it to customize functionality
+# this is the pout printing logger, you can modify the logger this instance
+# uses or completely replace it to customize functionality
 stream = StderrStream()
 
 
@@ -60,9 +64,9 @@ Interface.inject_classes()
 
 
 def inject():
-    """Injects pout into the builtins module so it can be called from anywhere without
-    having to be explicitly imported, this is really just for convenience when
-    debugging
+    """Injects pout into the builtins module so it can be called from anywhere
+    without having to be explicitly imported, this is really just for
+    convenience when debugging
 
     https://stackoverflow.com/questions/142545/python-how-to-make-a-cross-module-variable
     """

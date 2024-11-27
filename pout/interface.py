@@ -72,11 +72,11 @@ class Interface(object):
 
     @classmethod
     def function_name(cls):
-        """returns the name that pout will use to interface with an instance of this
-        class
+        """returns the name that pout will use to interface with an instance of
+        this class
 
-        :returns: string, the class name, by default, this is just the class name
-            lowercased
+        :returns: string, the class name, by default, this is just the class
+            name lowercased
         """
         function_name = String(cls.__name__).snakecase().lower()
         return function_name
@@ -104,9 +104,9 @@ class Interface(object):
         this method, and this method will, in turn, call __call__
 
         :param *args: mixed, the arguments passed to pout.<FUNCTION_NAME>
-        :param **kwargs: mixed, the keyword arguments passed to pout.<FUNCTION_NAME>
-            plus some other arguments that were bound to <FUNCTION_NAME> like
-            `pout_module` and `pout_function_name`
+        :param **kwargs: mixed, the keyword arguments passed to
+            pout.<FUNCTION_NAME> plus some other arguments that were bound to
+            <FUNCTION_NAME> like `pout_module` and `pout_function_name`
         :returns: mixed, whatever __call__ returns
         """
         module = kwargs["pout_module"]
@@ -121,8 +121,8 @@ class Interface(object):
     def find_classes(cls, cutoff_class=None):
         """Used by auto-discovery to find all the children of Interface
 
-        :param cutoff_class: object, this method will only find children of this
-            class, if not passed in then it will be set to Interface
+        :param cutoff_class: object, this method will only find children of
+            this class, if not passed in then it will be set to Interface
         :returns: generator, yields all found classes
         """
         cutoff_class = cutoff_class or Interface
@@ -275,15 +275,17 @@ class Interface(object):
                 yield None, arg
 
         else:
-            # if we don't have any arguments we want .output() to do one iteration
+            # if we don't have any arguments we want .output() to do one
+            # iteration
             yield None, None
 
     def output(self, *args, **kwargs):
-        """Iterates through .input() and converts it in a format that can be printed
+        """Iterates through .input() and converts it in a format that can be
+        printed
 
-        This will iterate through .input() and call .body_value() and .name_value()
-        for each tuple yielded. After all input has been yielded this will call
-        .path_value()
+        This will iterate through .input() and call .body_value() and
+        .name_value() for each tuple yielded. After all input has been yielded
+        this will call .path_value()
 
         :returns: str, a string ready to be printed or returned
         """
@@ -311,8 +313,8 @@ class Interface(object):
         This method respects PRINT_OUTPUT and RETURN_OUTPUT
 
         :param *args: mixed, the module.<FUNCTION_NAME> args
-        :param **kwargs: mixed, the module.<FUNCTION_NAME> kwargs plus extra bound
-            keywords
+        :param **kwargs: mixed, the module.<FUNCTION_NAME> kwargs plus extra
+            bound keywords
         :returns: mixed, whatever you want module.<FUNCTION_NAME> to return
         """
         kwargs.setdefault("print_output", self.PRINT_OUTPUT)
@@ -329,8 +331,8 @@ class V(Interface):
     '''
     print the name = values of any passed in variables
 
-    this prints out the passed in name, the value, and the file:line where the v()
-    method was called so you can easily find it and remove it later
+    this prints out the passed in name, the value, and the file:line where the
+    v() method was called so you can easily find it and remove it later
 
     :example: 
         foo = 1
@@ -404,8 +406,8 @@ class S(V):
 
 
 class SS(S):
-    """
-    exactly like s, but doesn't return variable names or file positions (useful for logging)
+    """exactly like s, but doesn't return variable names or file positions
+    (useful for logging)
 
     since -- 10-15-2015
     return -- str
@@ -434,7 +436,8 @@ class X(V):
 
 
 class I(V):
-    """Print out all class information (properties and methods) of the values"""
+    """Print out all class information (properties and methods) of the values
+    """
     def body_value(self, body, **kwargs):
         kwargs.setdefault("SHOW_METHODS", True)
         kwargs.setdefault("SHOW_MAGIC", True)
@@ -445,8 +448,6 @@ class I(V):
         kwargs.setdefault("SHOW_SIMPLE_EMPTY", False)
         kwargs.setdefault("SHOW_SIMPLE_PREFIX", False)
         return super().body_value(body, **kwargs)
-#         value = self.create_value(body, **kwargs)
-#         return value.string_value() + "\n"
 
 
 class VI(I):
@@ -466,7 +467,9 @@ class R(V):
                 info.get("call_funcname", "Unknown"),
             )
             c = info.get("call", default_c).strip()
-            instance.writeline("{} called {} times at {}".format(c, d["count"], s))
+            instance.writeline(
+                "{} called {} times at {}".format(c, d["count"], s)
+            )
 
     def bump(self, count=1):
         s = self.path_value()
@@ -486,11 +489,12 @@ class R(V):
         return super().output(*args, **kwargs).strip()
 
     def __call__(self, *args, **kwargs):
-        """Similar to pout.v() but gets rid of name and file information so it can be used
-        in loops and stuff, it will print out where the calls came from at the end of
-        execution
+        """Similar to pout.v() but gets rid of name and file information so it
+        can be used in loops and stuff, it will print out where the calls came
+        from at the end of execution
 
-        this just makes it nicer when you're printing a bunch of stuff each iteration
+        this just makes it nicer when you're printing a bunch of stuff each
+        iteration
 
         :Example:
             for x in range(x):
@@ -509,9 +513,8 @@ class VR(R):
 
 class Sleep(Interface):
     def __call__(self, seconds, **kwargs):
-        '''
-        same as time.sleep(seconds) but prints out where it was called before sleeping
-        and then again after finishing sleeping
+        '''same as time.sleep(seconds) but prints out where it was called
+        before sleeping and then again after finishing sleeping
 
         I just find this really handy for debugging sometimes
 
@@ -624,9 +627,8 @@ class B(Interface):
 
 
 class C(V):
-    '''
-    kind of like od -c on the command line, basically it dumps each character and info
-    about that char
+    '''kind of like od -c on the command line, basically it dumps each
+    character and info about that char
 
     since -- 2013-5-9
 
@@ -705,9 +707,9 @@ class M(Interface):
             return self._printstr(["UNSUPPORTED OS\n"])
 
         usage = resource.getrusage(resource.RUSAGE_SELF)
-        # according to the docs, this should give something good but it doesn't jive
-        # with activity monitor, so I'm using the value that gives me what activity 
-        # monitor gives me
+        # according to the docs, this should give something good but it doesn't
+        # jive with activity monitor, so I'm using the value that gives me what
+        # activity monitor gives me
         # http://docs.python.org/2/library/resource.html#resource.getpagesize
         # (usage[2] * resource.getpagesize()) / (1024 * 1024)
         # http://stackoverflow.com/questions/5194057/better-way-to-convert-file-sizes-in-python
@@ -861,8 +863,9 @@ class P(Interface):
         '''
         really quick and dirty profiling
 
-        you start a profile by passing in name, you stop the top profiling by not
-        passing in a name. You can also call this method using a with statement
+        you start a profile by passing in name, you stop the top profiling by
+        not passing in a name. You can also call this method using a with
+        statement
 
         This is for when you just want to get a really back of envelope view of
         how your fast your code is, super handy, not super accurate
@@ -901,7 +904,8 @@ class P(Interface):
 class L(Interface):
     """Logging context manager used in pout.l()
 
-    This will turn logging to the stderr on for everything inside the with block
+    This will turn logging to the stderr on for everything inside the with
+    block
 
     :Example:
         with LoggingInterface():
@@ -919,7 +923,9 @@ class L(Interface):
             if isinstance(self.logger_name, logging.Logger):
                 ret.append((self.logger_name.name, self.logger_name))
             else:
-                ret.append((self.logger_name, logging.getLogger(self.logger_name)))
+                ret.append(
+                    (self.logger_name, logging.getLogger(self.logger_name))
+                )
 
         else:
             ret = list(logging.Logger.manager.loggerDict.items())
@@ -957,7 +963,8 @@ class L(Interface):
                     setattr(logger, name, val)
 
     def __call__(self, logger_name="", level=logging.DEBUG, **kwargs):
-        """see Logging class for details, this is just the method wrapper around Logging
+        """see Logging class for details, this is just the method wrapper
+        around Logging
 
         :Example:
             # turn on logging for all loggers
@@ -966,12 +973,13 @@ class L(Interface):
 
             # turn on logging just for a specific logger
             with pout.l("name"):
-                # "name" logger will print to stderr, all other loggers will act
-                # as configured
+                # "name" logger will print to stderr, all other loggers will
+                # act as configured
 
-        :param logger_name: string|Logger, the logger name you want to print to stderr
-        :param level: string|int, the logging level the logger should be set at,
-            this defaults to logging.DEBUG
+        :param logger_name: string|Logger, the logger name you want to print to
+            stderr
+        :param level: string|int, the logging level the logger should be set
+            at, this defaults to logging.DEBUG
         """
         self.logger_name = logger_name
 
