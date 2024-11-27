@@ -29,7 +29,7 @@ from .interface import Interface
 from .value import Value
 
 
-__version__ = '3.0.0'
+__version__ = '3.1.0'
 
 
 # This is the standard logger for debugging pout itself, if it hasn't been
@@ -59,12 +59,17 @@ if len(logger.handlers) == 0:
 stream = StderrStream()
 
 
-# This will inject functions into the pout module, so if you're wondering where
-# the pout.v() method is, look at the pout.interface.V class
-#Interface.inject_classes()
-
-
 def __getattr__(name):
+    """This uses Interface.classes to match a function call on pout to an
+    Interface class
+
+    If you're wondering where the `pout.v()` function is, look at the
+    `pout.interface.V` class
+
+    :param name: str, the pout function name (eg, `pout.v`) that will match
+        to an Interface class (eg, `pout.v` will match to `pout.interface.V`)
+    :returns: callable
+    """
     interface_class = Interface.classes[name]
     module = interface_class.get_module()
 

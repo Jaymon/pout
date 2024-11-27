@@ -48,11 +48,6 @@ class Values(list):
 
         self.indexes = {}
 
-#         module = sys.modules[__name__]
-#         for ni, vi in inspect.getmembers(module, inspect.isclass):
-#             if issubclass(vi, self.cutoff_class):
-#                 self.insert(vi)
-
     def insert(self, value_class):
         index = len(self)
         for vclass in reversed(inspect.getmro(value_class)):
@@ -149,18 +144,6 @@ class Value(object):
     def typename(self):
         s = self.__class__.__name__.replace("Value", "")
         return String(s).snakecase().upper()
-
-#     @classmethod
-#     def find_class(cls, val):
-#         """Return the *Value class that represents val"""
-#         if cls is Value:
-#             if not cls.values_instance:
-#                 cls.values_instance = cls.values_class()
-# 
-#             return cls.values_instance.find_class(val)
-# 
-#         else:
-#             return cls
 
     @classmethod
     def is_valid(cls, val):
@@ -501,8 +484,6 @@ class Value(object):
 
         elif self.depth < self.OBJECT_DEPTH:
             ret = True
-#             ret = not self._seen_string_value
-#             ret = self.seen_first
 
         return ret
 

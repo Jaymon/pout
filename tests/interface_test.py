@@ -326,7 +326,6 @@ class RTest(TestCase):
     def test_run(self):
         path = testdata.create_file([
             "# -*- coding: utf-8 -*-",
-            "from __future__ import unicode_literals, division, print_function, absolute_import",
             "import pout",
             "",
             "for x in range(10):",
@@ -360,7 +359,12 @@ class VTest(TestCase):
         k = "che"
 
         with testdata.capture() as c:
-            pout.v(ret, default_val, getattr(self.issue_module, k, None), self.issue_fields.get(k, None))
+            pout.v(
+                ret,
+                default_val,
+                getattr(self.issue_module, k, None),
+                self.issue_fields.get(k, None)
+            )
         self.assertTrue('ret = ' in c)
         self.assertTrue('default_val =' in c)
         self.assertTrue('getattr(self.issue_module, k, None) = None' in c)
@@ -408,38 +412,6 @@ class VTest(TestCase):
         self.assertFalse("d (" in c)
         self.assertTrue("'foo':" in c)
         self.assertTrue("'bar':" in c)
-
-#     def test_overriding(self):
-#         """This verifies that child classes still can find the correct stack
-#         traces
-# 
-#         https://github.com/Jaymon/pout/issues/8
-#         """
-#         original_function = pout.v
-# 
-#         class Child(V):
-#             @classmethod
-#             def function_name(cls):
-#                 return "v"
-# 
-#             def name_value(self, name, body, **kwargs):
-#                 return "foo custom"
-# 
-#         Child.inject()
-# 
-#         try:
-#             with testdata.capture() as c:
-#                 v = "foo"
-#                 pout.v(v)
-#             self.assertTrue("foo custom" in c)
-# 
-#             with testdata.capture() as c:
-#                 v = "bar"
-#                 pout.v(v)
-#             self.assertTrue("bar" in c)
-# 
-#         finally:
-#             pout.v = original_function
 
     def test_issue_31(self):
         """https://github.com/Jaymon/pout/issues/31"""
@@ -492,7 +464,6 @@ class VTest(TestCase):
     def test_encoding_in_src_file(self):
         path = testdata.create_file([
             "# -*- coding: iso-8859-1 -*-",
-            "from __future__ import unicode_literals, division, print_function, absolute_import",
             "import pout",
             "",
             "# \u0087\u00EB",
@@ -524,7 +495,6 @@ class VTest(TestCase):
     def test_unicode_in_src_file(self):
         path = testdata.create_file([
             "# -*- coding: utf-8 -*-",
-            "from __future__ import unicode_literals, division, print_function, absolute_import",
             "import pout",
             "",
             "# {}".format(testdata.get_unicode_words()),
