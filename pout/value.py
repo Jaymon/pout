@@ -487,6 +487,15 @@ class Value(object):
 
         return ret
 
+    def _is_showing(self):
+        """Return True if this instance is NOT considered "seen", which means
+        it should generate its full string value
+
+        An instance, by default, is seen when its string value has been
+        fully generated once
+        """
+        return self.SHOW_ALWAYS or not self._seen_string_value
+
     def string_value(self):
         """This is the main "value" generation method, this is the method that
         should be called from external sources
@@ -522,7 +531,7 @@ class Value(object):
         elif not self.has_body():
             ret = self.empty_value()
 
-        elif self._seen_string_value:
+        elif not self._is_showing():
             ret = self.seen_value()
 
         else:

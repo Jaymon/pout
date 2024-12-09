@@ -484,6 +484,42 @@ class ValueTest(TestCase):
         self.assertEqual(1, s.count("Bar class at"))
         self.assertEqual(1, s.count("Che class at"))
 
+    def test_object_repeated_3(self):
+        """The new repeated object code was seening integers, leading
+        to arrays that just had `<int at 0x1001f8150>` entries, this makes
+        sure that is fixed
+
+        .. example:
+            l = [1, 1, 1, 1]
+            pout.v(l)
+            l = list (4)
+            ܁   [
+            ܁   ܁   0: 1,
+            ܁   ܁   1: <int at 0x1020ac0f0>,
+            ܁   ܁   2: <int at 0x1020ac0f0>,
+            ܁   ܁   3: <int at 0x1020ac0f0>
+            ܁   ]
+        """
+        l = [1, 1]
+        v = Value(l)
+        s = v.string_value()
+        self.assertEqual(3, s.count("1"))
+
+        l = ["one", "one"]
+        v = Value(l)
+        s = v.string_value()
+        self.assertEqual(2, s.count("one"))
+
+        l = [True, True]
+        v = Value(l)
+        s = v.string_value()
+        self.assertEqual(2, s.count("True"))
+
+        l = [None, None]
+        v = Value(l)
+        s = v.string_value()
+        self.assertEqual(2, s.count("None"))
+
     def test_object_1(self):
         class FooObject(object):
             bar = 1
