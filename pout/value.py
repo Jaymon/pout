@@ -368,14 +368,23 @@ class Value(object):
                     yield self.get_instance(v)
 
         try:
-            items = vars(self.val).items()
+            try:
+                items = vars(self.val).items()
 
-        except TypeError as e:
-            # Since vars() failed we are going to try and make
-            # inspect.getmembers act like vars()
-            # Also, I could get a recursion error if I tried to just do
-            # inspect.getmembers in certain circumstances, I have no idea why
-            items = inspect.getmembers(self.val)
+            except TypeError as e:
+                # Since vars() failed we are going to try and make
+                # inspect.getmembers act like vars() Also, I could get a
+                # recursion error if I tried to just do inspect.getmembers in
+                # certain circumstances, I have no idea why
+                items = inspect.getmembers(self.val)
+
+        except Exception as e:
+            items = [
+                (
+                    "<GETMEMBERS-ERROR>",
+                    e
+                )
+            ]
 
         for k, v in items:
             if SHOW_MAGIC or not self._is_magic(k):
