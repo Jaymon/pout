@@ -668,6 +668,11 @@ class Value(object):
             s_body += self._add_indent(s_str, 1)
             s_body += "\n"
 
+        def get_attr_str(k, v, indent_depth):
+            s_attr = "{} = {}".format(Color.color_attr(k), v.string_value())
+            s_attr = self._add_indent(s_attr, indent_depth)
+            return s_attr + "\n"
+
         if class_dict := info_dict["class_properties"]:
             header = Color.color_header(
                 f"Class Properties ({len(class_dict)})"
@@ -675,11 +680,7 @@ class Value(object):
             s_body += f"\n{header}:\n"
 
             for k, v in OrderedItems(class_dict):
-                k = Color.color_attr(k)
-                s_var = '{} = '.format(k)
-                s_var += v.string_value()
-                s_body += self._add_indent(s_var, 1)
-                s_body += "\n"
+                s_body += get_attr_str(k, v, 1)
 
         if instance_dict := info_dict["instance_properties"]:
             header = Color.color_header(
@@ -688,11 +689,7 @@ class Value(object):
             s_body += f"\n{header}:\n"
 
             for k, v in OrderedItems(instance_dict):
-                k = Color.color_attr(k)
-                s_var = '{} = '.format(k)
-                s_var += v.string_value()
-                s_body += self._add_indent(s_var, 1)
-                s_body += "\n"
+                s_body += get_attr_str(k, v, 1)
 
         if methods_dict := info_dict["methods"]:
             header = Color.color_header(
@@ -701,9 +698,7 @@ class Value(object):
             s_body += f"\n{header}:\n"
 
             for k, v in OrderedItems(methods_dict):
-                k = Color.color_attr(k)
-                s_body += self._add_indent(v.string_value(), 1)
-                s_body += "\n"
+                s_body += get_attr_str(k, v, 1)
 
         if self.typename == 'EXCEPTION':
             s_body += "\n"
