@@ -1370,7 +1370,7 @@ class BytesValue(StringValue):
         return (bytes, bytearray, memoryview)
 
     def start_val_value(self):
-        return "b\""
+        return Color.color_string("b\"")
 
     def val_value(self):
         try:
