@@ -649,16 +649,23 @@ class Value(object):
                     s_body += "\n"
 
         if SHOW_OBJECT_STRING and hasattr(val, "__str__"):
-            s_str = String(val)
-            strlen = len(s_str)
-            OBJECT_STRING_LIMIT = self.OBJECT_STRING_LIMIT
+            try:
+                s_str = String(val)
 
-            if strlen > OBJECT_STRING_LIMIT:
-                s_str = s_str.truncate(OBJECT_STRING_LIMIT)
-                s_str += "... Truncated {}/{} chars ...".format(
-                    strlen - OBJECT_STRING_LIMIT,
-                    strlen
-                )
+            except Exception as e:
+                s_str = f"__str__ failed with: {e}"
+                strlen = len(s_str)
+
+            else:
+                strlen = len(s_str)
+                OBJECT_STRING_LIMIT = self.OBJECT_STRING_LIMIT
+
+                if strlen > OBJECT_STRING_LIMIT:
+                    s_str = s_str.truncate(OBJECT_STRING_LIMIT)
+                    s_str += "... Truncated {}/{} chars ...".format(
+                        strlen - OBJECT_STRING_LIMIT,
+                        strlen
+                    )
 
             if s_str:
                 s_str = Color.color_string(s_str)
