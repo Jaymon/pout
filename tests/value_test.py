@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 import datetime
 import uuid
+from collections import namedtuple
 
 from . import testdata, TestCase
 
@@ -19,6 +20,7 @@ from pout.value import (
     ListValue,
     SetValue,
     TupleValue,
+    NamedTupleValue,
     StringValue,
     BytesValue,
     InstanceValue,
@@ -898,4 +900,14 @@ class ValueTest(TestCase):
         s = v.string_value()
         for header in ["Properties", "Classes", "Functions", "Modules"]:
             self.assertTrue(header in s)
+
+    def test_namedtuple(self):
+        Foo = namedtuple("Foo", "bar che")
+
+        f = Foo(1, 2)
+        v = Value(f)
+        s = v.string_value()
+        self.assertTrue("namedtuple" in s)
+        self.assertTrue("0 bar" in s)
+        self.assertTrue("1 che" in s)
 

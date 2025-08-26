@@ -1210,6 +1210,29 @@ class TupleValue(ListValue):
         return ")"
 
 
+class NamedTupleValue(TupleValue):
+    SHOW_INSTANCE_TYPE = True
+
+    @classmethod
+    def is_valid(cls, val):
+        fields = getattr(val, "_fields", None)
+        if fields is not None and isinstance(fields, tuple):
+            if field := getattr(type(val), fields[0], None):
+                return "_tuplegetter" in str(field)
+
+        return False
+
+    def name_callback(self, k):
+        if not self.SHOW_SIMPLE:
+            name = self.val._fields[k]
+            #return super().name_callback(f"{name} ({k})")
+            #return super().name_callback(f"{k}. {name}")
+            return super().name_callback(f"{k} {name}")
+
+    def _get_instance_type(self):
+        return "namedtuple"
+
+
 class GeneratorValue(TupleValue):
     """Print a generator value
 
@@ -1237,10 +1260,10 @@ class GeneratorValue(TupleValue):
         return "generator"
 
     def __iter__(self):
+        self.count = 0
         for i, v in super().__iter__():
+            self.count += 1
             yield i, v
-
-        self.count = i + 1
 
 
 class PrimitiveValue(BuiltinValue):
