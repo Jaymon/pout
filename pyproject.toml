@@ -8,7 +8,6 @@ classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Environment :: Plugins",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
   "Topic :: Software Development :: Testing",
   "Programming Language :: Python :: 3"
@@ -18,7 +17,10 @@ dynamic = [
   "version"
 ]
 readme = "README.md"
-license = { file = "LICENSE.txt" }
+license = "MIT"
+license-files = [
+  "LICENSE.txt"
+]
 
 [project.urls]
 Homepage = "https://github.com/Jaymon/pout"
