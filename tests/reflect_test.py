@@ -45,10 +45,10 @@ class CallStringTest(TestCase):
         #pout.v(":" in val)
 
     def test_is_complete_1(self):
-        c = CallString("foo(bar")
+        c = CallString("foo())")
         self.assertFalse(c.is_complete())
 
-        c = CallString("foo())")
+        c = CallString("foo(bar")
         self.assertFalse(c.is_complete())
 
         c = CallString('foo("".join(bar.che), func())')

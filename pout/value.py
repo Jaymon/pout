@@ -63,9 +63,15 @@ class Values(list):
     def find_class(self, val):
         """Return the *Value class that represents val"""
         for vcls in self:
-            if vcls.is_valid(val):
-                value_cls = vcls
-                break
+            try:
+                if vcls.is_valid(val):
+                    value_cls = vcls
+                    break
+
+            except Exception as e:
+                # any exception is considered False
+                logger.exception(e)
+
         return value_cls
 
 

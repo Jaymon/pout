@@ -7,6 +7,7 @@ import re
 import logging
 import io
 import tokenize
+import functools
 
 from .compat import *
 from . import environ
@@ -24,7 +25,40 @@ class CallString(String):
     def tokens(self):
         # https://github.com/python/cpython/blob/3.7/Lib/token.py
         logger.debug("Callstring [{}] being tokenized".format(self))
-        return tokenize.generate_tokens(StringIO(self).readline)
+
+        tokenizer = getattr(
+            tokenize, 
+            "_generate_tokens_from_c_tokenizer",
+            None,
+        )
+
+        if tokenizer:
+            # we want to fail on extra tokens (I think)
+            tokenizer = functools.partial(tokenizer, extra_tokens=False)
+
+        else:
+            # python 3.10 era will fail on extra tokens automatically
+            tokenizer = tokenize.generate_tokens
+
+        parens = []
+        return tokenizer(StringIO(self).readline)
+
+#         return tokenize._generate_tokens_from_c_tokenizer(
+#             StringIO(self).readline,
+#             extra_tokens=False,
+#         )
+
+#         for token in tokenize.generate_tokens(StringIO(self).readline):
+#             if token.string == "(":
+#                 parens.append(token)
+# 
+#             elif token.string == ")":
+# 
+# 
+# 
+# 
+# 
+#         return tokenize.generate_tokens(StringIO(self).readline)
 
     def is_complete(self):
         """Return True if this call string is complete, meaning it has a
