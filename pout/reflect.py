@@ -43,23 +43,6 @@ class CallString(String):
         parens = []
         return tokenizer(StringIO(self).readline)
 
-#         return tokenize._generate_tokens_from_c_tokenizer(
-#             StringIO(self).readline,
-#             extra_tokens=False,
-#         )
-
-#         for token in tokenize.generate_tokens(StringIO(self).readline):
-#             if token.string == "(":
-#                 parens.append(token)
-# 
-#             elif token.string == ")":
-# 
-# 
-# 
-# 
-# 
-#         return tokenize.generate_tokens(StringIO(self).readline)
-
     def is_complete(self):
         """Return True if this call string is complete, meaning it has a
         function name and balanced parens"""
