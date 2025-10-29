@@ -1547,8 +1547,8 @@ class RegexValue(InstanceValue):
     def is_valid(cls, val):
         s = repr(val)
         # SRE_Pattern check might be <py3 only
-        return "SRE_Pattern" in repr(val) \
-            or "re.compile" in s
+        return s.startswith("SRE_Pattern") \
+            or s.startswith("re.compile(")
 
     def classpath_value(self):
         return self._get_name(self.val)
