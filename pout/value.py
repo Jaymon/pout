@@ -20,6 +20,7 @@ import sqlite3
 import datetime
 import uuid
 import ast
+import enum
 
 from .compat import *
 from . import environ
@@ -1795,6 +1796,23 @@ class UUIDValue(StringLikeValue):
             ])
 
         return ret
+
+
+class EnumValue(InstanceValue):
+    """
+    https://docs.python.org/3/library/enum.html
+    """
+    @classmethod
+    def is_valid(cls, val):
+        return isinstance(val, enum.Enum)
+
+    def val_value(self):
+        return f"{self.val.name} ({self.val.value})"
+#         modname = self.val.__class__.__module__
+#         classname = self.val.__class__.__qualname__
+#         name = self.val.name
+#         return f"{modname}:{classname}.{name}"
+#         return str(val)
 
 
 class ASTValue(InstanceValue):

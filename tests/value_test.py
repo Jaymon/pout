@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import hmac
 import hashlib
 import array
@@ -7,6 +6,7 @@ from pathlib import Path
 import datetime
 import uuid
 from collections import namedtuple
+import enum
 
 from . import testdata, TestCase
 
@@ -910,4 +910,20 @@ class ValueTest(TestCase):
         self.assertTrue("namedtuple" in s)
         self.assertTrue("0 bar" in s)
         self.assertTrue("1 che" in s)
+
+    def test_enum(self):
+        class Foo1(enum.Enum):
+            BAR = 1
+
+        v = Value(Foo1.BAR)
+        s = v.string_value()
+        self.assertTrue("BAR (1)" in s)
+
+        class Foo2(enum.Flag):
+            BAR = enum.auto()
+            CHE = enum.auto()
+
+        v = Value(Foo2.BAR|Foo2.CHE)
+        s = v.string_value()
+        self.assertTrue("BAR|CHE" in s)
 
