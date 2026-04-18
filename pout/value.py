@@ -185,6 +185,19 @@ class Value(object):
 
         :param **kwargs: the passed in keywords
         """
+        # aliases for certain common values
+        if v := kwargs.pop("indent", ""):
+            self.INDENT_STRING = v
+
+        if v := kwargs.pop("depth", 0):
+            self.OBJECT_DEPTH = int(v)
+
+        if v := kwargs.pop("limit", 0):
+            self.LIMIT = int(v)
+
+        if v := kwargs.pop("simple", False):
+            self.SHOW_SIMPLE = bool(v)
+
         # we want to be able to update values based on what was passed in, so
         # if show_methods=True was passed in we want to update .SHOW_METHODS
         # for this instance
@@ -202,6 +215,7 @@ class Value(object):
             self.ITERATE_LIMIT = 0
             self.SHOW_OBJECT = False
             self.OBJECT_DEPTH = 0
+            self.INDENT_STRING = "    "
 
         if self.SHOW_SIMPLE_PREFIX:
             self.SHOW_SIMPLE_EMPTY = True
@@ -1592,10 +1606,24 @@ class RegexMatchValue(RegexValue):
             "",
         ]
 
+        names = {
+            v: k for k, v in self.val.groupdict().items() if v is not None
+        }
+
         for i, gs in enumerate(self.val.regs, 0):
             start, stop = gs
-            match = self.val.string[start:stop]
-            body.append(f"Group {i} from {start} to {stop}: {match}")
+            if start > -1 and stop > -1:
+                match = self.val.string[start:stop]
+
+                name = " "
+                if match in names:
+                    name = f" ({names[match]}) "
+
+                body.append(f"Group {i}{name}from {start} to {stop}: {match}")
+
+#         for k, v in self.val.groupdict().items():
+#             if v is not None:
+#                 body.append(f"Group {k}: {v}")
 
         return "\n".join(body)
 
@@ -1808,11 +1836,6 @@ class EnumValue(InstanceValue):
 
     def val_value(self):
         return f"{self.val.name} ({self.val.value})"
-#         modname = self.val.__class__.__module__
-#         classname = self.val.__class__.__qualname__
-#         name = self.val.name
-#         return f"{modname}:{classname}.{name}"
-#         return str(val)
 
 
 class ASTValue(InstanceValue):
