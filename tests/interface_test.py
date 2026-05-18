@@ -237,16 +237,16 @@ class XTest(TestCase):
 class SleepTest(TestCase):
     def test_run(self):
         with testdata.capture() as c:
-            pout.sleep(0.25)
+            pout.sleep(0.1)
 
         self.assertTrue("Done Sleeping" in c)
-        self.assertTrue("Sleeping 0.25 seconds" in c)
+        self.assertTrue("Sleeping 0.1 seconds" in c)
 
     def test_sleep(self):
         start = time.time()
-        pout.sleep(1.1)
+        pout.sleep(0.1)
         stop = time.time()
-        self.assertLess(1.0, stop - start)
+        self.assertLess(0.1, stop - start)
 
 
 class TTest(TestCase):

@@ -21,6 +21,8 @@ from collections import defaultdict, Counter
 import json
 import traceback
 import functools
+import tempfile
+import webbrowser
 
 from .compat import *
 from . import environ
@@ -418,6 +420,17 @@ class VI(I):
 
 
 class R(V):
+    """Similar to pout.v() but gets rid of name and file information so it
+    can be used in loops and stuff, it will print out where the calls came
+    from at the end of execution
+
+    this just makes it nicer when you're printing a bunch of stuff each
+    iteration
+
+    :example:
+        for x in range(x):
+            pout.r(x)
+    """
     calls = defaultdict(lambda: {"count": 0, "info": {}})
 
     @classmethod
@@ -451,17 +464,6 @@ class R(V):
         return super().output(*args, **kwargs).strip()
 
     def __call__(self, *args, **kwargs):
-        """Similar to pout.v() but gets rid of name and file information so it
-        can be used in loops and stuff, it will print out where the calls came
-        from at the end of execution
-
-        this just makes it nicer when you're printing a bunch of stuff each
-        iteration
-
-        :Example:
-            for x in range(x):
-                pout.r(x)
-        """
         kwargs.setdefault("show_path", False)
         super().__call__(*args, **kwargs)
         self.register()
@@ -474,16 +476,16 @@ class VR(R):
 
 
 class Sleep(Interface):
+    """Same as `time.sleep(seconds)` but prints out where it was called
+    before sleeping and then again after finishing sleeping
+
+    I just find this really handy for debugging sometimes
+
+    since -- 2017-4-27
+
+    :param seconds: float|int, how many seconds to sleep
+    """
     def __call__(self, seconds, **kwargs):
-        '''same as time.sleep(seconds) but prints out where it was called
-        before sleeping and then again after finishing sleeping
-
-        I just find this really handy for debugging sometimes
-
-        since -- 2017-4-27
-
-        :param seconds: float|int, how many seconds to sleep
-        '''
         if seconds <= 0.0:
             raise ValueError("Invalid seconds {}".format(seconds))
 
@@ -1143,4 +1145,40 @@ class F(Tofile):
 #                     return getattr(self.obj, name)
 # 
 #             return Wrapper(self, obj)
+
+
+class Browser(Interface):
+    """Open data in a browser window
+
+    This is crazy niche but is something I've needed to do every now and
+    then when wanting to see what rendered html looks like
+
+    :since: 2026-05-14
+
+    https://docs.python.org/3/library/webbrowser.html
+    https://docs.python.org/3/library/tempfile.html#tempfile.NamedTemporaryFile
+    """
+    def __call__(self, data, **kwargs):
+        """
+        :param data: the data to display in a browser window
+        :keyword ext: str, the temp path extension, defaults to `html`
+        """
+        temp_kwargs = {
+            "suffix": "." + kwargs.get("ext", "html"),
+            "delete": False,
+            "delete_on_close": False,
+        }
+
+        if isinstance(data, str):
+            temp_kwargs["mode"] = "w+"
+            temp_kwargs["encoding"] = environ.ENCODING
+
+        with tempfile.NamedTemporaryFile(**temp_kwargs) as fp:
+#             mode="w+",
+#             suffix=ext,
+#             encoding=environ.ENCODING,
+#         ) as fp:
+            fp.write(data)
+
+        webbrowser.open(f"file://{fp.name}", new=1)
 
