@@ -512,7 +512,8 @@ class H(Interface):
     def body_value(self, count, **kwargs):
         call_info = self.reflect.info
         count = int(count or 0)
-        return "here {} ".format(count if count > 0 else call_info['line'])
+        s = "here {} ".format(count if count > 0 else call_info['line'])
+        return Color.color_string(s)
 
 
 class B(Interface):
