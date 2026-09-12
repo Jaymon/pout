@@ -460,6 +460,20 @@ class Call(object):
         )
 
 
+class Caller(object):
+    """This provides information for where the found call came from.
+
+    This is available to interfaces from the `Reflect.caller` property
+    """
+    def __init__(self, frame_info):
+        self.modname = frame_info.frame.f_globals.get("__name__")
+        self.funcname = frame_info.frame.f_code.co_name
+
+        instance = frame_info.frame.f_locals.get("self")
+        if instance is not None:
+            self.classname = type(instance).__qualname__
+
+
 class Reflect(object):
     """This provides the meta information (file, line number) for the actual
     pout call
@@ -470,17 +484,19 @@ class Reflect(object):
         self.arg_vals = function_arg_vals or []
 
     def __enter__(self):
-        frame = frames = None
+        frames = None
 
         try:
             # we want to get the frame of the current pout.* call
             frames = inspect.stack()
-            frame = frames[1]
+
             self.call = Call(
                 self.module.__name__,
                 self.module_function_name,
-                frame
+                frames[1],
             )
+
+            self.caller = Caller(frames[2])
 
         except IndexError as e:
             # There was a very specific bug that would cause
@@ -490,6 +506,7 @@ class Reflect(object):
             # now catch the IndexError that inspect was throwing
             #logger.exception(e)
             self.call = None
+            self.caller = None
 
         self.info = self._get_arg_info()
 

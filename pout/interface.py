@@ -512,6 +512,13 @@ class H(Interface):
     def body_value(self, count, **kwargs):
         call_info = self.reflect.info
         count = int(count or 0)
+
+#         if count > 0:
+#             s = f"here {count}"
+# 
+#         else:
+#             s = "{}.{}.{}"
+
         s = "here {} ".format(count if count > 0 else call_info['line'])
         return Color.color_string(s)
 
@@ -1182,4 +1189,34 @@ class Browser(Interface):
             fp.write(data)
 
         webbrowser.open(f"file://{fp.name}", new=1)
+
+
+class Colors(Interface):
+    """Prints all the supported colors to the screen. This is more of an
+    internal developer method that I use sometimes to figure out what color
+    to make something and things like that.
+
+    :since 2026-09-12:
+        """
+    def body_value(self, *args, **kwargs):
+        lines = []
+
+        for color_name in Color.COLOR_NAMES:
+            bcolor_name = f"BRIGHT{color_name}"
+
+            lines.append(
+                Color.color(f"{color_name} foreground", fg=color_name),
+            )
+            lines.append(
+                Color.color(f"{color_name} background", bg=color_name),
+            )
+            lines.append(
+                Color.color(f"{bcolor_name} foreground", fg=bcolor_name),
+            )
+            lines.append(
+                Color.color(f"{bcolor_name} background", bg=bcolor_name),
+            )
+        lines.append("")
+
+        return "\n".join(lines)
 

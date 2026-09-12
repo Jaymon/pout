@@ -207,6 +207,17 @@ class OrderedItems(object):
 
 
 class Color(object):
+    COLOR_NAMES: tuple[str] = (
+        "BLACK",
+        "RED",
+        "GREEN",
+        "YELLOW",
+        "BLUE",
+        "MAGENTA",
+        "CYAN",
+        "WHITE"
+    )
+
     @classmethod
     def color_header(cls, text):
         """The color/formatting for section headers for things like classes"""
@@ -275,16 +286,7 @@ class Color(object):
         :returns: str, text wrapped with terminal color if supported
         """
         if text and environ.has_color_support():
-            color_names = (
-                "BLACK",
-                "RED",
-                "GREEN",
-                "YELLOW",
-                "BLUE",
-                "MAGENTA",
-                "CYAN",
-                "WHITE"
-            )
+            color_names = cls.COLOR_NAMES
             foreground = {color_names[x]: f"3{x}" for x in range(8)}
             background = {color_names[x]: f"4{x}" for x in range(8)}
 
