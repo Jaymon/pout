@@ -466,12 +466,20 @@ class Caller(object):
     This is available to interfaces from the `Reflect.caller` property
     """
     def __init__(self, frame_info):
-        self.modname = frame_info.frame.f_globals.get("__name__")
+        self.modpath = frame_info.frame.f_globals.get("__name__")
         self.funcname = frame_info.frame.f_code.co_name
 
+#         if self.funcname.startswith("<"):
+#             self.funcname = ""
+
+        self.classpath = ""
         instance = frame_info.frame.f_locals.get("self")
         if instance is not None:
-            self.classname = type(instance).__qualname__
+            self.classpath = type(instance).__qualname__
+
+        #print(self.modpath)
+        #print(self.classpath)
+        #print(self.funcname)
 
 
 class Reflect(object):

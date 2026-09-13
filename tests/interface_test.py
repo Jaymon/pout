@@ -974,7 +974,7 @@ class ToFileTest(TestCase):
             s = "foobar"
             pout.b()
             pout.v(s)
-            pout.h()
+            pout.h(1)
 
         r = path.read_text()
         self.assertTrue("foobar" in r)

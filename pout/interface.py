@@ -513,14 +513,25 @@ class H(Interface):
         call_info = self.reflect.info
         count = int(count or 0)
 
-#         if count > 0:
-#             s = f"here {count}"
-# 
-#         else:
-#             s = "{}.{}.{}"
+        if count > 0:
+            s = Color.color_string(f"here {count} ")
 
-        s = "here {} ".format(count if count > 0 else call_info['line'])
-        return Color.color_string(s)
+        else:
+            parts = []
+            if modpath := self.reflect.caller.modpath:
+                parts.append(Color.color(modpath, fg="cyan"))
+
+            if classpath := self.reflect.caller.classpath:
+                parts.append(Color.color(classpath, fg="magenta"))
+
+            if funcname := self.reflect.caller.funcname:
+                parts.append(Color.color(funcname, fg="blue"))
+
+            s = ".".join(parts)
+            s += " " + Color.color_string(str(call_info['line'])) + " "
+
+        #s = "here {} ".format(count if count > 0 else call_info['line'])
+        return s
 
 
 class B(Interface):

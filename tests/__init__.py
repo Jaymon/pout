@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 import sys
-#import imp
 import importlib
 import logging
 
@@ -16,7 +14,7 @@ try:
     # https://stackoverflow.com/a/50028745/5006
     pout2 = importlib.machinery.PathFinder().find_spec(
         "pout",
-        [SitePackagesDir()]
+        [SitePackagesDir()],
     )
 
 except ImportError:
