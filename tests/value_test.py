@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 import datetime
 import uuid
-from collections import namedtuple
+from collections import namedtuple, UserString
 import enum
 
 from . import testdata, TestCase
@@ -368,6 +368,14 @@ class ValueTest(TestCase):
         v = Value("foo bar")
         r = v.string_value()
         self.assertTrue("str (7)" in r, r)
+        self.assertTrue("foo bar" in r, r)
+
+    def test_userstring(self):
+        s = UserString("foo bar")
+        v = Value(s)
+        self.assertTrue(isinstance(v, StringValue))
+        r = v.string_value()
+        self.assertTrue("UserString (7)" in r, r)
         self.assertTrue("foo bar" in r, r)
 
     def test_bytes_1(self):

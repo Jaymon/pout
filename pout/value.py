@@ -14,7 +14,7 @@ import array
 from pathlib import PurePath
 from types import MappingProxyType
 from collections.abc import MappingView
-from collections import Counter
+from collections import Counter, UserString
 import functools
 import sqlite3
 import datetime
@@ -1349,7 +1349,7 @@ class StringValue(BuiltinValue):
 
     @classmethod
     def get_types(cls):
-        return str
+        return (str, UserString)
 
     def count_value(self):
         return len(self.val)
