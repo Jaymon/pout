@@ -14,7 +14,7 @@ import array
 from pathlib import PurePath
 from types import MappingProxyType
 from collections.abc import MappingView
-from collections import Counter, UserString
+from collections import Counter, UserString, UserList
 import functools
 import sqlite3
 import datetime
@@ -1148,7 +1148,7 @@ class SQLiteRowValue(DictValue):
 class ListValue(DictValue):
     @classmethod
     def get_types(cls):
-        return (list,)
+        return (list, UserList)
 
     def name_callback(self, k):
         """Returns just a string representation of the integer k

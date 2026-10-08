@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 import datetime
 import uuid
-from collections import namedtuple, UserString
+from collections import namedtuple, UserString, UserList
 import enum
 
 from . import testdata, TestCase
@@ -308,6 +308,13 @@ class ValueTest(TestCase):
         r = v.string_value()
         self.assertTrue("list (2)" in r)
 
+    def test_userlist(self):
+        s = UserList(["foo", "bar"])
+        v = Value(s)
+        self.assertTrue(isinstance(v, ListValue))
+        r = v.string_value()
+        self.assertTrue("UserList (2)" in r)
+
     def test_array(self):
         a = array.array("i", range(0, 10))
         v = Value(a, show_instance_type=True)
@@ -358,7 +365,7 @@ class ValueTest(TestCase):
         r = v.string_value()
         self.assertTrue("tuple (4) instance" in r)
 
-    def test_string(self):
+    def test_string_1(self):
         v = Value("")
         self.assertTrue(isinstance(v, StringValue))
 
@@ -369,6 +376,11 @@ class ValueTest(TestCase):
         r = v.string_value()
         self.assertTrue("str (7)" in r, r)
         self.assertTrue("foo bar" in r, r)
+
+#     def test_string_whitespace(self):
+#         v = Value("\n")
+#         r = v.string_value()
+#         print(r)
 
     def test_userstring(self):
         s = UserString("foo bar")
