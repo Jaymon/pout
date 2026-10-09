@@ -223,7 +223,12 @@ class Interface(object):
         return s
 
     def input(self, *args, **kwargs):
-        """normalize the arguments passed into the interface
+        """normalize the arguments passed into the interface, just the
+        arguments, not the keywords, the keywords passed into the interface
+        will be passed on regardless.
+
+        This basically determines how many loops the interface will do (eg,
+        `pout.v(foo, bar)` will do 2 loops, one for `foo` and one for `bar`) 
 
         this is called from .output() and is used by .output() to put together
         the full output
@@ -544,6 +549,7 @@ class B(Interface):
         1 arg = title if string/variable, rows if int
         2 args = title, int
         3 args = title, int, sep
+    :keyword width: int, defaults to 80, sets the width of each line
     '''
     def input(self, *args, **kwargs):
         yield None, args
@@ -553,13 +559,13 @@ class B(Interface):
 
         lines = []
 
-        title = ''
+        title = ""
         rows = 1
-        sep = '*'
+        sep = "*"
 
         if len(args) == 1:
             v = Value(args[0])
-            if v.typename in set(['STRING', 'BYTES']):
+            if v.typename in set(["STRING", "BYTES"]):
                 title = args[0]
 
             elif v.typename in set(["INT"]):
@@ -586,9 +592,9 @@ class B(Interface):
         half_rows = int(math.floor(rows / 2))
         is_even = (rows >= 2) and ((rows % 2) == 0)
 
-        line_len = title_len = 80
+        line_len = title_len = kwargs.get("width", 80)
         if title:
-            title = ' {} '.format(String(title))
+            title = " {} ".format(String(title))
             title_len = len(title)
             if title_len > line_len:
                 line_len = title_len
@@ -605,7 +611,7 @@ class B(Interface):
             for x in range(rows):
                 lines.append(sep * line_len)
 
-        lines.append('')
+        lines.append("")
         return "\n".join(lines)
 
 

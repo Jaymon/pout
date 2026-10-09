@@ -185,6 +185,18 @@ class BTest(TestCase):
             pout.b('this is the title 3', 3, '=')
         self.assertTrue("= this is the title 3 =" in c)
 
+    def test_width(self):
+        """
+        https://github.com/Jaymon/pout/issues/112
+        """
+        with testdata.capture() as c:
+            pout.b(width=10)
+
+        self.assertEqual(10, c.count("*"))
+        #print(c)
+        #self.assertTrue(("*" * 10) in c)
+        #self.assertTrue("*" in c)
+
 
 class PTest(TestCase):
     def test_p_one_level(self):
